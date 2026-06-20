@@ -20,7 +20,7 @@ $VERSION = "1.5.1"
 # ========== 配置 ==========
 $Script:InstallDir = Join-Path $env:LOCALAPPDATA "SessionMaster"
 $Script:Port = if ($env:PORT) { $env:PORT } else { "5789" }
-$Script:ServerJsUrl = "https://raw.githubusercontent.com/BenSongLab/session-master/main/src/server/server.js"
+$Script:ServerJsUrl = "https://raw.githubusercontent.com/benson-album/session-master/main/src/server/server.js"
 $Script:DataDir = Join-Path $Script:InstallDir "data"
 $Script:LogFile = Join-Path $Script:DataDir "server.log"
 $Script:ConfigFile = Join-Path $Script:DataDir "config.json"
