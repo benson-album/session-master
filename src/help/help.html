@@ -81,21 +81,21 @@
       min-height: calc(100vh - 88px);
     }
 
-    /* ===== 左侧边栏（粘性定位，底部自适应） ===== */
+    /* ===== 左侧边栏（粘性定位，内部可滚动） ===== */
     .sidebar {
       width: var(--sidebar-width);
       flex-shrink: 0;
       position: sticky;
       top: 70px;
       align-self: stretch;
-      max-height: calc(100vh - 85px);
-      overflow-y: auto;
     }
     .sidebar-inner {
       background: var(--card);
       border-radius: 12px;
       padding: 12px 0;
       box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+      max-height: calc(100vh - 85px);
+      overflow-y: auto;
     }
     .sidebar h3 {
       font-size: 14px;
@@ -543,9 +543,21 @@
         <table>
           <tr><th>功能</th><th>说明</th><th>难度</th></tr>
           <tr><td>🍪 Cookie 手动同步</td><td>手动导出 Cookie 文本，在另一台电脑导入</td><td>⭐ 简单</td></tr>
-          <tr><td>☁️ 云端自动同步</td><td>两台设备通过中继服务器自动双向同步 Cookie</td><td>⭐⭐ 中等</td></tr>
-          <tr><td>🛡️ 踢人请求拦截</td><td>自动阻止浏览器检测多设备登录的请求</td><td>⭐ 自动</td></tr>
           <tr><td>💓 会话保活</td><td>定时发送心跳请求防止 Cookie 过期</td><td>⭐ 简单</td></tr>
+          <tr><td>🔗 P2P 直连同步</td><td>多台设备通过 WebRTC 直连组网，零服务器中转，默认同步模式</td><td>⭐⭐ 中等</td></tr>
+          <tr><td>☁️ 云端自动同步</td><td>多台设备通过中继服务器自动双向同步 Cookie</td><td>⭐⭐ 中等</td></tr>
+          <tr><td>🛡️ 踢人请求拦截</td><td>自动阻止浏览器检测多设备登录的请求</td><td>⭐ 自动</td></tr>
+        </table>
+
+        <h3 id="mode-compare">同步模式对比</h3>
+        <table>
+          <tr><th>对比项</th><th>🔗 P2P 直连</th><th>☁️ 云端同步（服务器）</th></tr>
+          <tr><td>网络要求</td><td>同一局域网 / 公网直连可达</td><td>设备能访问服务器即可</td></tr>
+          <tr><td>最多设备数</td><td>多台（组网直连）</td><td>多台（一对多）</td></tr>
+          <tr><td>是否需要服务器</td><td>需要轻量信令服务器（用于握手，传输 Cookie 不经服务器）</td><td>需要同步服务器（用于中转 Cookie 数据）</td></tr>
+          <tr><td>数据路径</td><td>WebRTC 加密直连，不经服务端</td><td>经服务器 AES-256-GCM 加密中转</td></tr>
+          <tr><td>传输速度</td><td>快（局域网直连）</td><td>受服务器带宽影响</td></tr>
+          <tr><td>推荐场景</td><td>多台设备在同一网络</td><td>3 台以上 / 跨互联网</td></tr>
         </table>
 
         <div class="tip info">
