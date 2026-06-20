@@ -357,37 +357,51 @@ pm2 save</pre>
     <h3 id="download-files">3.2 下载服务器文件</h3>
     <p>需要部署同步服务器的用户，可从这里下载所需文件：</p>
     <div id="fileDownloadArea" style="background:#f8f9fa;border-radius:8px;padding:12px;margin:10px 0">
-      <p style="font-size:13px;margin-bottom:8px;color:#555">📂 文件清单（点击文件名保存）：</p>
+      <p style="font-size:13px;margin-bottom:8px;color:#555">📂 文件清单（点击文件名或下载按钮保存）：</p>
       <div id="fileList">
         <p style="color:#888;font-size:12px">正在加载文件列表...</p>
       </div>
       <p style="font-size:11px;color:#888;margin-top:8px;border-top:1px solid #e0e0e0;padding-top:6px">
-        💡 右键点击文件名 → 「另存为」保存。部署方法见上方 3.1 节。
+        💡 文件路径：插件源码 <code>src/server/server.js</code> 和 <code>src/deploy/</code> 目录
       </p>
     </div>
 
     <script>
     (function() {
-      const files = [
-        { path: 'server/server.js', name: 'server.js', desc: '同步服务器（核心程序，零依赖）' },
-        { path: 'deploy/Dockerfile', name: 'Dockerfile', desc: 'Docker 镜像构建文件' },
+      var files = [
+        { path: 'server/server.js', name: 'server.js', desc: '同步服务器（核心程序，零依赖，支持信令/P2P/云同步）' },
+        { path: 'deploy/server.js', name: 'deploy-server.js', desc: 'Docker 版同步服务器（与 server.js 同步更新）' },
+        { path: 'deploy/Dockerfile', name: 'Dockerfile', desc: 'Docker 镜像构建文件（node:22-alpine）' },
         { path: 'deploy/docker-compose.yaml', name: 'docker-compose.yaml', desc: 'Docker Compose 编排配置' },
-        { path: 'deploy/deploy.sh', name: 'deploy.sh', desc: '一键部署脚本' }
+        { path: 'deploy/deploy.sh', name: 'deploy.sh', desc: '一键部署脚本（SCP + Docker）' }
       ];
       
-      const container = document.getElementById('fileList');
+      var container = document.getElementById('fileList');
       if (!container) return;
       
-      container.innerHTML = files.map(f => {
-        const url = chrome.runtime.getURL(f.path);
-        return '<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid #eee">' +
-          '<div style="flex:1">' +
-            '<a href="' + url + '" download="' + f.name + '" style="font-family:monospace;font-size:13px;color:#1a73e8;text-decoration:none" target="_blank">📄 ' + f.name + '</a>' +
+      var html = '';
+      for (var i = 0; i < files.length; i++) {
+        var f = files[i];
+        var url = '';
+        try {
+          if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.getURL) {
+            url = chrome.runtime.getURL(f.path);
+          }
+        } catch(e) {}
+        var linkHtml = url
+          ? '<a href="' + url + '" download="' + f.name + '" style="font-family:monospace;font-size:13px;color:#1a73e8;text-decoration:none" target="_blank">📄 ' + f.name + '</a>'
+          : '<span style="font-family:monospace;font-size:13px;color:#555">📄 ' + f.name + '</span>';
+        var btnHtml = url
+          ? '<a href="' + url + '" download="' + f.name + '" style="padding:4px 10px;background:#1a73e8;color:white;border-radius:4px;font-size:12px;text-decoration:none;white-space:nowrap" target="_blank">⬇ 下载</a>'
+          : '<span style="padding:4px 10px;background:#ccc;color:#fff;border-radius:4px;font-size:12px">—</span>';
+        html += '<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid #eee">' +
+          '<div style="flex:1">' + linkHtml +
             '<br><span style="font-size:11px;color:#888">' + f.desc + '</span>' +
           '</div>' +
-          '<a href="' + url + '" download="' + f.name + '" style="padding:4px 10px;background:#1a73e8;color:white;border-radius:4px;font-size:12px;text-decoration:none;white-space:nowrap" target="_blank">⬇ 下载</a>' +
+          btnHtml +
         '</div>';
-      }).join('');
+      }
+      container.innerHTML = html;
     })();
     </script>
 
@@ -525,26 +539,50 @@ pm2 save</pre>
     <h2>四、🛡️ 踢人请求拦截</h2>
     <p>
       很多 OA 系统通过浏览器定时发送 AJAX 请求来检测是否有其他设备登录。
-      插件内置了 9 条通用拦截规则，自动阻止这类检测。
+      插件内置了<strong>按网站分类的规则库</strong>，自动匹配当前站点并应用对应规则。
     </p>
 
-    <table>
-      <tr><th>拦截关键词</th><th>用途</th></tr>
-      <tr><td><code>method=checkSession</code></td><td>会话检测</td></tr>
-      <tr><td><code>method=secondLogin</code></td><td>二次登录检测</td></tr>
-      <tr><td><code>loginCheck</code></td><td>登录核查</td></tr>
-      <tr><td><code>sessionTimeout</code></td><td>会话超时检测</td></tr>
-      <tr><td><code>forcedOffline</code></td><td>强制离线</td></tr>
-      <tr><td><code>kickOut</code></td><td>踢人请求</td></tr>
-      <tr><td><code>singleLogin</code></td><td>单设备登录检测</td></tr>
-      <tr><td><code>duplicateLogin</code></td><td>重复登录检测</td></tr>
-      <tr><td><code>conflictLogin</code></td><td>登录冲突检测</td></tr>
-    </table>
+    <h3>智能匹配规则</h3>
+    <p>
+      打开插件 → 「🛡️ 拦截 Tab」，插件会根据当前访问的网站域名自动匹配推荐规则。
+      匹配到站点时会显示该站点的专用关键词列表，同时通用规则始终生效。
+    </p>
+
+    <h3>规则库管理</h3>
+    <p>拦截 Tab 底部提供三种管理方式：</p>
+    <div class="step">
+      <div class="step-num">📥</div>
+      <div class="step-content"><strong>导入规则库</strong>点击「导入」按钮，选择 <code>.json</code> 格式的规则文件，一键替换规则库</div>
+    </div>
+    <div class="step">
+      <div class="step-num">📤</div>
+      <div class="step-content"><strong>导出规则库</strong>点击「导出」按钮，将当前规则库保存为 JSON 文件，方便备份或分享</div>
+    </div>
+    <div class="step">
+      <div class="step-num">🔄</div>
+      <div class="step-content"><strong>从服务器更新</strong>如果规则库配置了 <code>updateUrl</code>，点击即可从远程拉取最新规则</div>
+    </div>
+
+    <h3>规则库文件格式</h3>
+    <pre>{
+  "version": 1,
+  "updateUrl": "https://你的服务器/rules.json",
+  "sites": [
+    {
+      "id": "seeyon",
+      "name": "致远OA",
+      "domains": ["*.seeyon.com"],
+      "keywords": ["checkSession", "secondLogin", "singleLogin"]
+    }
+  ],
+  "generic": ["loginCheck", "singleLogin", "kickOut"]
+}</pre>
+    <p>规则库文件存放在源码 <code>src/blocking_rules_db.json</code>，可自行编辑后重新打包加载。</p>
 
     <h3>添加自定义规则</h3>
     <p>
-      如果 OA 使用的检测关键词不在内置列表中，你可以用浏览器的 F12 → Network 抓包，
-      找到相关请求的 URL 中的关键词，然后在「拦截 Tab」中添加。
+      除了规则库外，你还可以在「➕ 自定义规则」区域手动添加 URL 关键词。
+      这些规则会通过 <code>declarativeNetRequest</code> API 动态生效。
     </p>
     <div class="step">
       <div class="step-num">1</div>

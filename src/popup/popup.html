@@ -60,8 +60,9 @@
         <div class="section-title"><span>💓 会话保活</span></div>
         <p class="hint" style="margin-bottom:8px">定时请求指定 URL，防止 Cookie 过期失效。</p>
         <div class="input-row">
-          <input type="text" id="heartbeatUrl" placeholder="保活 URL，如 /main.do?method=keepAlive">
-          <select id="heartbeatInterval">
+          <input type="text" id="heartbeatUrl" placeholder="保活 URL，如 /main.do?method=keepAlive" style="flex:1">
+          <button id="btnFillUrl" class="btn-small" title="填入当前页面地址" style="padding:4px 8px;font-size:14px;border-radius:4px;border:1px solid #ddd;background:#f8f9fa;cursor:pointer">📌</button>
+          <select id="heartbeatInterval" style="width:70px">
             <option value="5">5 分钟</option>
             <option value="10" selected>10 分钟</option>
             <option value="30">30 分钟</option>
@@ -84,9 +85,9 @@
     <div id="tab-sync" class="tab-content">
       
       <!-- 模式切换 -->
-      <div class="sync-mode-toggle" style="display:flex;gap:4px;margin-bottom:8px;background:#f1f3f4;border-radius:6px;padding:3px">
-        <button id="modeP2P" class="sync-mode-btn active" style="flex:1;padding:6px;border:none;border-radius:4px;cursor:pointer;font-size:13px;font-weight:600">🔗 P2P 直连</button>
-        <button id="modeServer" class="sync-mode-btn" style="flex:1;padding:6px;border:none;border-radius:4px;cursor:pointer;font-size:13px;color:#666">🖥️ 服务器模式</button>
+      <div class="sync-mode-toggle">
+        <button id="modeP2P" class="sync-mode-btn active">🔗 P2P 直连</button>
+        <button id="modeServer" class="sync-mode-btn">🖥️ 服务器模式</button>
       </div>
       
       <!-- ===== P2P 模式界面 ===== -->
@@ -132,6 +133,8 @@
               <p style="font-size:11px;color:#666;margin-top:4px">数据直连传输，不经过服务器</p>
             </div>
             
+            <p id="p2pConnectionTime" class="connection-time" style="display:none"></p>
+            
             <!-- 同步开关 -->
             <div class="sync-toggle-row">
               <span class="sync-toggle-label">🔄 P2P 自动同步</span>
@@ -159,9 +162,7 @@
         <!-- P2P 同步记录 -->
         <div id="p2pLogSection" class="section" style="display:none">
           <div class="section-title"><span>📋 同步记录</span></div>
-          <div id="p2pLogContent" class="sync-log">
-            <p class="hint">暂无同步记录</p>
-          </div>
+          <div id="p2pLogContent" class="sync-log"></div>
         </div>
         
         <!-- P2P 帮助提示 -->
@@ -172,8 +173,11 @@
             <span style="color:#666">需要一台信令服务器协助握手（仅需几十毫秒）。</span>
           </div>
           <div class="form-row" style="margin-top:6px">
-            <label>信令服务器地址 <span id="signalHelpIcon" style="cursor:pointer;color:#1a73e8;font-size:14px;font-weight:bold" title="点击查看信令服务器说明">❔</span></label>
-            <input type="text" id="p2pSignalUrl" placeholder="http://你的服务器:5789" style="font-size:11px">
+            <label>信令服务器地址</label>
+            <div style="display:flex;gap:4px;align-items:center">
+              <input type="text" id="p2pSignalUrl" placeholder="http://你的服务器:5789" style="font-size:11px;flex:1">
+              <span id="signalHelpIcon" style="cursor:pointer;color:#999;font-size:11px;width:18px;height:18px;display:inline-flex;align-items:center;justify-content:center;border-radius:50%;border:1px solid #ccc;flex-shrink:0" title="点击查看信令服务器说明">?</span>
+            </div>
             <p class="form-hint" style="font-size:10px">高级选项：如果自己部署了信令服务，可修改此地址</p>
           </div>
         </div>
@@ -191,6 +195,7 @@
             </label>
           </div>
           <div id="syncStatus" class="sync-status">未启用</div>
+          <p id="serverConnectionTime" class="connection-time" style="display:none"></p>
         </div>
         
         <!-- 配置区域 -->
@@ -198,8 +203,11 @@
           <div class="section-title"><span>⚙️ 同步配置</span></div>
           
           <div class="form-row">
-            <label>服务器地址 <span id="serverHelpIcon" style="cursor:pointer;color:#1a73e8;font-size:14px;font-weight:bold" title="点击查看服务器部署说明">❔</span></label>
-            <input type="text" id="syncServerUrl" placeholder="http://你的服务器:5789">
+            <label>服务器地址</label>
+            <div style="display:flex;gap:4px;align-items:center">
+              <input type="text" id="syncServerUrl" placeholder="http://你的服务器:5789" style="flex:1">
+              <span id="serverHelpIcon" style="cursor:pointer;color:#999;font-size:11px;width:18px;height:18px;display:inline-flex;align-items:center;justify-content:center;border-radius:50%;border:1px solid #ccc;flex-shrink:0" title="点击查看服务器部署说明">?</span>
+            </div>
           </div>
           
           <div class="form-row">
@@ -264,27 +272,27 @@
     
     <!-- ======= Tab: 拦截 ======= -->
     <div id="tab-blocker" class="tab-content">
+      <!-- 当前站点推荐规则 -->
+      <div class="section" id="recommendedSection" style="display:none">
+        <div class="section-title"><span>📋 当前站点推荐规则</span></div>
+        <div id="recommendedRules" class="hint" style="font-size:12px">加载中...</div>
+      </div>
+
+      <!-- 所有内置规则（按网站归类） -->
       <div class="section">
-        <div class="info-row">
-          <span>内置拦截规则（自动生效）</span>
-          <span class="badge badge-green">9 条</span>
+        <div class="section-title">
+          <span>📂 拦截规则库</span>
+          <span id="ruleDBCount" class="badge badge-green" style="font-size:11px">加载中</span>
         </div>
         <details class="rules-detail">
-          <summary>查看内置规则</summary>
-          <ul class="rule-list">
-            <li>method=checkSession</li>
-            <li>method=secondLogin</li>
-            <li>loginCheck</li>
-            <li>sessionTimeout</li>
-            <li>forcedOffline</li>
-            <li>kickOut</li>
-            <li>singleLogin</li>
-            <li>duplicateLogin</li>
-            <li>conflictLogin</li>
-          </ul>
+          <summary>查看所有网站规则</summary>
+          <div id="ruleDBList" style="margin-top:6px">
+            <p class="hint">加载中...</p>
+          </div>
         </details>
       </div>
-      
+
+      <!-- 自定义规则 -->
       <div class="section">
         <div class="section-title"><span>➕ 自定义规则</span></div>
         <div class="input-row">
@@ -294,6 +302,38 @@
         <div id="userRules" class="rule-list-container">
           <p class="hint">暂无自定义规则</p>
         </div>
+      </div>
+
+      <!-- 当前站点 Cookie 列表 -->
+      <div class="section">
+        <div class="section-title"><span>🍪 当前站点 Cookie</span></div>
+        <p class="hint" style="margin-bottom:6px;font-size:11px">
+          从 <strong id="cookieSiteLabel" style="color:#1a73e8">当前站点</strong> 获取的 Cookie 列表。
+          勾选 Cookie 名称后加入自定义规则，可拦截含该名称的请求。
+          提示：Cookie 名称（如 JSESSIONID）与规则库中的 URL 关键词是不同维度的拦截方式。
+        </p>
+        <button id="btnLoadCookies" class="btn btn-primary" style="width:100%;font-size:12px;padding:6px">🔄 获取当前站点 Cookie</button>
+        <div id="cookieListArea" style="display:none;margin-top:6px">
+          <div id="cookieItems" style="max-height:150px;overflow-y:auto;border:1px solid #eee;border-radius:4px;padding:4px"></div>
+          <div style="display:flex;gap:4px;margin-top:6px">
+            <button id="btnAddSelectedCookies" class="btn btn-primary" style="flex:1;font-size:12px;padding:5px">➕ 加入自定义规则</button>
+            <button id="btnSelectAllCookies" class="btn-small" style="font-size:11px">全选</button>
+            <button id="btnUnselectAllCookies" class="btn-small" style="font-size:11px">清除</button>
+          </div>
+          <p id="cookieSelectHint" class="hint" style="margin-top:4px"></p>
+        </div>
+      </div>
+
+      <!-- 规则库管理 -->
+      <div class="section">
+        <div class="section-title"><span>⚙️ 规则库管理</span></div>
+        <div class="btn-group" style="margin-bottom:6px">
+          <button id="btnExportRules" class="btn btn-secondary" style="flex:1;font-size:12px;padding:6px">📤 导出</button>
+          <button id="btnImportRules" class="btn btn-primary" style="flex:1;font-size:12px;padding:6px">📥 导入</button>
+        </div>
+        <button id="btnUpdateRules" class="btn btn-secondary" style="width:100%;font-size:12px;padding:6px">🔄 从服务器更新规则</button>
+        <p id="rulesUpdateStatus" class="hint" style="margin-top:4px;display:none"></p>
+        <input type="file" id="importRulesFile" accept=".json" style="display:none">
       </div>
     </div>
     

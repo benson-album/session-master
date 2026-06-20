@@ -49,7 +49,7 @@
   },
   "web_accessible_resources": [
     {
-      "resources": ["help/*", "server/*", "deploy/*", "blocking_rules.json"],
+      "resources": ["help/*", "server/*", "deploy/*", "blocking_rules.json", "blocking_rules_db.json"],
       "matches": ["<all_urls>"]
     }
   ]

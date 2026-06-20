@@ -23,6 +23,7 @@ REQUIRED_FILES=(
   "$SRC_DIR/background.js"
   "$SRC_DIR/content.js"
   "$SRC_DIR/blocking_rules.json"
+  "$SRC_DIR/blocking_rules_db.json"
   "$SRC_DIR/icons/icon128.svg"
   "$SRC_DIR/popup/popup.html"
   "$SRC_DIR/popup/popup.js"

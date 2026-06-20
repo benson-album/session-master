@@ -95,6 +95,8 @@ const DEFAULT_SYNC_CONFIG = {
   p2pPairKey: '',
   p2pDeviceName: '',
   p2pConnected: false,
+  p2pConnectedAt: null,
+  p2pConnectedPeerName: '',
   // 服务器模式
   serverUrl: 'http://你的服务器:5789',
   pairKey: '',
@@ -202,6 +204,9 @@ async function initiateP2PConnection(signalUrl, roomId, fromPeer, toPeer, device
 
   channel.onopen = () => {
     console.log('[SessionMaster P2P] 数据通道已打开:', toPeer);
+    const connectedAt = new Date().toISOString();
+    addSyncHistoryEntry('p2p_connect', '已连接到 ' + (deviceName || toPeer));
+    saveSyncConfig({ p2pConnectedAt: connectedAt, p2pConnectedPeerName: deviceName || toPeer });
     channel.onmessage = async (event) => {
       try {
         const msg = JSON.parse(event.data);
@@ -209,7 +214,7 @@ async function initiateP2PConnection(signalUrl, roomId, fromPeer, toPeer, device
       } catch (e) { console.warn('[P2P] 消息解析失败:', e); }
     };
     p2pSync(toPeer);
-    chrome.runtime.sendMessage({ action: 'p2pStatusUpdate', connected: true, peerId: toPeer });
+    chrome.runtime.sendMessage({ action: 'p2pStatusUpdate', connected: true, peerId: toPeer, connectedAt, peerName: deviceName || '' });
   };
 
   channel.onclose = () => {
@@ -228,11 +233,13 @@ async function initiateP2PConnection(signalUrl, roomId, fromPeer, toPeer, device
     p2pConnections[toPeer].channel = rc;
     rc.onopen = () => {
       console.log('[SessionMaster P2P] 接收数据通道已打开:', toPeer);
+      const connectedAt = new Date().toISOString();
+      saveSyncConfig({ p2pConnectedAt: connectedAt, p2pConnectedPeerName: '' });
       rc.onmessage = async (ev) => {
         try { await handleP2PMessage(JSON.parse(ev.data), toPeer); } catch (e) {}
       };
       p2pSync(toPeer);
-      chrome.runtime.sendMessage({ action: 'p2pStatusUpdate', connected: true, peerId: toPeer });
+      chrome.runtime.sendMessage({ action: 'p2pStatusUpdate', connected: true, peerId: toPeer, connectedAt });
     };
     rc.onclose = () => chrome.runtime.sendMessage({ action: 'p2pStatusUpdate', connected: false, peerId: toPeer });
   };
@@ -340,7 +347,7 @@ async function p2pDisconnect() {
   for (const pid of Object.keys(p2pConnections)) deleteP2PConnection(pid);
   currentP2PRoomId = '';
   currentP2PPeerId = '';
-  await saveSyncConfig({ p2pConnected: false });
+  await saveSyncConfig({ p2pConnected: false, p2pConnectedAt: null, p2pConnectedPeerName: '' });
 }
 
 // P2P 同步：发送 Cookie 给对端
@@ -376,6 +383,7 @@ async function handleP2PMessage(msg, fromPeer) {
       const importResult = await importCookies(cookieData);
       if (importResult.success > 0) {
         await saveSyncConfig({ lastSyncTime: new Date().toISOString() });
+        addSyncHistoryEntry('p2p_sync', '从对端同步了 ' + importResult.success + ' 个 Cookie');
         chrome.runtime.sendMessage({ action: 'p2pSyncComplete', imported: importResult.success, fromPeer });
       }
     } catch (e) {
@@ -449,7 +457,7 @@ async function serverPerformSync() {
             const decryptedStr = await decryptData(cookieEntry.data, config.pairKey);
             const cookieData = JSON.parse(decryptedStr);
             const importResult = await importCookies(cookieData);
-            if (importResult.success > 0) { results.imported = true; console.log(`[SessionMaster] 从 ${deviceId} 同步了 ${importResult.success} 个 Cookie`); }
+            if (importResult.success > 0) { results.imported = true; addSyncHistoryEntry('server_sync', '从 ' + deviceId + ' 同步了 ' + importResult.success + ' 个 Cookie'); console.log('[SessionMaster] 从 ' + deviceId + ' 同步了 ' + importResult.success + ' 个 Cookie'); }
           } catch (e) { console.warn('[SessionMaster] 解密失败:', e.message); }
         }
       }
@@ -501,7 +509,13 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
     const id = alarm.name.replace('heartbeat_', '');
     const beats = await getHeartbeats();
     const beat = beats.find(b => b.id === id);
-    if (beat && beat.enabled) performHeartbeat(beat);
+    if (beat && beat.enabled) {
+      const result = await performHeartbeat(beat);
+      beat.lastHeartbeatTime = new Date().toISOString();
+      beat.lastStatus = result.success ? 'ok' : 'fail';
+      beat.lastStatusDetail = result.success ? ('HTTP ' + result.status) : result.error;
+      await saveHeartbeats(beats);
+    }
   }
 });
 
@@ -529,7 +543,12 @@ async function saveHeartbeats(beats) {
 async function addHeartbeat(url, interval, domain) {
   const beats = await getHeartbeats();
   const id = 'hb_' + Date.now().toString(36) + Math.random().toString(36).substring(2, 4);
-  beats.push({ id, url: url.trim(), domain: domain || '', intervalMinutes: interval || 10, enabled: true, createdAt: new Date().toISOString() });
+  // 如果未传 domain，从 URL 自动提取
+  let siteDomain = domain || '';
+  if (!siteDomain) {
+    try { siteDomain = new URL(url.trim().startsWith('http') ? url.trim() : 'https://' + url.trim()).hostname; } catch {}
+  }
+  beats.push({ id, url: url.trim(), domain: siteDomain || '', intervalMinutes: interval || 10, enabled: true, createdAt: new Date().toISOString() });
   await saveHeartbeats(beats);
   return { success: true, heartbeats: beats };
 }
@@ -552,7 +571,7 @@ async function toggleHeartbeat(id, enabled) {
 }
 
 async function performHeartbeat(beat) {
-  if (!beat.url) return;
+  if (!beat.url) return { success: false, error: 'URL 为空' };
   try {
     const url = beat.domain
       ? (beat.url.startsWith('http') ? beat.url : 'https://' + beat.domain + (beat.url.startsWith('/') ? '' : '/') + beat.url)
@@ -562,14 +581,39 @@ async function performHeartbeat(beat) {
     const resp = await fetch(url, { method: 'GET', signal: controller.signal, mode: 'no-cors' });
     clearTimeout(timer);
     console.log('[SessionMaster 保活] ✅', url, resp.status);
+    return { success: true, status: resp.status };
   } catch (e) {
     console.log('[SessionMaster 保活] ⏸️', beat.url, e.message);
+    return { success: false, error: e.message };
   }
 }
 
-// ========== 动态规则管理 ==========
+// ========== 同步历史记录 ==========
+
+const SYNC_HISTORY_KEY = 'sync_history';
+const MAX_HISTORY = 50;
+
+async function getSyncHistory() {
+  return await getStorage(SYNC_HISTORY_KEY, []);
+}
+
+async function addSyncHistoryEntry(type, detail) {
+  let history = await getSyncHistory();
+  history.unshift({ time: new Date().toISOString(), type, detail });
+  if (history.length > MAX_HISTORY) history = history.slice(0, MAX_HISTORY);
+  await setStorage(SYNC_HISTORY_KEY, history);
+  return history;
+}
+
+async function clearSyncHistory() {
+  await setStorage(SYNC_HISTORY_KEY, []);
+  return [];
+}
+
+// ========== 规则库管理（按网站归类 + 远程更新）==========
 
 const USER_RULES_KEY = 'user_blocking_rules';
+const RULES_DB_KEY = 'blocking_rules_db';
 
 async function getUserBlockingRules() { return await getStorage(USER_RULES_KEY, []); }
 
@@ -597,6 +641,99 @@ async function updateDynamicRules(rules) {
   await chrome.declarativeNetRequest.updateDynamicRules({ removeRuleIds: currentIds, addRules: newRules });
 }
 
+// 规则库管理
+async function getRulesDB() {
+  let db = await getStorage(RULES_DB_KEY, null);
+  if (!db) {
+    // 首次加载：从内置文件读取
+    try {
+      const resp = await fetch(chrome.runtime.getURL('blocking_rules_db.json'));
+      db = await resp.json();
+      await setStorage(RULES_DB_KEY, db);
+    } catch (e) {
+      db = { version: 1, lastUpdated: '', updateUrl: '', sites: [], generic: [] };
+    }
+  }
+  return db;
+}
+
+async function saveRulesDB(db) {
+  await setStorage(RULES_DB_KEY, db);
+  return db;
+}
+
+function matchSitesByDomain(db, domain) {
+  if (!db || !db.sites || !domain) return [];
+  // 去掉端口号（如 oa.zumri.cn:8881 → oa.zumri.cn）
+  const cleanDomain = domain.split(':')[0].toLowerCase();
+  const matched = [];
+  for (const site of db.sites) {
+    for (const d of site.domains) {
+      const pattern = d.replace(/^(\*\.)?/, '').toLowerCase();
+      // 精确匹配: domain === pattern 或 endsWith .pattern
+      if (cleanDomain === pattern || cleanDomain.endsWith('.' + pattern)) {
+        matched.push(site);
+        console.log('[SessionMaster 规则匹配] ✅', site.name, '←', cleanDomain, '(模式:', d + ')');
+        break;
+      }
+      // 通配: 如果 pattern 是 IP 或短域名，尝试用 startsWith
+      if (pattern.indexOf('.') < 0 && cleanDomain.startsWith(pattern + '.')) {
+        matched.push(site);
+        console.log('[SessionMaster 规则匹配] ✅', site.name, '←', cleanDomain, '(通配:', d + ')');
+        break;
+      }
+    }
+  }
+  if (matched.length === 0) console.log('[SessionMaster 规则匹配] ⏸️', cleanDomain, '未匹配规则');
+  return matched;
+}
+
+// 获取当前站点的推荐规则（匹配的内置 + 通用规则）
+async function getRecommendedRules(domain) {
+  const db = await getRulesDB();
+  const matched = matchSitesByDomain(db, domain);
+  const keywords = [...(db.generic || [])];
+  for (const site of matched) {
+    for (const kw of (site.keywords || [])) {
+      if (!keywords.includes(kw)) keywords.push(kw);
+    }
+  }
+  return { sites: matched, keywords, generic: db.generic || [] };
+}
+
+// 远程更新规则库
+async function updateRulesDBFromServer() {
+  const db = await getRulesDB();
+  if (!db.updateUrl) return { success: false, error: '未配置更新地址' };
+  try {
+    const resp = await fetch(db.updateUrl, { signal: AbortSignal.timeout(15000) });
+    const remote = await resp.json();
+    if (!remote.sites || !Array.isArray(remote.sites)) return { success: false, error: '远程数据格式无效' };
+    await saveRulesDB(remote);
+    return { success: true, message: `已更新 ${remote.sites.length} 个站点规则` };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+}
+
+// 导出规则库为 JSON 字符串
+async function exportRulesDB() {
+  const db = await getRulesDB();
+  return JSON.stringify(db, null, 2);
+}
+
+// 导入规则库
+async function importRulesDB(jsonStr) {
+  try {
+    const db = JSON.parse(jsonStr);
+    if (!db.sites || !Array.isArray(db.sites)) return { success: false, error: '格式无效：缺少 sites 数组' };
+    await saveRulesDB(db);
+    return { success: true, message: `已导入 ${db.sites.length} 个站点规则`, sites: db.sites.length };
+  } catch (e) {
+    return { success: false, error: 'JSON 解析失败: ' + e.message };
+  }
+}
+
 // ========== API 消息处理 ==========
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
@@ -613,6 +750,13 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       case 'addBlockingRule': sendResponse(await addUserBlockingRule(request.urlPattern)); break;
       case 'removeBlockingRule': sendResponse(await removeUserBlockingRule(request.urlPattern)); break;
 
+      // ---- 规则库（按站归类）----
+      case 'getRulesDB': sendResponse(await getRulesDB()); break;
+      case 'getRecommendedRules': sendResponse(await getRecommendedRules(request.domain)); break;
+      case 'updateRulesDBFromServer': sendResponse(await updateRulesDBFromServer()); break;
+      case 'exportRulesDB': sendResponse({ data: await exportRulesDB() }); break;
+      case 'importRulesDB': sendResponse(await importRulesDB(request.data)); break;
+
       // ---- 同步配置 ----
       case 'getSyncConfig': sendResponse(await getSyncConfig()); break;
       case 'saveSyncConfig': sendResponse(await saveSyncConfig(request.config)); break;
@@ -626,22 +770,26 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         break;
       case 'p2pDisconnect':
         await p2pDisconnect();
+        addSyncHistoryEntry('p2p_disconnect', '已断开 P2P 连接');
         sendResponse({ success: true });
         break;
       case 'p2pManualSync':
         for (const peerId of Object.keys(p2pConnections)) {
           if (p2pConnections[peerId].channel?.readyState === 'open') p2pSync(peerId);
         }
+        addSyncHistoryEntry('p2p_sync', '已手动触发 P2P 同步');
         sendResponse({ success: true });
         break;
       case 'p2pToggleSync':
         if (request.enabled) {
           await saveSyncConfig({ enabled: true });
           chrome.alarms.create('p2pSyncAlarm', { periodInMinutes: request.intervalMinutes || 5 });
+          addSyncHistoryEntry('p2p_enable', '已启用 P2P 自动同步（每 ' + (request.intervalMinutes || 5) + ' 分钟）');
           sendResponse({ success: true, message: `已启用 P2P 同步（每 ${request.intervalMinutes || 5} 分钟）` });
         } else {
           chrome.alarms.clear('p2pSyncAlarm');
           await saveSyncConfig({ enabled: false });
+          addSyncHistoryEntry('p2p_disable', '已禁用 P2P 自动同步');
           sendResponse({ success: true, message: '已禁用 P2P 同步' });
         }
         break;
@@ -650,7 +798,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       case 'serverGetSyncConfig': sendResponse(await serverGetSyncConfig()); break;
       case 'serverSaveSyncConfig': sendResponse(await serverSaveSyncConfig(request.config)); break;
       case 'serverToggleSync': sendResponse(await serverToggleSync(request.enabled)); break;
-      case 'serverManualSync': sendResponse(await serverPerformSync()); break;
+      case 'serverManualSync':
+        sendResponse(await serverPerformSync());
+        addSyncHistoryEntry('server_sync', '已手动触发服务器同步');
+        break;
       case 'serverRegisterDevice': sendResponse(await serverRegisterDevice()); break;
 
       // ---- 保活 ----
@@ -663,6 +814,13 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         break;
       case 'toggleHeartbeat':
         sendResponse(await toggleHeartbeat(request.id, request.enabled));
+        break;
+
+      // ---- 同步历史 ----
+      case 'getSyncHistory': sendResponse({ history: await getSyncHistory() }); break;
+      case 'clearSyncHistory': sendResponse({ history: await clearSyncHistory() }); break;
+      case 'addSyncHistoryEntry':
+        sendResponse({ history: await addSyncHistoryEntry(request.type, request.detail) });
         break;
 
       // ---- 网络信息 ----

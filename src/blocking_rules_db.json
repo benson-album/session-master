@@ -1,0 +1,43 @@
+{
+  "version": 1,
+  "lastUpdated": "2026-06-26",
+  "updateUrl": "",
+  "sites": [
+    {
+      "id": "seeyon",
+      "name": "致远OA",
+      "domains": ["*.seeyon.com", "*.seeyon", "*.zumri.cn", "*.zumri"],
+      "keywords": ["checkSession", "secondLogin", "singleLogin", "duplicateLogin", "conflictLogin", "forcedOffline", "kickOut", "loginCheck", "sessionTimeout"],
+      "description": "致远OA V9.0SP1 踢人检测关键词"
+    },
+    {
+      "id": "dingtalk",
+      "name": "钉钉",
+      "domains": ["*.dingtalk.com"],
+      "keywords": [],
+      "description": "钉钉网页版 - 待补充"
+    },
+    {
+      "id": "wecom",
+      "name": "企业微信",
+      "domains": ["*.work.weixin.qq.com"],
+      "keywords": [],
+      "description": "企业微信管理后台 - 待补充"
+    },
+    {
+      "id": "feishu",
+      "name": "飞书",
+      "domains": ["*.feishu.cn", "*.larksuite.com"],
+      "keywords": [],
+      "description": "飞书管理后台 - 待补充"
+    },
+    {
+      "id": "wiki",
+      "name": "知识库",
+      "domains": ["*.wiki.com"],
+      "keywords": [],
+      "description": "通用知识库系统 - 待补充"
+    }
+  ],
+  "generic": ["loginCheck", "sessionTimeout", "singleLogin", "duplicateLogin", "kickOut", "forcedOffline"]
+}

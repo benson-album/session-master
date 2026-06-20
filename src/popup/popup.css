@@ -56,6 +56,11 @@ body {
   padding: 6px 10px;
   border-radius: 4px;
 }
+.domain-display-ellipsis {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
 
 /* Tab 切换 */
 .tabs {
@@ -338,6 +343,45 @@ textarea {
   gap: 6px;
 }
 .input-with-btn input { flex: 1; }
+
+/* 同步模式切换按钮 */
+.sync-mode-toggle {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 8px;
+  background: #f1f3f4;
+  border-radius: 6px;
+  padding: 3px;
+}
+.sync-mode-btn {
+  flex: 1;
+  padding: 6px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  color: #666;
+  background: transparent;
+  transition: all 0.2s;
+}
+.sync-mode-btn:hover {
+  background: rgba(0,0,0,0.05);
+}
+.sync-mode-btn.active {
+  background: #fff;
+  color: #333;
+  font-weight: 600;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+}
+
+/* 连接时间 */
+.connection-time {
+  font-size: 11px;
+  color: #1a73e8;
+  margin-top: 2px;
+  font-weight: 500;
+}
 
 /* 保活项目列表 */
 #heartbeatItems > div {
