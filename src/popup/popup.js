@@ -1358,14 +1358,30 @@
   // 查看设备身份
   document.getElementById('btnDeviceInfo').addEventListener('click', async () => {
     const result = await chrome.runtime.sendMessage({ action: 'getDeviceIdentity' });
-    const nameLine = result.deviceName ? '📛 设备名称: ' + result.deviceName + '\n' : '';
-    const msg = '🖥️ 当前设备信息\n' +
-      nameLine +
-      '🆔 设备 ID: ' + result.id.substring(0, 20) + '...\n' +
-      '💻 系统: ' + result.os + (result.arch ? ' (' + result.arch + ')' : '') + '\n' +
-      '🌐 浏览器: ' + result.browserInfo.substring(0, 60) + '...\n' +
-      '📅 创建时间: ' + new Date(result.createdAt).toLocaleString();
-    showToast(msg, 4000);
+    const memLine = result.deviceMemory ? '  内存: ' + result.deviceMemory + ' GB' : '';
+    const cpuLine = result.cpuCores ? '  CPU: ' + result.cpuCores + ' 核' : '';
+    const langLine = result.language ? '  语言: ' + result.language : '';
+    const platLine = result.platform ? '  平台: ' + result.platform : '';
+    const archLine = result.arch ? ' (' + result.arch + ')' : '';
+    const netLines = (result.network && result.network.length > 0)
+      ? '  🌍 网络:\n' + result.network.map(function(n) { return '     ' + n.name + ': ' + n.addr + n.prefix; }).join('\n')
+      : '';
+    const msg = '🖥️ 当前设备\n' +
+      '━━━━━━━━━━━━━━━\n' +
+      '📱 ' + (result.deviceName || '未命名设备') + '\n' +
+      '━━━━━━━━━━━━━━━\n' +
+      '💻 ' + result.os + archLine + '\n' +
+      platLine +
+      langLine +
+      cpuLine +
+      memLine + '\n' +
+      '━━━━━━━━━━━━━━━\n' +
+      '🌐 ' + result.browser + ' ' + (result.browserVer || '') + '\n' +
+      '━━━━━━━━━━━━━━━\n' +
+      (netLines ? netLines + '\n━━━━━━━━━━━━━━━\n' : '') +
+      '🆔 ' + result.id.substring(0, 12) + '...\n' +
+      '📅 ' + new Date(result.createdAt).toLocaleString();
+    showToast(msg, 5000);
   });
 
   // 信令服务器帮助图标

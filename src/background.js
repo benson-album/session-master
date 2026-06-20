@@ -66,25 +66,78 @@ async function exportLogs() {
   const size = await getStorage(LOG_SIZE_KEY, 0);
   const sizeStr = size > 1024 * 1024 ? (size / 1024 / 1024).toFixed(1) + ' MB' :
                   size > 1024 ? Math.round(size / 1024) + ' KB' : size + ' B';
-  // 获取设备身份
+
+  // 收集所有信息
   const identity = await getDeviceIdentity();
   const deviceName = await getDeviceDisplayName();
-  const osMap = { mac: 'macOS', win: 'Windows', android: 'Android', cros: 'ChromeOS', linux: 'Linux', openbsd: 'OpenBSD' };
-  const osStr = identity.os ? (osMap[identity.os] || identity.os) : '未知';
-  const deviceLine = deviceName ? '  设备名称: ' + deviceName + '\n' : '';
-  const header = 'SessionMaster 会话大师 - 操作日志\n' +
-    '生成时间: ' + new Date().toLocaleString() + '\n' +
-    '设备信息:\n' +
-    deviceLine +
-    '  设备 ID: ' + identity.id + '\n' +
-    '  系统: ' + osStr + (identity.arch ? ' (' + identity.arch + ')' : '') + '\n' +
-    '  浏览器: ' + (identity.browserInfo ? identity.browserInfo.substring(0, 120) : '未知') + '\n' +
-    '共 ' + logs.length + ' 条记录, 约 ' + sizeStr + '\n' +
-    '日志上限: ' + (MAX_LOG_SIZE / 1024 / 1024) + ' MB\n' +
-    '============================\n\n';
-  return header + logs.map(function(l) {
+  const details = await collectDeviceDetails();
+  const netIfaces = await collectNetworkInfo();
+
+  const now = new Date().toLocaleString();
+  const sepBar = '============================\n';
+  const sepDash = '----------------------------\n';
+
+  let sections = [];
+
+  // === 标题 ===
+  sections.push(
+    'SessionMaster 会话大师 - 操作日志\n' +
+    '生成时间: ' + now + '\n' +
+    sepBar
+  );
+
+  // === 📱 设备信息 ===
+  let devBlock = '📱 设备信息\n' + sepDash;
+  if (deviceName) devBlock += '设备名称: ' + deviceName + '\n';
+  devBlock += '设备 ID: ' + identity.id + '\n';
+  if (identity.createdAt) devBlock += '身份创建: ' + new Date(identity.createdAt).toLocaleString() + '\n';
+  devBlock += '\n';
+  sections.push(devBlock);
+
+  // === 💻 系统信息 ===
+  let sysBlock = '💻 系统信息\n' + sepDash;
+  sysBlock += '操作系统: ' + details.os + (details.arch ? ' (' + details.arch + ')' : '') + '\n';
+  if (details.platform) sysBlock += '平台: ' + details.platform + '\n';
+  if (details.language) sysBlock += '语言: ' + details.language + '\n';
+  if (details.cpuCores) sysBlock += 'CPU 核心: ' + details.cpuCores + '\n';
+  if (details.deviceMemory) sysBlock += '内存: ' + details.deviceMemory + ' GB\n';
+  sysBlock += '\n';
+  sections.push(sysBlock);
+
+  // === 🌐 浏览器信息 ===
+  let browserBlock = '🌐 浏览器信息\n' + sepDash;
+  browserBlock += '浏览器: ' + details.browser + (details.browserVer ? ' ' + details.browserVer : '') + '\n';
+  if (details.uaShort) browserBlock += 'User-Agent: ' + details.uaShort + '\n';
+  browserBlock += '\n';
+  sections.push(browserBlock);
+
+  // === 🌍 网络信息 ===
+  if (netIfaces.length > 0) {
+    let netBlock = '🌍 网络信息（非回环接口）\n' + sepDash;
+    for (const iface of netIfaces) {
+      netBlock += '  ' + iface.name + ': ' + iface.addr + iface.prefix + '\n';
+    }
+    netBlock += '\n';
+    sections.push(netBlock);
+  }
+
+  // === 📊 日志统计 ===
+  let statBlock = '📊 日志统计\n' + sepDash;
+  statBlock += '共 ' + logs.length + ' 条记录, 约 ' + sizeStr + '\n';
+  statBlock += '日志上限: ' + (MAX_LOG_SIZE / 1024 / 1024) + ' MB\n';
+  statBlock += '\n';
+  sections.push(statBlock);
+
+  // === 日志内容 ===
+  sections.push(sepBar + '\n');
+  sections.push(logs.map(function(l) {
     return '[' + new Date(l.time).toLocaleString() + '] [' + l.level + '] [' + l.module + '] ' + l.message;
-  }).join('\n') + '\n\n============================\n--- 日志结束 ---';
+  }).join('\n'));
+
+  sections.push('\n\n' + sepBar);
+  sections.push('--- 日志结束 ---');
+
+  return sections.join('');
 }
 
 const logger = {
@@ -98,54 +151,102 @@ const logger = {
 };
 
 // ========== 设备身份标识 ==========
-// 用于在日志中标记插件运行在哪个浏览器/设备上
+// 固定存储：唯一设备 ID（仅生成一次）
+// 动态信息（浏览器/系统/网络等）在导出日志时实时收集
+
 const DEVICE_IDENTITY_KEY = 'device_identity';
 
 async function getDeviceIdentity() {
   let identity = await getStorage(DEVICE_IDENTITY_KEY, null);
   if (!identity) {
-    // 首次运行：生成唯一设备标识
     const id = 'dev-' + Date.now().toString(36) + '-' + Math.random().toString(36).substring(2, 8);
-    const platform = await new Promise(resolve => {
-      try { chrome.runtime.getPlatformInfo(info => resolve(info || null)); } catch { resolve(null); }
-    });
-    identity = {
-      id: id,
-      browserInfo: typeof navigator !== 'undefined' ? (navigator.userAgent || '').substring(0, 200) : '',
-      os: platform ? platform.os : '',
-      arch: platform ? platform.arch : '',
-      createdAt: new Date().toISOString()
-    };
+    identity = { id, createdAt: new Date().toISOString() };
     await setStorage(DEVICE_IDENTITY_KEY, identity);
     console.log('[SessionMaster] [INFO] [general] 设备身份已创建: ' + id);
   }
   return identity;
 }
 
+// 重置设备 ID（手动操作）
+async function resetDeviceIdentity() {
+  const old = await getStorage(DEVICE_IDENTITY_KEY, null);
+  const newId = 'dev-' + Date.now().toString(36) + '-' + Math.random().toString(36).substring(2, 8);
+  const identity = { id: newId, createdAt: new Date().toISOString(), previousId: old ? old.id : null };
+  await setStorage(DEVICE_IDENTITY_KEY, identity);
+  return identity;
+}
+
+// 获取用户自定义设备名（从同步配置）
 async function getDeviceDisplayName() {
-  // 从同步配置中获取用户自定义设备名
   const p2pCfg = await getSyncConfig();
   const srvCfg = await serverGetSyncConfig();
   return p2pCfg.p2pDeviceName || srvCfg.deviceName || '';
 }
 
-// 重新生成设备 ID（手动重置用）
-async function resetDeviceIdentity() {
-  const old = await getStorage(DEVICE_IDENTITY_KEY, null);
-  const newId = 'dev-' + Date.now().toString(36) + '-' + Math.random().toString(36).substring(2, 8);
+// 实时收集当前设备详情（OS、浏览器、语言等）
+async function collectDeviceDetails() {
   const platform = await new Promise(resolve => {
     try { chrome.runtime.getPlatformInfo(info => resolve(info || null)); } catch { resolve(null); }
   });
-  const identity = {
-    id: newId,
-    browserInfo: typeof navigator !== 'undefined' ? (navigator.userAgent || '').substring(0, 200) : '',
-    os: platform ? platform.os : '',
+  const nav = typeof navigator !== 'undefined' ? navigator : null;
+  const ua = nav ? nav.userAgent || '' : '';
+  // 解析浏览器名称/版本
+  let browserName = '未知';
+  let browserVer = '';
+  if (ua.includes('Chrome/') && !ua.includes('Edg/')) {
+    const m = ua.match(/Chrome\/([\d.]+)/);
+    browserName = 'Chrome';
+    browserVer = m ? m[1] : '';
+  } else if (ua.includes('Edg/')) {
+    const m = ua.match(/Edg\/([\d.]+)/);
+    browserName = 'Edge';
+    browserVer = m ? m[1] : '';
+  } else if (ua.includes('Firefox/')) {
+    const m = ua.match(/Firefox\/([\d.]+)/);
+    browserName = 'Firefox';
+    browserVer = m ? m[1] : '';
+  } else if (ua.includes('Safari/') && !ua.includes('Chrome/')) {
+    const m = ua.match(/Version\/([\d.]+)/);
+    browserName = 'Safari';
+    browserVer = m ? m[1] : '';
+  }
+  const osMap = { mac: 'macOS', win: 'Windows', android: 'Android', cros: 'ChromeOS', linux: 'Linux', openbsd: 'OpenBSD' };
+  return {
+    os: platform ? (osMap[platform.os] || platform.os) : '未知',
     arch: platform ? platform.arch : '',
-    createdAt: new Date().toISOString(),
-    previousId: old ? old.id : null
+    browser: browserName,
+    browserVer: browserVer,
+    language: nav ? nav.language || '' : '',
+    platform: nav ? nav.platform || '' : '',
+    cpuCores: nav ? nav.hardwareConcurrency || '' : '',
+    deviceMemory: nav ? nav.deviceMemory || '' : '',
+    uaShort: ua.substring(0, 150)
   };
-  await setStorage(DEVICE_IDENTITY_KEY, identity);
-  return identity;
+}
+
+// 实时收集网络接口信息
+async function collectNetworkInfo() {
+  try {
+    if (typeof chrome.system !== 'undefined' && chrome.system.network &&
+        typeof chrome.system.network.getNetworkInterfaces === 'function') {
+      const ifaces = await chrome.system.network.getNetworkInterfaces();
+      if (ifaces && ifaces.length > 0) {
+        // 只显示非回环 IPv4 地址
+        const entries = ifaces
+          .filter(i => i && i.address && !i.address.startsWith('127.') && !i.address.startsWith('::1'))
+          .map(i => {
+            const name = i.name || '未知';
+            const addr = i.address || '';
+            const prefix = i.prefixLength !== undefined ? '/' + i.prefixLength : '';
+            return { name, addr, prefix };
+          });
+        return entries;
+      }
+    }
+  } catch (e) {
+    // 静默失败
+  }
+  return [];
 }
 
 // ========== 图标状态角标（动态动画）==========
@@ -1271,14 +1372,22 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       case 'getDeviceIdentity':
         const devIdent = await getDeviceIdentity();
         const devName = await getDeviceDisplayName();
-        const osMap = { mac: 'macOS', win: 'Windows', android: 'Android', cros: 'ChromeOS', linux: 'Linux', openbsd: 'OpenBSD' };
+        const devDetails = await collectDeviceDetails();
+        const netInfo = await collectNetworkInfo();
         sendResponse({
           id: devIdent.id,
-          os: devIdent.os ? (osMap[devIdent.os] || devIdent.os) : '未知',
-          arch: devIdent.arch || '',
-          browserInfo: devIdent.browserInfo ? devIdent.browserInfo.substring(0, 120) : '未知',
+          createdAt: devIdent.createdAt,
           deviceName: devName,
-          createdAt: devIdent.createdAt
+          os: devDetails.os,
+          arch: devDetails.arch,
+          browser: devDetails.browser,
+          browserVer: devDetails.browserVer,
+          language: devDetails.language,
+          platform: devDetails.platform,
+          cpuCores: devDetails.cpuCores,
+          deviceMemory: devDetails.deviceMemory,
+          uaShort: devDetails.uaShort,
+          network: netInfo
         });
         break;
       case 'resetDeviceIdentity': sendResponse(await resetDeviceIdentity()); break;
