@@ -204,7 +204,11 @@
     if (!currentDomain) return showToast('⚠️ 无法获取当前站点域名');
     if (!confirm(`确定清除 ${currentDomain} 的所有 Cookie？`)) return;
     const result = await chrome.runtime.sendMessage({ action: 'clearCookies', domain: currentDomain });
-    showToast(`✅ 已清除 ${result.removed} 个 Cookie`);
+    let msg = `✅ 已清除 ${result.removed} 个 Cookie`;
+    if (result.heartbeatPaused > 0) {
+      msg += `，⏸️ 暂停 ${result.heartbeatPaused} 条保活`;
+    }
+    showToast(msg);
   });
 
   // ========== 自定义拦截规则 ==========

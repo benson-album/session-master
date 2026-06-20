@@ -485,8 +485,21 @@ async function clearCookies(domain) {
   for (const c of cookies) {
     try { const url = cookieApiUrl(c.domain, c.secure, c.path); await chrome.cookies.remove({ url, name: c.name }); count++; } catch (e) {}
   }
-  logger.info('cookie', '清除 Cookie: ' + domain + ', 已清除 ' + count + ' 个');
-  return { removed: count };
+  // 同步暂停该域名下的保活
+  let heartbeatPaused = 0;
+  const beats = await getHeartbeats();
+  for (const b of beats) {
+    if (b.domain && b.domain === domain && b.enabled) {
+      b.enabled = false;
+      heartbeatPaused++;
+    }
+  }
+  if (heartbeatPaused > 0) {
+    await saveHeartbeats(beats);
+    updateIconState().catch(() => {});
+  }
+  logger.info('cookie', '清除 Cookie: ' + domain + ', 已清除 ' + count + ' 个, 暂停保活 ' + heartbeatPaused + ' 条');
+  return { removed: count, heartbeatPaused };
 }
 
 // ========== Cookie 版本控制 & 来源追踪 ==========
