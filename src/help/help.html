@@ -622,6 +622,15 @@
           <div class="step-content"><strong>或者下载文件</strong>点击「下载文件」按钮，Cookie 将以 JSON 文件保存</div>
         </div>
 
+        <div class="tip warn">
+          <strong>⚠️ 重要：登录状态与 Cookie 完整性</strong>
+          <ul>
+            <li><strong>登录前导出</strong>：只能获取到语言、设备指纹等基础 Cookie，<strong>不含认证信息</strong>，导入到另一台设备后仍需登录</li>
+            <li><strong>登录后导出</strong>：包含完整的会话/认证 Cookie（如 <code>MUSIC_U</code>、<code>SESSION</code>、<code>token</code> 等），导入后直接生效，无需再次登录</li>
+            <li><strong>导出内容自动带域名标识</strong>：复制后文本首行会标注 <code># Domain: music.163.com</code>，粘贴到另一台设备导入时自动识别目标域名，无需手动填写</li>
+          </ul>
+        </div>
+
         <div class="tip info">
           <strong>💡 提示：</strong>导出的 Cookie 包含 name、value、domain、path、secure、httpOnly 等完整属性，
           可以使用「复制」或「下载文件」两种方式传递到另一台电脑。
