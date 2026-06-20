@@ -426,7 +426,8 @@ async function exportCookies(domain) {
     return { success: false, message: '未找到该域名的 Cookie', data: null };
   }
   const exportTime = new Date().toISOString();
-  const data = { domain, exportTime, cookies: cookies.map(c => ({ name: c.name, value: c.value, domain: c.domain, path: c.path, secure: c.secure, httpOnly: c.httpOnly, sameSite: c.sameSite, hostOnly: c.hostOnly, _exportTime: exportTime })), quick: cookies.map(c => `${c.name}=${c.value}`).join('; ') };
+  const quickPrefix = '# Domain: ' + domain + '\n';
+  const data = { domain, exportTime, cookies: cookies.map(c => ({ name: c.name, value: c.value, domain: c.domain, path: c.path, secure: c.secure, httpOnly: c.httpOnly, sameSite: c.sameSite, hostOnly: c.hostOnly, _exportTime: exportTime })), quick: quickPrefix + cookies.map(c => `${c.name}=${c.value}`).join('; ') };
   logger.info('cookie', '导出 Cookie: ' + domain + ', ' + cookies.length + ' 个');
   return { success: true, message: `已导出 ${cookies.length} 个 Cookie`, data };
 }
@@ -554,6 +555,7 @@ async function exportCookiesSmart(domain) {
   
   if (syncCookies.length === 0) return { success: false, message: '无可同步的 Cookie（从设备模式或来源追踪过滤）', data: null };
   
+  const quickPrefix = '# Domain: ' + domain + '\n';
   const data = {
     domain, exportTime,
     cookies: syncCookies.map(c => ({
@@ -561,7 +563,7 @@ async function exportCookiesSmart(domain) {
       secure: c.secure, httpOnly: c.httpOnly, sameSite: c.sameSite,
       hostOnly: c.hostOnly, _exportTime: exportTime
     })),
-    quick: syncCookies.map(c => `${c.name}=${c.value}`).join('; ')
+    quick: (quickPrefix + syncCookies.map(c => `${c.name}=${c.value}`).join('; '))
   };
   return { success: true, message: `已导出 ${syncCookies.length} 个 Cookie`, data };
 }

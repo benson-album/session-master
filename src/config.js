@@ -8,7 +8,7 @@
 export const APP_CONFIG = {
 
   // ===== 版本 =====
-  VERSION: '1.5.5',
+  VERSION: '1.5.6',
 
   // ===== 默认端口 =====
   DEFAULT_PORT: 5789,

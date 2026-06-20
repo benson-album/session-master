@@ -72,7 +72,8 @@
     if (!currentDomain) return showToast('⚠️ 无法获取当前站点域名');
     const result = await chrome.runtime.sendMessage({ action: 'getCookies', domain: currentDomain });
     if (!result.success) return showToast('⚠️ ' + result.message);
-    document.getElementById('resultTitle').textContent = `🍪 ${currentDomain} - ${result.data.cookies.length} 个 Cookie`;
+    document.getElementById('resultTitle').textContent = `🍪 ${currentDomain}`;
+    document.getElementById('resultCount').textContent = `${result.data.cookies.length} 个 Cookie`;
     document.getElementById('resultContent').value = result.data.quick;
     document.getElementById('resultHint').textContent = `✅ 导出成功！导出时间: ${new Date(result.data.exportTime).toLocaleString()}`;
     document.getElementById('cookieResult').style.display = 'block';
@@ -133,17 +134,26 @@
       if (parsed.cookies && Array.isArray(parsed.cookies)) importData = parsed;
       else return showToast('⚠️ JSON 格式不正确');
     } catch {
-      const pairs = rawText.split(';').map(s => s.trim()).filter(Boolean);
+      // 文本模式解析：先提取域名标识行
+      let importDomain = currentDomain;
+      let cleanText = rawText;
+      const domainMarker = rawText.match(/^#\s*Domain:\s*["']?([^"';\n\r]+)["']?\s*$/im);
+      if (domainMarker) {
+        importDomain = domainMarker[1].trim();
+        cleanText = rawText.replace(/^#\s*Domain:.*$/im, '').trim();
+      } else {
+        // 兼容旧格式：domain=xxx 或 domain: xxx
+        const legacyMatch = rawText.match(/domain[:=]\s*["']?([^"';\s,]+)["']?/i);
+        if (legacyMatch) importDomain = legacyMatch[1];
+      }
+      const pairs = cleanText.split(';').map(s => s.trim()).filter(Boolean);
       const cookies = pairs.map(pair => {
         const eqIdx = pair.indexOf('=');
         if (eqIdx === -1) return null;
-        return { name: pair.substring(0, eqIdx).trim(), value: pair.substring(eqIdx + 1).trim(), domain: currentDomain, path: '/', secure: true, httpOnly: true, hostOnly: true };
+        return { name: pair.substring(0, eqIdx).trim(), value: pair.substring(eqIdx + 1).trim(), domain: importDomain, path: '/', secure: true, httpOnly: true, hostOnly: true };
       }).filter(Boolean);
       if (cookies.length === 0) return showToast('⚠️ 无法解析 Cookie 内容');
-      let domain = currentDomain;
-      const domainMatch = rawText.match(/domain[:=]\s*"?([^";\s,]+)"?/i);
-      if (domainMatch) domain = domainMatch[1];
-      importData = { domain, cookies };
+      importData = { domain: importDomain, cookies };
     }
 
     await chrome.runtime.sendMessage({ action: 'clearCookies', domain: currentDomain });
