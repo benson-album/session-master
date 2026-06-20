@@ -1,6 +1,8 @@
 # Changelog
 
 ## v1.5.5 (2026-06-20)
+- 🐛 **修复 Cookie 导入/清除 URL 构造 Bug**：当 cookie.domain 以 `.` 开头（如 `.163.com`）时，`${protocol}://${domain}${path}` 生成 `https://.163.com/` 这种**无效 URL**，导致所有导入和清除 API 调用静默失败
+- 🐛 **修复 getCookies 域名清洗顺序**：先清洗（去前导点、转小写、剥端口）再添加查询格式，确保所有边界输入正确处理
 - 🖥️ **硬件信息全面增强**：新增 CPU 型号（`chrome.system.cpu.getInfo()`）、内存总量（`chrome.system.memory.getInfo()`）、CPU 特性集
 - 🌐 **网卡信息重构**：接口按类型分组（有线/无线/VPN/虚拟/回环），显示子网掩码、前缀长度、接口总数
 - 🏷️ **智能接口分类**：自动识别 enp（有线）、wlp（无线）、tun/tap（VPN）、docker/br-/veth（虚拟）等接口名

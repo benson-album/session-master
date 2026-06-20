@@ -373,6 +373,12 @@ async function updateIconState() {
 
 // ========== Cookie 管理 ==========
 
+// 从 Cookie domain 构造有效的 API URL（去除前导点号）
+function cookieApiUrl(domain, secure, path) {
+  const host = domain.startsWith('.') ? domain.substring(1) : domain;
+  return `${secure ? 'https' : 'http'}://${host}${path || '/'}`;
+}
+
 async function getCookies(domain) {
   let results = [];
   const formats = [];
@@ -386,14 +392,17 @@ async function getCookies(domain) {
     }
   }
 
+  // 0. 清洗域名：去前导点、转小写、去端口
+  const cleanDomain = (domain || '').replace(/^\./, '').toLowerCase().split(':')[0];
+  if (!cleanDomain) return [];
+
   // 1. 总是先查原始域名（如 localhost、IP、裸域）
-  if (domain) addFormat(domain);
+  addFormat(cleanDomain);
 
   // 2. 对多段域名，逐级向上查父级域
   //    music.163.com → 查 .music.163.com → 163.com → .163.com
   //    www.example.co.uk → 查 example.co.uk
   //    IP 地址（192.168.1.1）跳过父级查询
-  const cleanDomain = (domain || '').replace(/^\./, '').toLowerCase().split(':')[0];
   if (!/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(cleanDomain)) {
     const parts = cleanDomain.split('.');
     if (parts.length >= 2) {
@@ -426,7 +435,7 @@ async function importCookies(cookieData) {
   const results = { success: 0, failed: 0, errors: [] };
   for (const c of cookieData.cookies) {
     try {
-      const details = { url: `${c.secure ? 'https' : 'http'}://${c.domain}${c.path}`, name: c.name, value: c.value, path: c.path || '/', secure: c.secure !== false, httpOnly: c.httpOnly === true, sameSite: c.sameSite || 'lax' };
+      const details = { url: cookieApiUrl(c.domain, c.secure, c.path), name: c.name, value: c.value, path: c.path || '/', secure: c.secure !== false, httpOnly: c.httpOnly === true, sameSite: c.sameSite || 'lax' };
       if (!c.hostOnly) details.domain = c.domain;
       await chrome.cookies.set(details);
       results.success++;
@@ -440,7 +449,7 @@ async function clearCookies(domain) {
   const cookies = await getCookies(domain);
   let count = 0;
   for (const c of cookies) {
-    try { const url = `${c.secure ? 'https' : 'http'}://${c.domain}${c.path}`; await chrome.cookies.remove({ url, name: c.name }); count++; } catch (e) {}
+    try { const url = cookieApiUrl(c.domain, c.secure, c.path); await chrome.cookies.remove({ url, name: c.name }); count++; } catch (e) {}
   }
   logger.info('cookie', '清除 Cookie: ' + domain + ', 已清除 ' + count + ' 个');
   return { removed: count };
@@ -474,7 +483,7 @@ async function importCookiesSmart(cookieData, fromDeviceId) {
     // 策略1：值相同 → 跳过（防无效写入）
     try {
       const existing = await chrome.cookies.get({
-        url: `${c.secure ? 'https' : 'http'}://${c.domain}${c.path}`,
+        url: cookieApiUrl(c.domain, c.secure, c.path),
         name: c.name
       });
       if (existing && existing.value === c.value) {
@@ -496,7 +505,7 @@ async function importCookiesSmart(cookieData, fromDeviceId) {
     // 执行导入
     try {
       const details = {
-        url: `${c.secure ? 'https' : 'http'}://${c.domain}${c.path}`,
+        url: cookieApiUrl(c.domain, c.secure, c.path),
         name: c.name, value: c.value,
         path: c.path || '/', secure: c.secure !== false,
         httpOnly: c.httpOnly === true, sameSite: c.sameSite || 'lax'
@@ -563,7 +572,7 @@ async function importCookiesUnconditional(cookieData) {
   for (const c of cookieData.cookies) {
     try {
       const details = {
-        url: `${c.secure ? 'https' : 'http'}://${c.domain}${c.path}`,
+        url: cookieApiUrl(c.domain, c.secure, c.path),
         name: c.name, value: c.value,
         path: c.path || '/', secure: c.secure !== false,
         httpOnly: c.httpOnly === true, sameSite: c.sameSite || 'lax'
