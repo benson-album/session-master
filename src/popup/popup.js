@@ -1335,14 +1335,33 @@
   // 查看设备身份
   document.getElementById('btnDeviceInfo').addEventListener('click', async () => {
     const result = await chrome.runtime.sendMessage({ action: 'getDeviceIdentity' });
-    const memLine = result.deviceMemory ? '  内存: ' + result.deviceMemory + ' GB' : '';
-    const cpuLine = result.cpuCores ? '  CPU: ' + result.cpuCores + ' 核' : '';
+    const memLine = result.totalMemory ? '  内存: ' + result.totalMemory + ' GB' : (result.deviceMemory ? '  内存: ' + result.deviceMemory + ' GB' : '');
+    const cpuLine = result.cpuModel ? '  CPU: ' + result.cpuModel + (result.cpuCores ? ' (' + result.cpuCores + '核)' : '') : (result.cpuCores ? '  CPU: ' + result.cpuCores + ' 核' : '');
     const langLine = result.language ? '  语言: ' + result.language : '';
     const platLine = result.platform ? '  平台: ' + result.platform : '';
     const archLine = result.arch ? ' (' + result.arch + ')' : '';
-    const netLines = (result.network && result.network.length > 0)
-      ? '  🌍 网络:\n' + result.network.map(function(n) { return '     ' + n.name + ': ' + n.addr + n.prefix; }).join('\n')
-      : '';
+    // 网卡：按类型分组展示
+    let netLines = '';
+    if (result.network && result.network.length > 0) {
+      const typeOrder = ['有线', '无线', 'VPN/隧道', '虚拟', '虚拟机', '其他', '回环'];
+      const grouped = {};
+      for (const n of result.network) {
+        const t = n.type || '其他';
+        if (!grouped[t]) grouped[t] = [];
+        grouped[t].push(n);
+      }
+      netLines = '  🌍 网卡:\n';
+      for (const t of typeOrder) {
+        if (!grouped[t]) continue;
+        netLines += '     【' + t + '】\n';
+        for (const n of grouped[t]) {
+          if (n.isLoopback) continue;
+          const addrPart = n.isIPv6 ? n.addr : n.addr + (n.mask ? ' / ' + n.mask : '');
+          netLines += '       ' + n.name + ': ' + addrPart + '\n';
+        }
+      }
+      netLines += '     接口总数: ' + result.network.length;
+    }
     const msg = '🖥️ 当前设备\n' +
       '━━━━━━━━━━━━━━━\n' +
       '📱 ' + (result.deviceName || '未命名设备') + '\n' +

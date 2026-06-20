@@ -94,13 +94,18 @@ async function exportLogs() {
   devBlock += '\n';
   sections.push(devBlock);
 
-  // === 💻 系统信息 ===
+  // === 💻 系统信息 + CPU ===
   let sysBlock = '💻 系统信息\n' + sepDash;
   sysBlock += '操作系统: ' + details.os + (details.arch ? ' (' + details.arch + ')' : '') + '\n';
   if (details.platform) sysBlock += '平台: ' + details.platform + '\n';
   if (details.language) sysBlock += '语言: ' + details.language + '\n';
-  if (details.cpuCores) sysBlock += 'CPU 核心: ' + details.cpuCores + '\n';
-  if (details.deviceMemory) sysBlock += '内存: ' + details.deviceMemory + ' GB\n';
+  if (details.cpuModel) sysBlock += 'CPU型号: ' + details.cpuModel + '\n';
+  if (details.cpuCores) sysBlock += 'CPU核心: ' + details.cpuCores + '\n';
+  if (details.cpuFeatures && details.cpuFeatures.length > 0) {
+    sysBlock += 'CPU特性: ' + details.cpuFeatures.slice(0, 6).join(', ') + '\n';
+  }
+  if (details.totalMemory) sysBlock += '内存总量: ' + details.totalMemory + ' GB\n';
+  else if (details.deviceMemory) sysBlock += '内存总量: ' + details.deviceMemory + ' GB\n';
   sysBlock += '\n';
   sections.push(sysBlock);
 
@@ -113,10 +118,25 @@ async function exportLogs() {
 
   // === 🌍 网络信息 ===
   if (netIfaces.length > 0) {
-    let netBlock = '🌍 网络信息（非回环接口）\n' + sepDash;
+    let netBlock = '🌍 网络信息\n' + sepDash;
+    // 按类型分组显示
+    const typeOrder = ['有线', '无线', 'VPN/隧道', '虚拟', '虚拟机', '其他', '回环'];
+    const grouped = {};
     for (const iface of netIfaces) {
-      netBlock += '  ' + iface.name + ': ' + iface.addr + iface.prefix + '\n';
+      const t = iface.type || '其他';
+      if (!grouped[t]) grouped[t] = [];
+      grouped[t].push(iface);
     }
+    for (const t of typeOrder) {
+      if (!grouped[t]) continue;
+      netBlock += `  【${t}】\n`;
+      for (const iface of grouped[t]) {
+        const addrPart = iface.isIPv6 ? iface.addr : iface.addr + (iface.mask ? ' / ' + iface.mask : '');
+        const prefixPart = iface.prefix !== '' ? ' (' + iface.prefix + ')' : '';
+        netBlock += '    ' + iface.name + ': ' + addrPart + prefixPart + '\n';
+      }
+    }
+    netBlock += '  接口总数: ' + netIfaces.length + '（含 ' + netIfaces.filter(i => i.isLoopback).length + ' 个回环）\n';
     netBlock += '\n';
     sections.push(netBlock);
   }
@@ -183,33 +203,53 @@ async function getDeviceDisplayName() {
   return p2pCfg.p2pDeviceName || srvCfg.deviceName || '';
 }
 
-// 实时收集当前设备详情（OS、浏览器、语言等）
+// 实时收集当前设备详情（OS、浏览器、CPU、内存等）
 async function collectDeviceDetails() {
   const platform = await new Promise(resolve => {
     try { chrome.runtime.getPlatformInfo(info => resolve(info || null)); } catch { resolve(null); }
   });
   const nav = typeof navigator !== 'undefined' ? navigator : null;
   const ua = nav ? nav.userAgent || '' : '';
+
   // 解析浏览器名称/版本
   let browserName = '未知';
   let browserVer = '';
   if (ua.includes('Chrome/') && !ua.includes('Edg/')) {
     const m = ua.match(/Chrome\/([\d.]+)/);
-    browserName = 'Chrome';
-    browserVer = m ? m[1] : '';
+    browserName = 'Chrome'; browserVer = m ? m[1] : '';
   } else if (ua.includes('Edg/')) {
     const m = ua.match(/Edg\/([\d.]+)/);
-    browserName = 'Edge';
-    browserVer = m ? m[1] : '';
+    browserName = 'Edge'; browserVer = m ? m[1] : '';
   } else if (ua.includes('Firefox/')) {
     const m = ua.match(/Firefox\/([\d.]+)/);
-    browserName = 'Firefox';
-    browserVer = m ? m[1] : '';
+    browserName = 'Firefox'; browserVer = m ? m[1] : '';
   } else if (ua.includes('Safari/') && !ua.includes('Chrome/')) {
     const m = ua.match(/Version\/([\d.]+)/);
-    browserName = 'Safari';
-    browserVer = m ? m[1] : '';
+    browserName = 'Safari'; browserVer = m ? m[1] : '';
   }
+
+  // CPU 详情（型号、核心数、特性）
+  let cpuModel = '';
+  let cpuCores = nav ? nav.hardwareConcurrency || '' : '';
+  let cpuFeatures = [];
+  try {
+    const cpuInfo = await chrome.system.cpu.getInfo();
+    if (cpuInfo) {
+      cpuModel = cpuInfo.modelName || '';
+      if (!cpuCores) cpuCores = String(cpuInfo.numOfProcessors || '');
+      cpuFeatures = (cpuInfo.features || []).slice(0, 10); // 只取前10个特性
+    }
+  } catch (e) {}
+
+  // 内存详情（总容量 GB）
+  let totalMemory = '';
+  try {
+    const memInfo = await chrome.system.memory.getInfo();
+    if (memInfo && memInfo.capacity) {
+      totalMemory = (memInfo.capacity / 1024 / 1024 / 1024).toFixed(1);
+    }
+  } catch (e) {}
+
   const osMap = { mac: 'macOS', win: 'Windows', android: 'Android', cros: 'ChromeOS', linux: 'Linux', openbsd: 'OpenBSD' };
   return {
     os: platform ? (osMap[platform.os] || platform.os) : '未知',
@@ -218,34 +258,67 @@ async function collectDeviceDetails() {
     browserVer: browserVer,
     language: nav ? nav.language || '' : '',
     platform: nav ? nav.platform || '' : '',
-    cpuCores: nav ? nav.hardwareConcurrency || '' : '',
+    cpuModel: cpuModel,
+    cpuCores: cpuCores,
+    cpuFeatures: cpuFeatures,
     deviceMemory: nav ? nav.deviceMemory || '' : '',
+    totalMemory: totalMemory,
     uaShort: ua.substring(0, 150)
   };
 }
 
-// 实时收集网络接口信息
+// 推测接口类型
+function guessInterfaceType(name) {
+  const n = (name || '').toLowerCase();
+  if (n.startsWith('eth') || n.startsWith('enp') || n.startsWith('eno') || n.startsWith('ens') || n === '以太网') return '有线';
+  if (n.startsWith('wlan') || n.startsWith('wlp') || n.startsWith('wlx') || n.startsWith('wifi') || n.startsWith('wi-fi') || n.includes('wireless')) return '无线';
+  if (n.startsWith('docker') || n.startsWith('br-') || n.startsWith('veth') || n === 'docker0') return '虚拟';
+  if (n.startsWith('tun') || n.startsWith('tap') || n.startsWith('ppp') || n.startsWith('wg') || n.startsWith('utun')) return 'VPN/隧道';
+  if (n.startsWith('lo')) return '回环';
+  if (n.startsWith('vmnet') || n.startsWith('vnic')) return '虚拟机';
+  return '其他';
+}
+
+// 子网掩码（由 prefixLength 计算）
+function prefixToMask(prefix) {
+  if (!prefix && prefix !== 0) return '';
+  const mask = [];
+  for (let i = 0; i < 4; i++) {
+    const bits = Math.min(prefix - i * 8, 8);
+    mask.push(bits > 0 ? 256 - Math.pow(2, 8 - bits) : 0);
+  }
+  return mask.join('.');
+}
+
+// 实时收集网络接口信息（含类型、子网掩码）
 async function collectNetworkInfo() {
   try {
     if (typeof chrome.system !== 'undefined' && chrome.system.network &&
         typeof chrome.system.network.getNetworkInterfaces === 'function') {
       const ifaces = await chrome.system.network.getNetworkInterfaces();
       if (ifaces && ifaces.length > 0) {
-        // 只显示非回环 IPv4 地址
         const entries = ifaces
-          .filter(i => i && i.address && !i.address.startsWith('127.') && !i.address.startsWith('::1'))
+          .filter(i => i && i.address)
           .map(i => {
             const name = i.name || '未知';
             const addr = i.address || '';
-            const prefix = i.prefixLength !== undefined ? '/' + i.prefixLength : '';
-            return { name, addr, prefix };
+            const prefix = i.prefixLength;
+            const isLoopback = addr.startsWith('127.') || addr === '::1';
+            const isIPv6 = addr.includes(':');
+            return {
+              name,
+              addr,
+              prefix: prefix !== undefined ? prefix : '',
+              mask: prefix !== undefined && !isIPv6 ? prefixToMask(prefix) : '',
+              type: guessInterfaceType(name),
+              isLoopback,
+              isIPv6
+            };
           });
         return entries;
       }
     }
-  } catch (e) {
-    // 静默失败
-  }
+  } catch (e) {}
   return [];
 }
 
@@ -1378,8 +1451,11 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           browserVer: devDetails.browserVer,
           language: devDetails.language,
           platform: devDetails.platform,
+          cpuModel: devDetails.cpuModel,
           cpuCores: devDetails.cpuCores,
+          cpuFeatures: devDetails.cpuFeatures,
           deviceMemory: devDetails.deviceMemory,
+          totalMemory: devDetails.totalMemory,
           uaShort: devDetails.uaShort,
           network: netInfo
         });
