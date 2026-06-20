@@ -26,13 +26,13 @@ export const APP_CONFIG = {
 
   // ===== 升级检测 =====
   UPDATE: {
-    DEFAULT_URL: 'https://raw.githubusercontent.com/BenSongLab/session-master/main/VERSION',
+    DEFAULT_URL: 'https://raw.githubusercontent.com/benson-album/session-master/master/VERSION',
     ENABLED: true
   },
 
   // ===== GitHub 地址（安装脚本、文件清单中的下载链接） =====
   GITHUB: {
-    RAW_BASE: 'https://raw.githubusercontent.com/BenSongLab/session-master/main',
+    RAW_BASE: 'https://raw.githubusercontent.com/benson-album/session-master/master',
     SCRIPTS_DIR: 'src/scripts'
   },
 
