@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "SessionMaster · 会话大师",
-  "version": "1.2.1",
+  "version": "1.3.0",
   "author": "BenSon.Album (chinasir@qq.com)",
   "description": "突破网站单设备登录限制 —— 跨浏览器 Cookie 同步 + 拦截踢人请求",
   "icons": {
@@ -14,6 +14,7 @@
     "system.network",
     "declarativeNetRequest",
     "declarativeNetRequestFeedback",
+    "notifications",
     "webRequest",
     "tabs"
   ],

@@ -449,6 +449,65 @@
   document.getElementById('modeP2P').addEventListener('click', () => switchMode('p2p'));
   document.getElementById('modeServer').addEventListener('click', () => switchMode('server'));
 
+  // ========== 主从设备模式 ==========
+
+  async function loadMasterMode() {
+    let config;
+    if (currentMode === 'server') {
+      config = await chrome.runtime.sendMessage({ action: 'serverGetSyncConfig' });
+    } else {
+      config = await chrome.runtime.sendMessage({ action: 'getSyncConfig' });
+    }
+    const masterMode = config.masterMode || false;
+    const isMaster = config.isMaster !== false; // 默认 true
+    
+    document.getElementById('masterModeToggle').checked = masterMode;
+    document.getElementById('isMasterToggle').checked = isMaster;
+    updateMasterUI(masterMode, isMaster);
+  }
+
+  function updateMasterUI(masterMode, isMaster) {
+    const statusEl = document.getElementById('masterStatus');
+    const deviceRow = document.getElementById('masterDeviceRow');
+    
+    if (masterMode) {
+      statusEl.textContent = '📡 已开启 — ' + (isMaster ? '此设备为【主设备】，将上传 Cookie 给其他设备' : '此设备为【从设备】，仅接收不下发');
+      statusEl.style.background = isMaster ? '#e6f4ea' : '#fff3e0';
+      statusEl.style.color = isMaster ? '#137333' : '#e65100';
+      deviceRow.style.display = 'block';
+    } else {
+      statusEl.textContent = '⏸️ 已关闭（多设备平等模式，自动版本控制）';
+      statusEl.style.background = '#f1f3f4';
+      statusEl.style.color = '#888';
+      deviceRow.style.display = 'none';
+    }
+  }
+
+  // 主从开关切换
+  document.getElementById('masterModeToggle').addEventListener('change', async function() {
+    const masterMode = this.checked;
+    const isMaster = masterMode ? document.getElementById('isMasterToggle').checked : true;
+    await chrome.runtime.sendMessage({ action: 'saveMasterMode', masterMode, isMaster });
+    updateMasterUI(masterMode, isMaster);
+    showToast(masterMode ? '📡 主从模式已开启' : '📡 主从模式已关闭，切换为平等模式');
+  });
+
+  // 主/从身份切换
+  document.getElementById('isMasterToggle').addEventListener('change', async function() {
+    const isMaster = this.checked;
+    const masterMode = document.getElementById('masterModeToggle').checked;
+    await chrome.runtime.sendMessage({ action: 'saveMasterMode', masterMode, isMaster });
+    const statusEl = document.getElementById('masterStatus');
+    if (isMaster) {
+      statusEl.textContent = '📡 已开启 — 此设备为【主设备】，将上传 Cookie 给其他设备';
+      statusEl.style.background = '#e6f4ea'; statusEl.style.color = '#137333';
+    } else {
+      statusEl.textContent = '📡 已开启 — 此设备为【从设备】，仅接收不下发';
+      statusEl.style.background = '#fff3e0'; statusEl.style.color = '#e65100';
+    }
+    showToast(isMaster ? '✅ 已设为主设备' : '⏸️ 已设为从设备，不再上传 Cookie');
+  });
+
   // ========== P2P 配对 ==========
 
   let p2pState = 'idle'; // idle | created | joined | connected
@@ -487,6 +546,14 @@
       statusEl.textContent = '⏳ 等待对方加入...';
       statusEl.style.background = '#fff3e0';
       statusEl.style.color = '#e65100';
+      // 9分钟后房间过期，给出提示
+      setTimeout(() => {
+        if (p2pState === 'waiting') {
+          statusEl.textContent = '⏳ 等待超时！请重新创建配对';
+          statusEl.style.background = '#fce4ec';
+          statusEl.style.color = '#c5221f';
+        }
+      }, 9 * 60 * 1000);
     } else {
       statusEl.textContent = '⏸️ 未连接';
       statusEl.style.background = '#f1f3f4';
@@ -1092,6 +1159,7 @@
     await loadHeartbeats();
     await loadRulesDB();
     await loadRecommendedRules();
+    await loadMasterMode();
     await loadSyncHistory_('p2p');
     await loadSyncHistory_('server');
 

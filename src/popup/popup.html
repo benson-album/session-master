@@ -90,6 +90,28 @@
         <button id="modeServer" class="sync-mode-btn">🖥️ 服务器模式</button>
       </div>
       
+      <!-- 主从设备开关（两种模式通用） -->
+      <div class="section master-slave-section" style="margin-bottom:8px">
+        <div class="sync-toggle-row">
+          <span class="sync-toggle-label">📡 主从设备模式</span>
+          <label class="switch">
+            <input type="checkbox" id="masterModeToggle">
+            <span class="slider"></span>
+          </label>
+        </div>
+        <div id="masterStatus" class="sync-status" style="margin-top:4px">⏸️ 已关闭（多设备平等模式）</div>
+        <div id="masterDeviceRow" style="display:none;margin-top:6px">
+          <div class="sync-toggle-row" style="margin-bottom:0">
+            <span style="font-size:12px;color:#555">此设备为主设备</span>
+            <label class="switch" style="width:36px;height:20px">
+              <input type="checkbox" id="isMasterToggle" checked>
+              <span class="slider" style="height:20px"></span>
+            </label>
+          </div>
+          <p class="form-hint" style="font-size:10px;margin-top:2px">开启：此设备作为主设备，负责上传 Cookie 给其他设备；关闭：此设备仅接收不发送</p>
+        </div>
+      </div>
+      
       <!-- ===== P2P 模式界面 ===== -->
       <div id="p2pSection">
         <div class="section">
@@ -346,7 +368,7 @@
     <!-- 底部 -->
     <div class="footer">
       <span><button id="btnHelp" class="btn-link">📖 使用说明</button></span>
-      <span>v1.2.0</span>
+      <span>v1.3.0</span>
     </div>
   </div>
   

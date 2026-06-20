@@ -32,7 +32,8 @@ async function getCookies(domain) {
 async function exportCookies(domain) {
   const cookies = await getCookies(domain);
   if (cookies.length === 0) return { success: false, message: '未找到该域名的 Cookie', data: null };
-  const data = { domain, exportTime: new Date().toISOString(), cookies: cookies.map(c => ({ name: c.name, value: c.value, domain: c.domain, path: c.path, secure: c.secure, httpOnly: c.httpOnly, sameSite: c.sameSite, hostOnly: c.hostOnly })), quick: cookies.map(c => `${c.name}=${c.value}`).join('; ') };
+  const exportTime = new Date().toISOString();
+  const data = { domain, exportTime, cookies: cookies.map(c => ({ name: c.name, value: c.value, domain: c.domain, path: c.path, secure: c.secure, httpOnly: c.httpOnly, sameSite: c.sameSite, hostOnly: c.hostOnly, _exportTime: exportTime })), quick: cookies.map(c => `${c.name}=${c.value}`).join('; ') };
   return { success: true, message: `已导出 ${cookies.length} 个 Cookie`, data };
 }
 
@@ -56,6 +57,139 @@ async function clearCookies(domain) {
     try { const url = `${c.secure ? 'https' : 'http'}://${c.domain}${c.path}`; await chrome.cookies.remove({ url, name: c.name }); count++; } catch (e) {}
   }
   return { removed: count };
+}
+
+// ========== Cookie 版本控制 & 来源追踪 ==========
+
+const SYNC_COOKIE_META_KEY = 'sync_cookie_meta';
+// 元数据结构：{ "domain:name": { lastValue, origin: "local"|"remote", exportTime: "ISO" } }
+
+async function getCookieMeta() {
+  return await getStorage(SYNC_COOKIE_META_KEY, {});
+}
+
+async function saveCookieMeta(meta) {
+  await setStorage(SYNC_COOKIE_META_KEY, meta);
+}
+
+// 智能导入：带版本控制 + 来源追踪
+// 用于自动同步（P2P 和服务器模式），防止同步循环覆盖
+async function importCookiesSmart(cookieData, fromDeviceId) {
+  const results = { success: 0, failed: 0, skipped: 0, errors: [] };
+  const meta = await getCookieMeta();
+  const dataExportTime = cookieData.exportTime || new Date().toISOString();
+  let changed = false;
+
+  for (const c of cookieData.cookies) {
+    const metaKey = `${c.domain}:${c.name}`;
+    const incomingTime = c._exportTime || dataExportTime;
+
+    // 策略1：值相同 → 跳过（防无效写入）
+    try {
+      const existing = await chrome.cookies.get({
+        url: `${c.secure ? 'https' : 'http'}://${c.domain}${c.path}`,
+        name: c.name
+      });
+      if (existing && existing.value === c.value) {
+        results.skipped++;
+        continue;
+      }
+    } catch (e) {}
+
+    // 策略2：检查来源时间戳 → 只导入更新的
+    const stored = meta[metaKey];
+    if (stored && stored.origin === 'local') {
+      // 此 Cookie 是本机生成的，只接受更新时间比本地更新的
+      if (incomingTime <= stored.exportTime) {
+        results.skipped++;
+        continue;
+      }
+    }
+
+    // 执行导入
+    try {
+      const details = {
+        url: `${c.secure ? 'https' : 'http'}://${c.domain}${c.path}`,
+        name: c.name, value: c.value,
+        path: c.path || '/', secure: c.secure !== false,
+        httpOnly: c.httpOnly === true, sameSite: c.sameSite || 'lax'
+      };
+      if (!c.hostOnly) details.domain = c.domain;
+      await chrome.cookies.set(details);
+      results.success++;
+
+      // 标记为远程来源（导入的不会再次被导出）
+      meta[metaKey] = { lastValue: c.value, origin: 'remote', exportTime: incomingTime };
+      changed = true;
+    } catch (e) {
+      results.failed++;
+      results.errors.push(`${c.name}: ${e.message}`);
+    }
+  }
+
+  if (changed) await saveCookieMeta(meta);
+  return results;
+}
+
+// 智能导出：只导出来源为 "local" 的 Cookie（防循环）
+async function exportCookiesSmart(domain) {
+  const cookies = await getCookies(domain);
+  if (cookies.length === 0) return { success: false, message: '未找到该域名的 Cookie', data: null };
+  
+  const meta = await getCookieMeta();
+  const exportTime = new Date().toISOString();
+  
+  // 只导出被标记为 "local" 或没有标记的 Cookie
+  const syncCookies = cookies.filter(c => {
+    const metaKey = `${c.domain}:${c.name}`;
+    const stored = meta[metaKey];
+    if (!stored) return true; // 无记录 = 本地生成
+    if (stored.origin === 'local') return true;
+    // 远程导入的 Cookie，检查值是否被 OA 动态更新
+    if (c.value !== stored.lastValue) {
+      // 值变了（页面动态更新），转为 local
+      meta[metaKey] = { ...stored, origin: 'local', lastValue: c.value, exportTime };
+      return true;
+    }
+    return false; // 远程导入的且值没变 → 不导出
+  });
+  
+  await saveCookieMeta(meta);
+  
+  if (syncCookies.length === 0) return { success: false, message: '无可同步的 Cookie（从设备模式或来源追踪过滤）', data: null };
+  
+  const data = {
+    domain, exportTime,
+    cookies: syncCookies.map(c => ({
+      name: c.value, value: c.value, domain: c.domain, path: c.path,
+      secure: c.secure, httpOnly: c.httpOnly, sameSite: c.sameSite,
+      hostOnly: c.hostOnly, _exportTime: exportTime
+    })),
+    quick: syncCookies.map(c => `${c.name}=${c.value}`).join('; ')
+  };
+  return { success: true, message: `已导出 ${syncCookies.length} 个 Cookie`, data };
+}
+
+// 无条件导入（用于手动导入，用户主动操作）
+async function importCookiesUnconditional(cookieData) {
+  const results = { success: 0, failed: 0, errors: [] };
+  for (const c of cookieData.cookies) {
+    try {
+      const details = {
+        url: `${c.secure ? 'https' : 'http'}://${c.domain}${c.path}`,
+        name: c.name, value: c.value,
+        path: c.path || '/', secure: c.secure !== false,
+        httpOnly: c.httpOnly === true, sameSite: c.sameSite || 'lax'
+      };
+      if (!c.hostOnly) details.domain = c.domain;
+      await chrome.cookies.set(details);
+      results.success++;
+    } catch (e) {
+      results.failed++;
+      results.errors.push(`${c.name}: ${e.message}`);
+    }
+  }
+  return results;
 }
 
 // ========== 加密工具 ==========
@@ -97,6 +231,8 @@ const DEFAULT_SYNC_CONFIG = {
   p2pConnected: false,
   p2pConnectedAt: null,
   p2pConnectedPeerName: '',
+  masterMode: false,
+  isMaster: true,
   // 服务器模式
   serverUrl: 'http://你的服务器:5789',
   pairKey: '',
@@ -214,12 +350,13 @@ async function initiateP2PConnection(signalUrl, roomId, fromPeer, toPeer, device
       } catch (e) { console.warn('[P2P] 消息解析失败:', e); }
     };
     p2pSync(toPeer);
-    chrome.runtime.sendMessage({ action: 'p2pStatusUpdate', connected: true, peerId: toPeer, connectedAt, peerName: deviceName || '' });
+    chrome.runtime.sendMessage({ action: 'p2pStatusUpdate', connected: true, peerId: toPeer, connectedAt, peerName: deviceName || '' }).catch(() => {});
   };
 
   channel.onclose = () => {
     console.log('[SessionMaster P2P] 数据通道关闭:', toPeer);
-    chrome.runtime.sendMessage({ action: 'p2pStatusUpdate', connected: false, peerId: toPeer });
+    notifyUser('SessionMaster', 'P2P 对端已断开连接');
+    chrome.runtime.sendMessage({ action: 'p2pStatusUpdate', connected: false, peerId: toPeer }).catch(() => {});
   };
 
   pc.onicecandidate = (event) => {
@@ -239,9 +376,12 @@ async function initiateP2PConnection(signalUrl, roomId, fromPeer, toPeer, device
         try { await handleP2PMessage(JSON.parse(ev.data), toPeer); } catch (e) {}
       };
       p2pSync(toPeer);
-      chrome.runtime.sendMessage({ action: 'p2pStatusUpdate', connected: true, peerId: toPeer, connectedAt });
+      chrome.runtime.sendMessage({ action: 'p2pStatusUpdate', connected: true, peerId: toPeer, connectedAt }).catch(() => {});
     };
-    rc.onclose = () => chrome.runtime.sendMessage({ action: 'p2pStatusUpdate', connected: false, peerId: toPeer });
+    rc.onclose = () => { 
+      notifyUser('SessionMaster', 'P2P 接收通道已关闭');
+      chrome.runtime.sendMessage({ action: 'p2pStatusUpdate', connected: false, peerId: toPeer }).catch(() => {}); 
+    };
   };
 
   try {
@@ -301,10 +441,10 @@ function startP2PPolling(signalUrl, roomId, peerId) {
         for (const msg of data.messages) {
           if (msg.type === 'peer_joined') {
             // 新设备加入，发起连接
-            chrome.runtime.sendMessage({ action: 'p2pPeerJoined', peerDeviceName: msg.data.deviceName });
+            chrome.runtime.sendMessage({ action: 'p2pPeerJoined', peerDeviceName: msg.data.deviceName }).catch(() => {});
             initiateP2PConnection(signalUrl, roomId, peerId, msg.from, msg.data.deviceName);
           } else if (msg.type === 'peer_left') {
-            chrome.runtime.sendMessage({ action: 'p2pPeerLeft', peerId: msg.from });
+            chrome.runtime.sendMessage({ action: 'p2pPeerLeft', peerId: msg.from }).catch(() => {});
             deleteP2PConnection(msg.from);
           } else {
             // 信令消息（offer/answer/ice）
@@ -348,6 +488,7 @@ async function p2pDisconnect() {
   currentP2PRoomId = '';
   currentP2PPeerId = '';
   await saveSyncConfig({ p2pConnected: false, p2pConnectedAt: null, p2pConnectedPeerName: '' });
+  notifyUser('SessionMaster', 'P2P 连接已断开');
 }
 
 // P2P 同步：发送 Cookie 给对端
@@ -356,7 +497,10 @@ async function p2pSync(targetPeer) {
   const domain = config.syncedDomains?.[0];
   if (!domain) return;
 
-  const exportResult = await exportCookies(domain);
+  // 主从检查：从设备不发送 Cookie
+  if (config.masterMode && !config.isMaster) return;
+
+  const exportResult = await exportCookiesSmart(domain);
   if (!exportResult.success) return;
 
   const channel = p2pConnections[targetPeer]?.channel;
@@ -380,11 +524,11 @@ async function handleP2PMessage(msg, fromPeer) {
     try {
       const decryptedStr = await decryptData(msg.data, pairKey);
       const cookieData = JSON.parse(decryptedStr);
-      const importResult = await importCookies(cookieData);
+      const importResult = await importCookiesSmart(cookieData, fromPeer);
       if (importResult.success > 0) {
         await saveSyncConfig({ lastSyncTime: new Date().toISOString() });
-        addSyncHistoryEntry('p2p_sync', '从对端同步了 ' + importResult.success + ' 个 Cookie');
-        chrome.runtime.sendMessage({ action: 'p2pSyncComplete', imported: importResult.success, fromPeer });
+        addSyncHistoryEntry('p2p_sync', '从对端同步了 ' + importResult.success + ' 个 Cookie' + (importResult.skipped > 0 ? '（跳过 ' + importResult.skipped + ' 个未变更）' : ''));
+        chrome.runtime.sendMessage({ action: 'p2pSyncComplete', imported: importResult.success, fromPeer }).catch(() => {});
       }
     } catch (e) {
       console.warn('[P2P] 解密/导入失败:', e.message);
@@ -400,7 +544,8 @@ async function serverGetSyncConfig() {
   return await getStorage(SERVER_SYNC_CONFIG_KEY, {
     enabled: false, serverUrl: 'http://你的服务器:5789', pairKey: '',
     deviceId: '', deviceName: '', intervalMinutes: 5,
-    syncedDomains: [], lastSyncTime: null, lastError: null
+    syncedDomains: [], lastSyncTime: null, lastError: null,
+    masterMode: false, isMaster: true
   });
 }
 
@@ -433,16 +578,21 @@ async function serverPerformSync() {
   const syncDomain = config.syncedDomains.length > 0 ? config.syncedDomains[0] : '';
 
   if (syncDomain) {
-    const exportResult = await exportCookies(syncDomain);
-    if (exportResult.success) {
-      try {
-        const encrypted = await encryptData(JSON.stringify(exportResult.data), config.pairKey);
-        const resp = await fetch(`${config.serverUrl}/api/sync/upload`, {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ key: config.pairKey, deviceId: config.deviceId, domain: syncDomain, data: encrypted, timestamp: new Date().toISOString() })
-        });
-        results.upload = await resp.json();
-      } catch (e) { results.upload = { error: e.message }; }
+    // 主从检查：从设备不上传
+    if (!config.masterMode || config.isMaster) {
+      const exportResult = await exportCookiesSmart(syncDomain);
+      if (exportResult.success) {
+        try {
+          const encrypted = await encryptData(JSON.stringify(exportResult.data), config.pairKey);
+          const resp = await fetch(`${config.serverUrl}/api/sync/upload`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ key: config.pairKey, deviceId: config.deviceId, domain: syncDomain, data: encrypted, timestamp: new Date().toISOString() })
+          });
+          results.upload = await resp.json();
+        } catch (e) { results.upload = { error: e.message }; }
+      }
+    } else {
+      results.upload = { skipped: true, message: '从设备模式，跳过上传' };
     }
   }
 
@@ -456,8 +606,8 @@ async function serverPerformSync() {
           try {
             const decryptedStr = await decryptData(cookieEntry.data, config.pairKey);
             const cookieData = JSON.parse(decryptedStr);
-            const importResult = await importCookies(cookieData);
-            if (importResult.success > 0) { results.imported = true; addSyncHistoryEntry('server_sync', '从 ' + deviceId + ' 同步了 ' + importResult.success + ' 个 Cookie'); console.log('[SessionMaster] 从 ' + deviceId + ' 同步了 ' + importResult.success + ' 个 Cookie'); }
+            const importResult = await importCookiesSmart(cookieData, deviceId);
+            if (importResult.success > 0) { results.imported = true; addSyncHistoryEntry('server_sync', '从 ' + deviceId + ' 同步了 ' + importResult.success + ' 个 Cookie' + (importResult.skipped > 0 ? '（跳过 ' + importResult.skipped + ' 个）' : '')); console.log('[SessionMaster] 从 ' + deviceId + ' 同步了 ' + importResult.success + ' 个 Cookie'); }
           } catch (e) { console.warn('[SessionMaster] 解密失败:', e.message); }
         }
       }
@@ -741,7 +891,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     switch (request.action) {
       // ---- Cookie 管理 ----
       case 'getCookies': sendResponse(await exportCookies(request.domain)); break;
-      case 'importCookies': sendResponse(await importCookies(request.data)); break;
+      case 'importCookies': sendResponse(await importCookiesUnconditional(request.data)); break;
       case 'clearCookies': sendResponse(await clearCookies(request.domain)); break;
       case 'getDomainFromUrl': try { sendResponse({ domain: new URL(request.url).hostname }); } catch { sendResponse({ domain: '' }); } break;
 
@@ -760,6 +910,11 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       // ---- 同步配置 ----
       case 'getSyncConfig': sendResponse(await getSyncConfig()); break;
       case 'saveSyncConfig': sendResponse(await saveSyncConfig(request.config)); break;
+      case 'saveMasterMode':
+        await saveSyncConfig({ masterMode: request.masterMode, isMaster: request.isMaster });
+        await serverSaveSyncConfig({ masterMode: request.masterMode, isMaster: request.isMaster });
+        sendResponse({ success: true });
+        break;
 
       // ---- P2P 模式 ----
       case 'p2pCreateRoom':
@@ -843,6 +998,18 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   return true;
 });
 
+function notifyUser(title, message) {
+  try {
+    chrome.notifications.create({
+      type: 'basic',
+      iconUrl: 'icons/icon128.svg',
+      title: title,
+      message: message,
+      priority: 1
+    });
+  } catch (e) {}
+}
+
 // ========== 安装时初始化 ==========
 
 chrome.runtime.onInstalled.addListener(async () => {
@@ -862,6 +1029,13 @@ chrome.runtime.onInstalled.addListener(async () => {
   }
 
   console.log('[SessionMaster] 插件已安装');
+
+  // SW 重启后重置 P2P 连接状态（WebRTC 连接只存在内存中，重启后丢失）
+  getSyncConfig().then(cfg => {
+    if (cfg.p2pConnected) {
+      saveSyncConfig({ p2pConnected: false, p2pConnectedAt: null, p2pConnectedPeerName: '' });
+    }
+  });
 
   // 恢复保活定时器
   getHeartbeats().then(beats => {
