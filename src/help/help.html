@@ -81,21 +81,20 @@
       min-height: calc(100vh - 88px);
     }
 
-    /* ===== 左侧边栏（粘性定位，内部可滚动） ===== */
+    /* ===== 左侧边栏（粘性定位，底部紧贴视口） ===== */
     .sidebar {
       width: var(--sidebar-width);
       flex-shrink: 0;
       position: sticky;
       top: 70px;
       align-self: stretch;
+      height: calc(100vh - 70px);
     }
     .sidebar-inner {
       background: var(--card);
       border-radius: 12px;
       padding: 12px 0;
       box-shadow: 0 1px 4px rgba(0,0,0,0.06);
-      max-height: calc(100vh - 85px);
-      overflow-y: auto;
     }
     .sidebar h3 {
       font-size: 14px;
