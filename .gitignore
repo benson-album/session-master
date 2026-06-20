@@ -1,0 +1,9 @@
+session-master.zip
+data/
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+.idea/
+.vscode/
+*.sublime-*

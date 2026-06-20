@@ -1,0 +1,56 @@
+{
+  "manifest_version": 3,
+  "name": "SessionMaster · 会话大师",
+  "version": "1.2.0",
+  "author": "BenSon.Album (chinasir@qq.com)",
+  "description": "突破网站单设备登录限制 —— 跨浏览器 Cookie 同步 + 拦截踢人请求",
+  "icons": {
+    "128": "icons/icon128.svg"
+  },
+  "permissions": [
+    "cookies",
+    "storage",
+    "alarms",
+    "system.network",
+    "declarativeNetRequest",
+    "declarativeNetRequestFeedback",
+    "webRequest",
+    "tabs"
+  ],
+  "host_permissions": [
+    "*://*/*"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": ["*://*/*"],
+      "js": ["content.js"],
+      "run_at": "document_end"
+    }
+  ],
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_title": "SessionMaster · 会话大师",
+    "default_icon": {
+      "128": "icons/icon128.svg"
+    }
+  },
+  "declarative_net_request": {
+    "rule_resources": [
+      {
+        "id": "blocking_rules",
+        "enabled": true,
+        "path": "blocking_rules.json"
+      }
+    ]
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["help/*", "server/*", "deploy/*", "blocking_rules.json"],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}
