@@ -205,8 +205,8 @@
     if (!confirm(`确定清除 ${currentDomain} 的所有 Cookie？`)) return;
     const result = await chrome.runtime.sendMessage({ action: 'clearCookies', domain: currentDomain });
     let msg = `✅ 已清除 ${result.removed} 个 Cookie`;
-    if (result.heartbeatPaused > 0) {
-      msg += `，⏸️ 暂停 ${result.heartbeatPaused} 条保活`;
+    if (result.heartbeatRemoved > 0) {
+      msg += `，同时移除了 ${result.heartbeatRemoved} 条相关保活`;
     }
     showToast(msg);
   });

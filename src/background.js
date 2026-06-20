@@ -485,21 +485,27 @@ async function clearCookies(domain) {
   for (const c of cookies) {
     try { const url = cookieApiUrl(c.domain, c.secure, c.path); await chrome.cookies.remove({ url, name: c.name }); count++; } catch (e) {}
   }
-  // 同步暂停该域名下的保活
-  let heartbeatPaused = 0;
-  const beats = await getHeartbeats();
+  // 同步移除该域名下的保活记录（Cookie 没了，保活无意义）
+  let heartbeatRemoved = 0;
+  let beats = await getHeartbeats();
+  const idsToRemove = [];
   for (const b of beats) {
-    if (b.domain && b.domain === domain && b.enabled) {
-      b.enabled = false;
-      heartbeatPaused++;
+    if (b.domain && b.domain === domain) {
+      idsToRemove.push(b.id);
+      heartbeatRemoved++;
     }
   }
-  if (heartbeatPaused > 0) {
+  if (heartbeatRemoved > 0) {
+    beats = beats.filter(b => !idsToRemove.includes(b.id));
     await saveHeartbeats(beats);
+    // 清理已移除保活对应的 alarm
+    for (const id of idsToRemove) {
+      chrome.alarms.clear('heartbeat_' + id).catch(() => {});
+    }
     updateIconState().catch(() => {});
   }
-  logger.info('cookie', '清除 Cookie: ' + domain + ', 已清除 ' + count + ' 个, 暂停保活 ' + heartbeatPaused + ' 条');
-  return { removed: count, heartbeatPaused };
+  logger.info('cookie', '清除 Cookie: ' + domain + ', 已清除 ' + count + ' 个, 移除保活 ' + heartbeatRemoved + ' 条');
+  return { removed: count, heartbeatRemoved };
 }
 
 // ========== Cookie 版本控制 & 来源追踪 ==========
