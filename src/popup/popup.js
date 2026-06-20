@@ -879,6 +879,22 @@
     showToast('📌 已填入当前页面地址');
   });
 
+  // P2P 同步域名填入当前页面域名
+  document.getElementById('btnP2pFillDomain').addEventListener('click', async () => {
+    const { domain } = await getCurrentTabInfo();
+    if (!domain) return showToast('⚠️ 无法获取当前页面域名');
+    document.getElementById('p2pSyncDomain').value = domain;
+    showToast('📌 已填入: ' + domain);
+  });
+
+  // 服务器模式同步域名填入当前页面域名
+  document.getElementById('btnFillSyncDomain').addEventListener('click', async () => {
+    const { domain } = await getCurrentTabInfo();
+    if (!domain) return showToast('⚠️ 无法获取当前页面域名');
+    document.getElementById('syncDomain').value = domain;
+    showToast('📌 已填入: ' + domain);
+  });
+
   // ========== 帮助文档 ==========
   document.getElementById('btnHelp').addEventListener('click', () => {
     const helpUrl = chrome.runtime.getURL('help/help.html');
