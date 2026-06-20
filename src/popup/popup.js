@@ -156,12 +156,11 @@
       importData = { domain: importDomain, cookies };
     }
 
-    await chrome.runtime.sendMessage({ action: 'clearCookies', domain: currentDomain });
-    const result = await chrome.runtime.sendMessage({ action: 'importCookies', data: importData });
+    const compositeResult = await chrome.runtime.sendMessage({ action: 'importWithCookieClear', domain: currentDomain, data: importData });
     document.getElementById('importTextarea').value = '';
     document.getElementById('importBox').style.display = 'none';
-    if (result.success > 0) showToast(`✅ 成功导入 ${result.success} 个 Cookie！刷新页面生效`);
-    if (result.failed > 0) console.warn('导入失败:', result.errors);
+    if (compositeResult.imported > 0) showToast(`✅ 成功导入 ${compositeResult.imported} 个 Cookie！刷新页面生效`);
+    if (compositeResult.failed > 0) console.warn('导入失败:', compositeResult.errors);
   });
 
   // 从 JSON 文件导入 Cookie
@@ -181,11 +180,10 @@
         exportTime: parsed.exportTime || new Date().toISOString(),
         cookies: parsed.cookies
       };
-      await chrome.runtime.sendMessage({ action: 'clearCookies', domain: currentDomain });
-      const result = await chrome.runtime.sendMessage({ action: 'importCookies', data: importData });
+      const compositeResult = await chrome.runtime.sendMessage({ action: 'importWithCookieClear', domain: currentDomain, data: importData });
       document.getElementById('importBox').style.display = 'none';
-      if (result.success > 0) showToast(`✅ 从文件成功导入 ${result.success} 个 Cookie！刷新页面生效`);
-      if (result.failed > 0) console.warn('导入失败:', result.errors);
+      if (compositeResult.imported > 0) showToast(`✅ 从文件成功导入 ${compositeResult.imported} 个 Cookie！刷新页面生效`);
+      if (compositeResult.failed > 0) console.warn('导入失败:', compositeResult.errors);
     } catch (err) {
       showToast('⚠️ 文件读取或解析失败: ' + err.message);
     }

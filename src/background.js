@@ -479,33 +479,52 @@ async function importCookies(cookieData) {
   return results;
 }
 
-async function clearCookies(domain) {
+async function clearCookies(domain, skipHeartbeatRemoval = false) {
   const cookies = await getCookies(domain);
   let count = 0;
   for (const c of cookies) {
     try { const url = cookieApiUrl(c.domain, c.secure, c.path); await chrome.cookies.remove({ url, name: c.name }); count++; } catch (e) {}
   }
-  // 同步移除该域名下的保活记录（Cookie 没了，保活无意义）
   let heartbeatRemoved = 0;
-  let beats = await getHeartbeats();
-  const idsToRemove = [];
-  for (const b of beats) {
-    if (b.domain && b.domain === domain) {
-      idsToRemove.push(b.id);
-      heartbeatRemoved++;
+  // skipHeartbeatRemoval=true 时跳过保活处理（用于导入复合操作，导入后 Cookie 回来了）
+  if (!skipHeartbeatRemoval) {
+    // 同步移除该域名下的保活记录（Cookie 没了，保活无意义）
+    let beats = await getHeartbeats();
+    const idsToRemove = [];
+    for (const b of beats) {
+      if (b.domain && b.domain === domain) {
+        idsToRemove.push(b.id);
+        heartbeatRemoved++;
+      }
+    }
+    if (heartbeatRemoved > 0) {
+      beats = beats.filter(b => !idsToRemove.includes(b.id));
+      await saveHeartbeats(beats);
+      // 清理已移除保活对应的 alarm
+      for (const id of idsToRemove) {
+        chrome.alarms.clear('heartbeat_' + id).catch(() => {});
+      }
+      updateIconState().catch(() => {});
     }
   }
-  if (heartbeatRemoved > 0) {
-    beats = beats.filter(b => !idsToRemove.includes(b.id));
-    await saveHeartbeats(beats);
-    // 清理已移除保活对应的 alarm
-    for (const id of idsToRemove) {
-      chrome.alarms.clear('heartbeat_' + id).catch(() => {});
-    }
-    updateIconState().catch(() => {});
-  }
-  logger.info('cookie', '清除 Cookie: ' + domain + ', 已清除 ' + count + ' 个, 移除保活 ' + heartbeatRemoved + ' 条');
+  logger.info('cookie', '清除 Cookie: ' + domain + ', 已清除 ' + count + ' 个' + (heartbeatRemoved > 0 ? ', 移除保活 ' + heartbeatRemoved + ' 条' : ''));
   return { removed: count, heartbeatRemoved };
+}
+
+// 复合操作：清除 Cookie（跳过保活移除）+ 导入 Cookie
+// 用于粘贴/文件导入场景：清除旧 Cookie 后导入新 Cookie，保活记录不受影响
+async function importWithCookieClear(domain, importData) {
+  const clearResult = await clearCookies(domain, true);
+  const importResult = await importCookiesUnconditional(importData);
+  const imported = importResult.success || 0;
+  const failed = importResult.failed || 0;
+  logger.info('cookie', '导入 Cookie（复合操作）: ' + domain + ', 已清除 ' + clearResult.removed + ' 个, 已导入 ' + imported + ' 个, 失败 ' + failed + ' 个, 保活记录未受影响');
+  return {
+    cleared: clearResult.removed,
+    imported: imported,
+    failed: failed,
+    errors: importResult.errors || []
+  };
 }
 
 // ========== Cookie 版本控制 & 来源追踪 ==========
@@ -1381,6 +1400,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       // ---- Cookie 管理 ----
       case 'getCookies': sendResponse(await exportCookies(request.domain)); break;
       case 'importCookies': sendResponse(await importCookiesUnconditional(request.data)); break;
+      case 'importWithCookieClear': sendResponse(await importWithCookieClear(request.domain, request.data)); break;
       case 'clearCookies': sendResponse(await clearCookies(request.domain)); break;
       case 'getDomainFromUrl': try { sendResponse({ domain: new URL(request.url).hostname }); } catch { sendResponse({ domain: '' }); } break;
 
