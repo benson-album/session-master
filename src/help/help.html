@@ -416,6 +416,7 @@
           <a href="#cookie-export" class="sidebar-link sub">2.1 导出 Cookie</a>
           <a href="#cookie-import" class="sidebar-link sub">2.2 导入 Cookie</a>
           <a href="#cloud-sync" class="sidebar-link">三、云端自动同步</a>
+          <a href="#quick-start" class="sidebar-link sub">3.0 快速开始</a>
           <a href="#choose-mode" class="sidebar-link sub">3.1 选择方式</a>
           <a href="#sync-flow" class="sidebar-link sub">3.2 P2P 直连</a>
           <a href="#server-install" class="sidebar-link sub">3.3 服务器模式</a>
@@ -658,6 +659,27 @@
       <div class="card" id="cloud-sync">
         <h2>三、☁️ 云端自动同步</h2>
         <p>在每台电脑上都需要安装插件，配置好同步服务器的地址或 P2P 配对码，Cookie 就会自动在设备间同步。</p>
+
+        <h3 id="quick-start">3.0 快速开始 — 安装本地同步服务器</h3>
+        <p>如果你只需要在两台电脑间同步 Cookie，最快的方式是在其中一台电脑上运行本地同步服务器。插件提供一键安装脚本，无需手动下载 Node.js 或配置服务器。</p>
+
+        <h4>🐧 Linux / macOS</h4>
+        <div class="code-block">
+          <code>curl -fsSL https://raw.githubusercontent.com/BenSongLab/session-master/main/src/scripts/sessionmaster-install.sh | bash</code>
+          <button class="copy-btn" data-target="quickStartLinux">📋 复制</button>
+        </div>
+        <p class="hint">脚本自动安装 Node.js、下载 <code>server.js</code>、配置 systemd（Linux）或 launchd（macOS）开机自启。</p>
+
+        <h4>🪟 Windows（管理员 PowerShell）</h4>
+        <div class="code-block">
+          <code>iex ((New-Object Net.WebClient).DownloadString('https://raw.githubusercontent.com/BenSongLab/session-master/main/src/scripts/sessionmaster-install.ps1'))</code>
+          <button class="copy-btn" data-target="quickStartWin">📋 复制</button>
+        </div>
+        <p class="hint">脚本自动安装 Node.js、注册 Windows 服务、开机自启。</p>
+
+        <div class="tip success">
+          <strong>✅ 安装后插件自动发现：</strong>安装脚本会在本机启动同步服务器（端口 5789）。插件每次打开时自动检测 <code>localhost:5789</code>，检测到后自动填入同步地址，无需手动配置。状态指示器会显示「✅ 本地同步服务器已发现」。
+        </div>
 
         <h3 id="choose-mode">3.1 选择同步方式</h3>
         <p>插件支持两种同步模式：</p>

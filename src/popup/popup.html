@@ -106,39 +106,6 @@
          ============================================================ -->
     <div id="tab-sync" class="tab-content">
       
-      <!-- 首次安装引导卡片（无配置且无本地服务器时显示） -->
-      <div id="localServerGuide" class="section guide-card" style="display:none">
-        <div class="guide-card-header">
-          <span class="guide-card-icon">🚀</span>
-          <div class="guide-card-title">快速开始 — 安装本地同步服务器</div>
-          <button id="btnDismissGuide" class="btn-small" style="color:#999;border:none;font-size:14px;padding:2px 6px" title="关闭">✕</button>
-        </div>
-        <p class="guide-card-desc">
-          在本机运行同步服务器，无需 Docker，一键启动：
-        </p>
-        <div class="guide-card-platforms">
-          <details class="guide-card-detail">
-            <summary>🐧 Linux / macOS</summary>
-            <div class="guide-card-code">
-              <code id="guideCodeLinux">curl -fsSL https://raw.githubusercontent.com/BenSongLab/session-master/main/src/scripts/sessionmaster-install.sh | bash</code>
-              <button class="btn-small copy-code-btn" data-target="guideCodeLinux">📋 复制</button>
-            </div>
-            <p class="guide-card-hint">自动安装 Node.js + 下载 server.js + 配置 systemd/launchd 自启动</p>
-          </details>
-          <details class="guide-card-detail">
-            <summary>🪟 Windows（管理员 PowerShell）</summary>
-            <div class="guide-card-code">
-              <code id="guideCodeWin">iex ((New-Object Net.WebClient).DownloadString('https://raw.githubusercontent.com/BenSongLab/session-master/main/src/scripts/sessionmaster-install.ps1'))</code>
-              <button class="btn-small copy-code-btn" data-target="guideCodeWin">📋 复制</button>
-            </div>
-            <p class="guide-card-hint">自动安装 Node.js、注册 Windows 服务、开机自启</p>
-          </details>
-        </div>
-        <div class="guide-card-footer">
-          <span>✅ 安装后，插件会自动检测本地服务器，无需手动配置地址</span>
-        </div>
-      </div>
-      
       <!-- 本地服务器状态指示器 -->
       <div id="localServerStatus" style="display:none;margin-bottom:8px;padding:8px 12px;background:#e6f4ea;border-radius:8px;font-size:12px;color:#137333">
         ✅ 本地同步服务器已发现：<span id="localServerUrlDisplay" style="font-weight:600;font-family:monospace"></span>
@@ -389,6 +356,39 @@
           </div>
         </div>
       </details>
+      
+      <!-- 首次安装引导卡片（无配置且无本地服务器时显示） -->
+      <div id="localServerGuide" class="section guide-card" style="display:none">
+        <div class="guide-card-header">
+          <span class="guide-card-icon">🚀</span>
+          <div class="guide-card-title">快速开始 — 安装本地同步服务器</div>
+          <button id="btnDismissGuide" class="btn-small" style="color:#999;border:none;font-size:14px;padding:2px 6px" title="关闭">✕</button>
+        </div>
+        <p class="guide-card-desc">
+          在本机运行同步服务器，无需 Docker，一键启动：
+        </p>
+        <div class="guide-card-platforms">
+          <details class="guide-card-detail">
+            <summary>🐧 Linux / macOS</summary>
+            <div class="guide-card-code">
+              <code id="guideCodeLinux">curl -fsSL https://raw.githubusercontent.com/BenSongLab/session-master/main/src/scripts/sessionmaster-install.sh | bash</code>
+              <button class="btn-small copy-code-btn" data-target="guideCodeLinux">📋 复制</button>
+            </div>
+            <p class="guide-card-hint">自动安装 Node.js + 下载 server.js + 配置 systemd/launchd 自启动</p>
+          </details>
+          <details class="guide-card-detail">
+            <summary>🪟 Windows（管理员 PowerShell）</summary>
+            <div class="guide-card-code">
+              <code id="guideCodeWin">iex ((New-Object Net.WebClient).DownloadString('https://raw.githubusercontent.com/BenSongLab/session-master/main/src/scripts/sessionmaster-install.ps1'))</code>
+              <button class="btn-small copy-code-btn" data-target="guideCodeWin">📋 复制</button>
+            </div>
+            <p class="guide-card-hint">自动安装 Node.js、注册 Windows 服务、开机自启</p>
+          </details>
+        </div>
+        <div class="guide-card-footer">
+          <span>✅ 安装后，插件会自动检测本地服务器，无需手动配置地址</span>
+        </div>
+      </div>
     </div>
     
     <!-- ============================================================
