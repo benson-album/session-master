@@ -173,7 +173,7 @@ fi
 if [ -z "$SERVER_JS" ] && command -v curl &>/dev/null; then
   # 尝试 raw.githubusercontent.com
   info "从 GitHub 下载..."
-  SERVER_JS=$(curl -fsSL "https://raw.githubusercontent.com/benson-album/session-master/main/src/server/server.js" 2>/dev/null) || true
+  SERVER_JS=$(curl -fsSL "https://raw.githubusercontent.com/benson-album/session-master/master/src/server/server.js" 2>/dev/null) || true
 fi
 
 if [ -z "$SERVER_JS" ]; then
@@ -182,7 +182,7 @@ if [ -z "$SERVER_JS" ]; then
   warn "1. 将 server.js 放入 $INSTALL_DIR/"
   warn "2. 然后运行: node $INSTALL_DIR/server.js $PORT"
   info "或者从 GitHub 下载:"
-  info "  curl -fsSL https://raw.githubusercontent.com/benson-album/session-master/main/src/server/server.js -o $INSTALL_DIR/server.js"
+  info "  curl -fsSL https://raw.githubusercontent.com/benson-album/session-master/master/src/server/server.js -o $INSTALL_DIR/server.js"
   exit 1
 fi
 
