@@ -8,7 +8,7 @@
 export const APP_CONFIG = {
 
   // ===== 版本 =====
-  VERSION: '1.5.6',
+  VERSION: '1.5.13',
 
   // ===== 默认端口 =====
   DEFAULT_PORT: 5789,
@@ -47,7 +47,7 @@ export const APP_CONFIG = {
     mode: 'p2p',
     enabled: false,
     // P2P 模式
-    signalUrl: 'http://你的信令服务器地址:{port}',
+    signalUrl: 'http://你的信令服务器地址:5789',
     p2pRoomId: '',
     p2pPairKey: '',
     p2pDeviceName: '',
@@ -57,7 +57,7 @@ export const APP_CONFIG = {
     masterMode: false,
     isMaster: true,
     // 服务器模式
-    serverUrl: 'http://你的服务器:{port}',
+    serverUrl: 'http://你的服务器:5789',
     pairKey: '',
     deviceId: '',
     deviceName: '',
@@ -70,7 +70,7 @@ export const APP_CONFIG = {
   // ===== 服务器同步默认配置（含主从状态） =====
   SERVER_SYNC_DEFAULTS: {
     enabled: false,
-    serverUrl: 'http://你的服务器:{port}',
+    serverUrl: 'http://你的服务器:5789',
     pairKey: '',
     deviceId: '',
     deviceName: '',

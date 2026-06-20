@@ -5,8 +5,7 @@
 > 适用于 Matrix 致远 OA V9.0SP1 及其他使用前端踢人机制的企业系统。
 **经验证：大部分 OA 系统的限制是纯前端实现的——服务端其实允许多会话共存。**
 
-> 当前版本：**v1.5.1**
-> 项目路径：`/opt/projects/session-master/`
+> 当前版本：**v1.5.13**
 
 ---
 
@@ -96,7 +95,7 @@ session-master/
 ### 构建发布包
 
 ```bash
-cd /opt/projects/session-master
+cd session-master/
 bash scripts/build.sh
 ```
 

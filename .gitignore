@@ -1,5 +1,21 @@
+# 构建产物
 session-master.zip
+session-master-*.zip
+
+# 测试数据
 data/
+
+# 自动生成
+src/_metadata/
+node_modules/
+chrome/
+package.json
+package-lock.json
+
+# 开发调试
+deploy_debug/
+
+# 通用忽略
 .DS_Store
 Thumbs.db
 *.swp

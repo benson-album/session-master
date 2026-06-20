@@ -37,6 +37,7 @@ REQUIRED_FILES=(
   "$SRC_DIR/deploy/docker-compose.yaml"
   "$SRC_DIR/deploy/deploy.sh"
   "$SRC_DIR/deploy/server.js"
+  "$SRC_DIR/changelog.json"
 )
 
 for f in "${REQUIRED_FILES[@]}"; do

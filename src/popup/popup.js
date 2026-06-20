@@ -729,11 +729,19 @@
     if (isMaster) {
       statusEl.textContent = '📡 已开启 — 此设备为【主设备】，将上传 Cookie 给其他设备';
       statusEl.style.background = '#e6f4ea'; statusEl.style.color = '#137333';
+      showToast('✅ 已设为主设备');
     } else {
       statusEl.textContent = '📡 已开启 — 此设备为【从设备】，仅接收不下发';
       statusEl.style.background = '#fff3e0'; statusEl.style.color = '#e65100';
+      // 从设备模式 → 自动暂停所有保活
+      const pauseResult = await chrome.runtime.sendMessage({ action: 'pauseAllHeartbeats' });
+      if (pauseResult && pauseResult.paused > 0) {
+        showToast('⏸️ 已切换为从设备，自动暂停 ' + pauseResult.paused + ' 条保活（保活应由主设备负责）');
+      } else {
+        showToast('⏸️ 已设为从设备，不再上传 Cookie');
+      }
+      loadHeartbeats();
     }
-    showToast(isMaster ? '✅ 已设为主设备' : '⏸️ 已设为从设备，不再上传 Cookie');
     if (currentMode === 'server') loadDeviceStatus();
   });
 
@@ -774,11 +782,19 @@
     if (isMaster) {
       statusEl.textContent = '📡 已开启 — 主设备（上传 Cookie）';
       statusEl.style.background = '#e6f4ea'; statusEl.style.color = '#137333';
+      showToast('✅ 已设为主设备');
     } else {
       statusEl.textContent = '📡 已开启 — 从设备（仅接收）';
       statusEl.style.background = '#fff3e0'; statusEl.style.color = '#e65100';
+      // 从设备模式 → 自动暂停所有保活
+      const pauseResult = await chrome.runtime.sendMessage({ action: 'pauseAllHeartbeats' });
+      if (pauseResult && pauseResult.paused > 0) {
+        showToast('⏸️ 已切换为从设备，自动暂停 ' + pauseResult.paused + ' 条保活（保活应由主设备负责）');
+      } else {
+        showToast('⏸️ 已设为从设备');
+      }
+      loadHeartbeats();
     }
-    showToast(isMaster ? '✅ 已设为主设备' : '⏸️ 已设为从设备');
   });
 
   // ========== P2P 配对 ==========
@@ -855,7 +871,7 @@
     const signalUrl = document.getElementById('p2pSignalUrl').value.trim();
     if (!signalUrl) return showToast('⚠️ 请输入信令服务器地址');
     
-    const result = await chrome.runtime.sendMessage({ action: 'p2pCreateRoom', deviceName });
+    const result = await chrome.runtime.sendMessage({ action: 'p2pCreateRoom', deviceName, signalUrl });
     if (!result.success) return showToast('⚠️ ' + result.error);
     
     // 保存信令地址（上面已获取 signalUrl）
@@ -883,7 +899,7 @@
     const deviceName = document.getElementById('p2pDeviceName').value.trim();
     if (!deviceName) return showToast('⚠️ 请输入设备名称');
     
-    const result = await chrome.runtime.sendMessage({ action: 'p2pJoinRoom', roomId, deviceName });
+    const result = await chrome.runtime.sendMessage({ action: 'p2pJoinRoom', roomId, deviceName, signalUrl: document.getElementById('p2pSignalUrl').value.trim() });
     if (!result.success) return showToast('⚠️ ' + result.error);
     
     const signalUrl = document.getElementById('p2pSignalUrl').value.trim();
@@ -1142,10 +1158,21 @@
     if (countdownTimer) { clearInterval(countdownTimer); countdownTimer = null; }
     const result = await chrome.runtime.sendMessage({ action: 'getHeartbeats' });
     const beats = result.heartbeats || [];
-    renderHeartbeats(beats);
+    // 获取所有心跳对应域名的 Cookie 来源元数据
+    const domains = [...new Set(beats.map(b => (b.domain || '').replace(/^www\./, '')).filter(Boolean))];
+    const cookieMetaByDomain = {};
+    for (const domain of domains) {
+      const metaResult = await chrome.runtime.sendMessage({ action: 'getCookieMetaForDomain', domain });
+      if (metaResult && metaResult.meta) {
+        const hasRemote = Object.values(metaResult.meta).some(m => m.origin === 'remote');
+        const hasLocal = Object.values(metaResult.meta).some(m => m.origin === 'local');
+        cookieMetaByDomain[domain] = { hasRemote, hasLocal };
+      }
+    }
+    renderHeartbeats(beats, cookieMetaByDomain);
   }
 
-  function renderHeartbeats(beats) {
+  function renderHeartbeats(beats, cookieMetaByDomain) {
     const container = document.getElementById('heartbeatItems');
     const listDiv = document.getElementById('heartbeatList');
     const emptyEl = document.getElementById('heartbeatEmpty');
@@ -1171,15 +1198,39 @@
     container.innerHTML = beats.map(beat => {
       const intervalText = beat.intervalMinutes + ' 分钟';
       const displayUrl = beat.url.length > 35 ? beat.url.substring(0, 32) + '...' : beat.url;
-      // 优先使用存储的 siteName，其次从 domain 取
       let siteLabel = beat.siteName || '';
+      let cleanDomain = '';
       if (!siteLabel) {
         let siteDomain = beat.domain || '';
         if (!siteDomain) {
           try { siteDomain = new URL(beat.url.startsWith('http') ? beat.url : 'https://' + beat.url).hostname; } catch {}
         }
-        siteLabel = siteDomain ? siteDomain.replace(/^www\./, '') : '';
+        cleanDomain = siteDomain ? siteDomain.replace(/^www\./, '') : '';
+        siteLabel = cleanDomain;
+      } else {
+        cleanDomain = (beat.domain || '').replace(/^www\./, '');
       }
+
+      // 来源检测
+      const domainMeta = cookieMetaByDomain && cookieMetaByDomain[cleanDomain];
+      let sourceBadge = '';
+      let conflictWarning = '';
+      if (domainMeta) {
+        if (domainMeta.hasRemote && domainMeta.hasLocal) {
+          sourceBadge = '<span style="font-size:9px;margin-left:4px;color:#888;background:#f5f5f5;padding:0 4px;border-radius:3px">🌐本地+📡远程</span>';
+          if (beat.enabled) {
+            conflictWarning = '<div style="font-size:10px;color:#e65100;margin-top:2px">⚠️ 该站点 Cookie 来自多设备同步，保活可能导致 IP 冲突</div>';
+          }
+        } else if (domainMeta.hasRemote) {
+          sourceBadge = '<span style="font-size:9px;margin-left:4px;color:#e65100;background:#fff3e0;padding:0 4px;border-radius:3px">📡 远程同步</span>';
+          if (beat.enabled) {
+            conflictWarning = '<div style="font-size:10px;color:#e65100;margin-top:2px">⚠️ Cookie 来自远程同步，保活可能导致来源冲突，建议关闭保活</div>';
+          }
+        } else if (domainMeta.hasLocal) {
+          sourceBadge = '<span style="font-size:9px;margin-left:4px;color:#137333;background:#e6f4ea;padding:0 4px;border-radius:3px">🌐 本机 Cookie</span>';
+        }
+      }
+
       const lastTime = beat.lastHeartbeatTime ? new Date(beat.lastHeartbeatTime).toLocaleTimeString() : '尚未保活';
       const lastStatus = beat.lastHeartbeatTime
         ? (beat.lastStatus === 'ok' ? '✅' : '❌') + ' ' + (beat.lastStatusDetail || '')
@@ -1192,17 +1243,20 @@
         ? formatCountdown(nextRunTime)
         : '⏸️ 已暂停';
       return '<div class="hb-item" data-id="' + beat.id + '" data-nextrun="' + nextRun + '" data-interval="' + (beat.intervalMinutes * 60000) + '" data-enabled="' + beat.enabled + '">' +
-        '<div class="hb-item-main" style="display:flex;align-items:flex-start">' +
+        '<div class="hb-item-main" style="display:flex;align-items:flex-start;justify-content:space-between">' +
           '<div style="flex:1;min-width:0">' +
             '<span class="heartbeat-url">' + displayUrl + '</span>' +
             '<br><span style="font-size:10px;color:#999">每' + intervalText + '</span>' +
-            '<span style="font-size:10px;color:#bbb;margin-left:4px">' + (siteLabel ? '📍 ' + siteLabel : '') + '</span>' +
+            '<span style="font-size:10px;color:#bbb;margin-left:4px">📍 ' + siteLabel + '</span>' +
+            sourceBadge +
             '<div class="hb-countdown" style="font-size:11px;margin-top:3px">' +
               '<span class="hb-timer" data-id="' + beat.id + '">⏱ ' + countdownText + '</span>' +
               '<span style="color:#888;margin-left:8px;font-size:10px">上次: ' + lastStatus + ' ' + lastTime + '</span>' +
             '</div>' +
+            conflictWarning +
           '</div>' +
-          '<div class="heartbeat-actions" style="margin-left:6px">' +
+          '<div class="heartbeat-actions">' +
+            '<button class="heartbeat-cookie" data-action="cookie" data-id="' + beat.id + '" title="查看此站点 Cookie">🍪</button>' +
             '<button class="' + (beat.enabled ? 'heartbeat-toggle-on' : 'heartbeat-toggle-off') + '" ' +
               'title="' + (beat.enabled ? '暂停此保活' : '启用此保活') + '" ' +
               'data-action="toggle" data-id="' + beat.id + '" data-enabled="' + beat.enabled + '">' +
@@ -1231,6 +1285,14 @@
         await chrome.runtime.sendMessage({ action: 'removeHeartbeat', id });
         showToast('🗑️ 已删除');
         loadHeartbeats();
+      });
+    });
+    container.querySelectorAll('[data-action="cookie"]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const id = btn.dataset.id;
+        const beat = beats.find(b => b.id === id);
+        if (!beat) return;
+        showCookieDetail(beat);
       });
     });
 
@@ -1350,7 +1412,6 @@
     const langLine = result.language ? '  语言: ' + result.language : '';
     const platLine = result.platform ? '  平台: ' + result.platform : '';
     const archLine = result.arch ? ' (' + result.arch + ')' : '';
-    // 网卡：按类型分组展示
     let netLines = '';
     if (result.network && result.network.length > 0) {
       const typeOrder = ['有线', '无线', 'VPN/隧道', '虚拟', '虚拟机', '其他', '回环'];
@@ -1360,34 +1421,41 @@
         if (!grouped[t]) grouped[t] = [];
         grouped[t].push(n);
       }
-      netLines = '  🌍 网卡:\n';
+      netLines = '━━━ 🌍 网络 ━━━\n';
       for (const t of typeOrder) {
         if (!grouped[t]) continue;
-        netLines += '     【' + t + '】\n';
+        netLines += '  【' + t + '】\n';
         for (const n of grouped[t]) {
           if (n.isLoopback) continue;
-          const addrPart = n.isIPv6 ? n.addr : n.addr + (n.mask ? ' / ' + n.mask : '');
-          netLines += '       ' + n.name + ': ' + addrPart + '\n';
+          const addrPart = n.isIPv6 ? n.address : n.address + (n.mask ? ' / ' + n.mask : '');
+          netLines += '    ' + n.name + ': ' + addrPart + '\n';
         }
       }
-      netLines += '     接口总数: ' + result.network.length;
+      netLines += '  接口总数: ' + result.network.length;
     }
-    const msg = '🖥️ 当前设备\n' +
-      '━━━━━━━━━━━━━━━\n' +
-      '📱 ' + (result.deviceName || '未命名设备') + '\n' +
-      '━━━━━━━━━━━━━━━\n' +
-      '💻 ' + result.os + archLine + '\n' +
-      platLine +
-      langLine +
-      cpuLine +
-      memLine + '\n' +
-      '━━━━━━━━━━━━━━━\n' +
-      '🌐 ' + result.browser + ' ' + (result.browserVer || '') + '\n' +
-      '━━━━━━━━━━━━━━━\n' +
-      (netLines ? netLines + '\n━━━━━━━━━━━━━━━\n' : '') +
-      '🆔 ' + result.id.substring(0, 12) + '...\n' +
+    const msg = '━━━ 📱 设备名 ━━━\n' +
+      (result.deviceName || '未命名设备') + '\n' +
+      '━━━ 💻 系统 ━━━\n' +
+      result.os + archLine + '\n' +
+      platLine + langLine + cpuLine + memLine + '\n' +
+      '━━━ 🌐 浏览器 ━━━\n' +
+      result.browser + ' ' + (result.browserVer || '') + '\n' +
+      (netLines ? netLines + '\n' : '') +
+      '━━━ 🆔 设备 ID ━━━\n' +
+      result.id + '\n' +
       '📅 ' + new Date(result.createdAt).toLocaleString();
-    showToast(msg, 5000);
+    document.getElementById('deviceModalBody').textContent = msg;
+    document.getElementById('deviceModalOverlay').style.display = 'flex';
+  });
+
+  // 设备弹窗关闭
+  document.getElementById('deviceModalClose').addEventListener('click', function() {
+    document.getElementById('deviceModalOverlay').style.display = 'none';
+  });
+  document.getElementById('deviceModalOverlay').addEventListener('click', function(e) {
+    if (e.target === e.currentTarget) {
+      this.style.display = 'none';
+    }
   });
 
   // 信令服务器帮助图标
@@ -1512,7 +1580,8 @@
     
     loadingDiv.style.display = 'none';
     listDiv.style.display = 'block';
-    document.getElementById('netInfoBadge').textContent = `（${v4addrs.length + v6addrs.length} 个地址）`;
+    const badge = document.getElementById('netInfoBadge');
+    if (badge) badge.textContent = `（${v4addrs.length + v6addrs.length} 个地址）`;
     
     let html = '';
     
@@ -1813,6 +1882,55 @@
     // - 帮助页链接
     // 以上按钮不在此函数中禁用，保持始终可用
   }
+
+  // ========== Cookie 详情弹窗 ==========
+
+  function showCookieDetail(beat) {
+    const overlay = document.getElementById('cookieDetailOverlay');
+    const titleEl = document.getElementById('cookieDetailTitle');
+    const bodyEl = document.getElementById('cookieDetailBody');
+    let domain = beat.domain || '';
+    if (!domain) {
+      try { domain = new URL(beat.url.startsWith('http') ? beat.url : 'https://' + beat.url).hostname; } catch {}
+    }
+    titleEl.textContent = '🍪 Cookie 详情 - ' + (domain || '未知');
+    bodyEl.innerHTML = '<div class="cookie-detail-loading">⏳ 正在获取 Cookie...</div>';
+    overlay.style.display = 'flex';
+    (async () => {
+      try {
+        const result = await chrome.runtime.sendMessage({ action: 'getCookies', domain: domain });
+        if (!result.success || !result.data || !result.data.cookies || result.data.cookies.length === 0) {
+          bodyEl.innerHTML = '<div class="cookie-detail-empty">🍪 该站点暂无 Cookie</div>';
+          return;
+        }
+        bodyEl.innerHTML = result.data.cookies.map(function(c) {
+          var val = String(c.value);
+          return '<div class="cookie-detail-item">' +
+            '<div class="cookie-detail-name">' + htmlesc(c.name) + '</div>' +
+            '<div class="cookie-detail-value">' + htmlesc(val.substring(0, 80)) + (val.length > 80 ? '...' : '') + '</div>' +
+            '<div class="cookie-detail-extra">' +
+              'path=' + htmlesc(c.path || '/') +
+              ' | domain=' + htmlesc(c.domain || '') +
+              (c.secure ? ' | secure' : '') +
+              (c.httpOnly ? ' | httpOnly' : '') +
+              (c.sameSite ? ' | SameSite=' + c.sameSite : '') +
+              (c.expirationDate ? ' | expires=' + new Date(c.expirationDate * 1000).toLocaleDateString() : '') +
+            '</div></div>';
+        }).join('');
+      } catch(e) {
+        bodyEl.innerHTML = '<div class="cookie-detail-empty">' + e.message + '</div>';
+      }
+    })();
+  }
+
+  function htmlesc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+
+  document.getElementById('cookieDetailClose').addEventListener('click', function() {
+    document.getElementById('cookieDetailOverlay').style.display = 'none';
+  });
+  document.getElementById('cookieDetailOverlay').addEventListener('click', function(e) {
+    if (e.target === this) this.style.display = 'none';
+  });
 
   // ========== 初始化 ==========
   (async () => {

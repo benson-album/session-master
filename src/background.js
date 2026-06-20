@@ -7,6 +7,9 @@
 import { APP_CONFIG } from './config.js';
 const { DEFAULT_PORT, STORAGE_KEYS, UPDATE, SYNC_DEFAULTS, SERVER_SYNC_DEFAULTS, HEARTBEAT_DEFAULTS, GITHUB, LOCAL_DISCOVERY, TIMEOUT } = APP_CONFIG;
 
+// === 开发调试开关（生产环境关闭） ===
+const DEBUG = false;
+
 // ========== 存储函数 ==========
 
 async function getStorage(key, defaultVal = null) {
@@ -52,7 +55,7 @@ async function addLog(level, module, message, data) {
   await setStorage(LOG_SIZE_KEY, Math.round(totalSize));
   
   // 同时输出到控制台方便调试
-  console.log(`[SessionMaster] [${level}] [${module}] ${message}`, data || '');
+  if (DEBUG) console.log(`[SessionMaster] [${level}] [${module}] ${message}`, data || '');
 }
 
 async function clearLogs() {
@@ -117,8 +120,8 @@ async function exportLogs() {
   sections.push(browserBlock);
 
   // === 🌍 网络信息 ===
+  let netBlock = '🌍 网络信息\n' + sepDash;
   if (netIfaces.length > 0) {
-    let netBlock = '🌍 网络信息\n' + sepDash;
     // 按类型分组显示
     const typeOrder = ['有线', '无线', 'VPN/隧道', '虚拟', '虚拟机', '其他', '回环'];
     const grouped = {};
@@ -131,15 +134,17 @@ async function exportLogs() {
       if (!grouped[t]) continue;
       netBlock += `  【${t}】\n`;
       for (const iface of grouped[t]) {
-        const addrPart = iface.isIPv6 ? iface.addr : iface.addr + (iface.mask ? ' / ' + iface.mask : '');
+        const addrPart = iface.isIPv6 ? iface.address : iface.address + (iface.mask ? ' / ' + iface.mask : '');
         const prefixPart = iface.prefix !== '' ? ' (' + iface.prefix + ')' : '';
         netBlock += '    ' + iface.name + ': ' + addrPart + prefixPart + '\n';
       }
     }
     netBlock += '  接口总数: ' + netIfaces.length + '（含 ' + netIfaces.filter(i => i.isLoopback).length + ' 个回环）\n';
-    netBlock += '\n';
-    sections.push(netBlock);
+  } else {
+    netBlock += '  无法获取网络接口信息\n';
   }
+  netBlock += '\n';
+  sections.push(netBlock);
 
   // === 📊 日志统计 ===
   let statBlock = '📊 日志统计\n' + sepDash;
@@ -293,33 +298,61 @@ function prefixToMask(prefix) {
 // 实时收集网络接口信息（含类型、子网掩码）
 async function collectNetworkInfo() {
   try {
-    if (typeof chrome.system !== 'undefined' && chrome.system.network &&
-        typeof chrome.system.network.getNetworkInterfaces === 'function') {
-      const ifaces = await chrome.system.network.getNetworkInterfaces();
-      if (ifaces && ifaces.length > 0) {
-        const entries = ifaces
-          .filter(i => i && i.address)
-          .map(i => {
-            const name = i.name || '未知';
-            const addr = i.address || '';
-            const prefix = i.prefixLength;
-            const isLoopback = addr.startsWith('127.') || addr === '::1';
-            const isIPv6 = addr.includes(':');
-            return {
-              name,
-              addr,
-              prefix: prefix !== undefined ? prefix : '',
-              mask: prefix !== undefined && !isIPv6 ? prefixToMask(prefix) : '',
-              type: guessInterfaceType(name),
-              isLoopback,
-              isIPv6
-            };
+    // 使用 WebRTC ICE 候选地址获取本机 IP（替代仅限 App 的 system.network API）
+    const ips = [];
+    const seen = new Set();
+
+    const pc = new RTCPeerConnection({ iceServers: [] });
+    pc.createDataChannel('');
+    await pc.createOffer().then(o => pc.setLocalDescription(o)).catch(() => {});
+
+    await new Promise((resolve) => {
+      const timer = setTimeout(() => { pc.close(); resolve(); }, 2000);
+      pc.onicecandidate = (ice) => {
+        if (!ice || !ice.candidate || !ice.candidate.candidate) {
+          clearTimeout(timer);
+          pc.close();
+          resolve();
+          return;
+        }
+        const matches = ice.candidate.candidate.match(/([0-9]{1,3}\.){3}[0-9]{1,3}/g);
+        if (matches) {
+          matches.forEach(addr => {
+            if (!seen.has(addr)) {
+              seen.add(addr);
+              const isLoopback = addr.startsWith('127.');
+              ips.push({
+                name: isLoopback ? '回环' : guessIPType(addr),
+                address: addr,
+                prefix: '',
+                mask: '',
+                type: isLoopback ? '回环' : guessIPType(addr),
+                isLoopback,
+                isIPv6: false
+              });
+            }
           });
-        return entries;
-      }
-    }
-  } catch (e) {}
-  return [];
+        }
+      };
+    });
+
+    return ips;
+  } catch (e) {
+    console.log('[SessionMaster] [WARN] 收集网络信息失败: ' + (e.message || e));
+    return [];
+  }
+}
+
+function guessIPType(ip) {
+  if (ip.startsWith('192.168.')) return '有线/无线';
+  if (ip.startsWith('10.')) return '有线/无线';
+  if (ip.startsWith('172.')) {
+    const n = parseInt(ip.split('.')[1], 10);
+    if (n >= 16 && n <= 31) return '有线/无线';
+  }
+  if (ip.startsWith('127.')) return '回环';
+  if (ip.startsWith('169.254.')) return '链路本地';
+  return '其他';
 }
 
 // ========== 图标状态角标（动态动画）==========
@@ -644,9 +677,9 @@ function generateP2PPeerId() {
 }
 
 // 创建 P2P 配对房间
-async function p2pCreateRoom(deviceName) {
+async function p2pCreateRoom(deviceName, signalUrl) {
   const peerId = generateP2PPeerId();
-  const signalUrl = await getSignalUrl();
+  if (!signalUrl) signalUrl = await getSignalUrl();
 
   try {
     const resp = await fetch(`${signalUrl}/api/signal/room`, {
@@ -654,7 +687,7 @@ async function p2pCreateRoom(deviceName) {
       body: JSON.stringify({ action: 'create', peerId, deviceName: deviceName || peerId })
     });
     const data = await resp.json();
-    if (!data.roomId) throw new Error('创建房间失败');
+    if (!data.roomId) throw new Error('创建配对失败');
 
     currentP2PRoomId = data.roomId;
     currentP2PPeerId = peerId;
@@ -670,9 +703,9 @@ async function p2pCreateRoom(deviceName) {
 }
 
 // 加入已有 P2P 配对房间
-async function p2pJoinRoom(roomId, deviceName) {
+async function p2pJoinRoom(roomId, deviceName, signalUrl) {
   const peerId = generateP2PPeerId();
-  const signalUrl = await getSignalUrl();
+  if (!signalUrl) signalUrl = await getSignalUrl();
 
   try {
     const resp = await fetch(`${signalUrl}/api/signal/room`, {
@@ -680,7 +713,7 @@ async function p2pJoinRoom(roomId, deviceName) {
       body: JSON.stringify({ action: 'join', roomId, peerId, deviceName: deviceName || peerId })
     });
     const data = await resp.json();
-    if (!data.roomId) throw new Error('加入房间失败');
+    if (!data.roomId) throw new Error('加入配对失败');
 
     currentP2PRoomId = data.roomId;
     currentP2PPeerId = peerId;
@@ -1362,10 +1395,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
       // ---- P2P 模式 ----
       case 'p2pCreateRoom':
-        sendResponse(await p2pCreateRoom(request.deviceName));
+        sendResponse(await p2pCreateRoom(request.deviceName, request.signalUrl));
         break;
       case 'p2pJoinRoom':
-        sendResponse(await p2pJoinRoom(request.roomId, request.deviceName));
+        sendResponse(await p2pJoinRoom(request.roomId, request.deviceName, request.signalUrl));
         break;
       case 'p2pDisconnect':
         await p2pDisconnect();
@@ -1436,6 +1469,27 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       case 'toggleHeartbeat':
         sendResponse(await toggleHeartbeat(request.id, request.enabled));
         break;
+      case 'pauseAllHeartbeats':
+        let allBeats = await getHeartbeats();
+        let paused = 0;
+        for (const b of allBeats) {
+          if (b.enabled) { b.enabled = false; paused++; }
+        }
+        await saveHeartbeats(allBeats);
+        updateIconState().catch(() => {});
+        sendResponse({ success: true, paused });
+        break;
+      case 'getCookieMetaForDomain':
+        const allMeta = await getCookieMeta();
+        const filtered = {};
+        for (const [key, val] of Object.entries(allMeta)) {
+          const domainPart = key.split(':')[0];
+          if (domainPart.includes(request.domain) || request.domain.includes(domainPart)) {
+            filtered[key] = val;
+          }
+        }
+        sendResponse({ meta: filtered });
+        break;
 
       // ---- 同步历史 ----
       case 'getSyncHistory': sendResponse({ history: await getSyncHistory() }); break;
@@ -1479,13 +1533,13 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       // ---- 网络信息 ----
       case 'getNetworkInfo':
         try {
-          if (chrome.system && chrome.system.network && typeof chrome.system.network.getNetworkInterfaces === 'function') {
-            const ifaces = await chrome.system.network.getNetworkInterfaces();
-            const ipv4 = (ifaces || []).filter(i => i && i.address && i.address.includes('.')).map(i => ({ name: i.name || '', address: i.address }));
-            const ipv6 = (ifaces || []).filter(i => i && i.address && i.address.includes(':')).map(i => ({ name: i.name || '', address: i.address }));
+          const netIfaces = await collectNetworkInfo();
+          if (netIfaces && netIfaces.length > 0) {
+            const ipv4 = netIfaces.filter(i => i && i.address && !i.isIPv6).map(i => ({ name: i.name || '', address: i.address }));
+            const ipv6 = netIfaces.filter(i => i && i.address && i.isIPv6).map(i => ({ name: i.name || '', address: i.address }));
             sendResponse({ success: true, ipv4, ipv6 });
           } else {
-            sendResponse({ success: false, error: 'API 不可用' });
+            sendResponse({ success: false, error: '未发现网络接口' });
           }
         } catch (e) { sendResponse({ success: false, error: e.message }); }
         break;

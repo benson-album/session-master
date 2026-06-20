@@ -10,8 +10,12 @@
   <div class="container">
     <!-- 头部 -->
     <div class="header">
-      <h1>🔐 SessionMaster</h1>
-      <span class="subtitle">会话大师</span>
+      <div class="header-left">
+        <h1>🔐 SessionMaster</h1>
+        <span class="subtitle">会话大师</span>
+        <button id="btnDeviceInfo" class="btn-link" title="查看当前设备身份" style="font-size:11px;padding:1px 4px">🖥️</button>
+      </div>
+      <span class="header-version">v1.5.12</span>
     </div>
     
     <!-- 当前站点 -->
@@ -79,7 +83,6 @@
       </div>
 
       <!-- → ② 保活 -->
-      <div class="section-divider"></div>
       <div class="section">
         <div class="section-title"><span>💓 会话保活</span></div>
         <p class="hint" style="margin-bottom:8px">定时请求指定 URL，防止 Cookie 过期失效。</p>
@@ -354,6 +357,10 @@
         <div class="card-body">
           <button id="btnGetNetInfo" class="btn btn-secondary" style="width:100%">🔄 获取本机网络地址</button>
           <div id="netInfoResult" style="display:none;margin-top:8px;font-size:12px">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+              <span>获取到以下网络地址：</span>
+              <span id="netInfoBadge" style="color:#888;font-size:11px"></span>
+            </div>
             <div id="netInfoLoading" style="color:#888;padding:8px">正在获取...</div>
             <div id="netInfoList" style="display:none"></div>
           </div>
@@ -484,18 +491,36 @@
     
     <!-- 底部 -->
     <div class="footer">
-      <span style="display:flex;align-items:center;gap:8px">
-        <button id="btnHelp" class="btn-link" style="font-size:12px">📖 使用说明</button>
-        <button id="btnExportLog" class="btn-link" style="font-size:12px;color:#1a73e8" title="导出操作日志">📋 导出日志</button>
-      </span>
-      <span style="display:flex;align-items:center;gap:4px">
-        <button id="btnDeviceInfo" class="btn-link" title="查看当前设备身份" style="font-size:11px;padding:1px 4px">🖥️</button>
+      <span style="display:flex;align-items:center;gap:6px">
+        <button id="btnHelp" class="btn-link" style="font-size:11px">📖 使用说明</button>
+        <button id="btnExportLog" class="btn-link" style="font-size:11px;color:#1a73e8" title="导出操作日志">📋 导出日志</button>
         <span id="updateBadge" class="update-badge" style="display:none"></span>
-        <span>v1.5.6</span>
       </span>
+      <span style="color:#aaa;font-size:11px">本插件仅供学习研究使用</span>
     </div>
   </div>
   
+  <!-- Cookie 详情弹窗 -->
+  <div id="cookieDetailOverlay" class="modal-overlay" style="display:none">
+    <div class="modal-content">
+      <div class="modal-header">
+        <span id="cookieDetailTitle">🍪 Cookie 详情</span>
+        <button class="modal-close" id="cookieDetailClose">✕</button>
+      </div>
+      <div id="cookieDetailBody" class="modal-body"></div>
+    </div>
+  </div>
+
+  <div id="deviceModalOverlay" class="modal-overlay" style="display:none">
+    <div class="modal-content" style="width:400px">
+      <div class="modal-header">
+        <span>🖥️ 当前设备身份</span>
+        <button class="modal-close" id="deviceModalClose">✕</button>
+      </div>
+      <div id="deviceModalBody" class="modal-body" style="white-space:pre-wrap;font-size:11px;font-family:monospace;line-height:1.5"></div>
+    </div>
+  </div>
+
   <script src="popup.js"></script>
 </body>
 </html>

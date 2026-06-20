@@ -218,9 +218,9 @@ const routes = {
       signalRooms.set(code, room);
       sendJSON(res, 200, { roomId: code, peerId, peerCount: 1 });
     } else if (action === 'join') {
-      if (!roomId) return sendJSON(res, 400, { error: '缺少房间码' });
+      if (!roomId) return sendJSON(res, 400, { error: '缺少配对码' });
       const room = signalRooms.get(roomId);
-      if (!room) return sendJSON(res, 404, { error: '房间不存在或已过期' });
+      if (!room) return sendJSON(res, 404, { error: '配对码无效或已过期' });
 
       room.peers.set(peerId, { name: deviceName || '未知设备', joinedAt: Date.now() });
       room.queues.set(peerId, []);
@@ -250,7 +250,7 @@ const routes = {
     if (!roomId || !from || !to || !type) return sendJSON(res, 400, { error: '缺少必要字段' });
 
     const room = signalRooms.get(roomId);
-    if (!room) return sendJSON(res, 404, { error: '房间不存在' });
+    if (!room) return sendJSON(res, 404, { error: '配对已失效' });
 
     const q = room.queues.get(to);
     if (!q) return sendJSON(res, 404, { error: '对端不在线' });
@@ -272,7 +272,7 @@ const routes = {
     if (!roomId || !peerId) return sendJSON(res, 400, { error: '缺少参数: room, peer' });
 
     const room = signalRooms.get(roomId);
-    if (!room) return sendJSON(res, 404, { error: '房间不存在' });
+    if (!room) return sendJSON(res, 404, { error: '配对已失效' });
 
     const maxWait = Math.min(parseInt(timeout) || 25, 30) * 1000;
     const startTime = Date.now();

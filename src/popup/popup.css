@@ -15,12 +15,18 @@ body {
 
 /* 头部 */
 .header {
-  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   margin-bottom: 12px;
   padding-bottom: 12px;
   border-bottom: 1px solid #e9ecef;
 }
-.header h1 {
+.header-left {
+  display: flex;
+  align-items: baseline;
+}
+.header-left h1 {
   font-size: 20px;
   color: #1a73e8;
   display: inline;
@@ -29,6 +35,10 @@ body {
   font-size: 12px;
   color: #888;
   margin-left: 6px;
+}
+.header-version {
+  font-size: 11px;
+  color: #aaa;
 }
 
 /* 通用区块 */
@@ -227,6 +237,84 @@ textarea {
 }
 .rule-list-container {
   margin-top: 6px;
+}
+
+/* Cookie 详情弹窗 */
+.modal-overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.35);
+  z-index: 999;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 30px;
+}
+.modal-content {
+  background: #fff;
+  border-radius: 10px;
+  width: 380px;
+  max-height: 80vh;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.18);
+  display: flex;
+  flex-direction: column;
+}
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  border-bottom: 1px solid #e9ecef;
+  font-weight: 600;
+  font-size: 14px;
+}
+.modal-close {
+  border: none;
+  background: none;
+  font-size: 16px;
+  cursor: pointer;
+  color: #999;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+.modal-close:hover { background: #f1f3f4; color: #333; }
+.modal-body {
+  padding: 8px 16px 12px;
+  overflow-y: auto;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.cookie-detail-item {
+  padding: 6px 0;
+  border-bottom: 1px solid #f0f0f0;
+}
+.cookie-detail-item:last-child { border-bottom: none; }
+.cookie-detail-name {
+  font-weight: 600;
+  color: #1a73e8;
+  word-break: break-all;
+}
+.cookie-detail-value {
+  color: #666;
+  word-break: break-all;
+  font-family: monospace;
+  font-size: 11px;
+  margin-top: 1px;
+}
+.cookie-detail-extra {
+  font-size: 10px;
+  color: #aaa;
+  margin-top: 1px;
+}
+.cookie-detail-empty {
+  color: #999;
+  text-align: center;
+  padding: 20px 0;
+}
+.cookie-detail-loading {
+  color: #888;
+  text-align: center;
+  padding: 20px 0;
 }
 
 /* 底部 */
@@ -446,7 +534,7 @@ input:required:invalid:not(:placeholder-shown) {
 }
 #heartbeatItems > div:last-child { border-bottom: none; }
 .heartbeat-url { font-family: monospace; font-size: 11px; color: #333; flex: 1; word-break: break-all; }
-.heartbeat-actions { display: flex; gap: 4px; flex-shrink: 0; margin-left: 8px; }
+.heartbeat-actions { display: flex; gap: 4px; flex-shrink: 0; }
 .heartbeat-actions button {
   border: none; border-radius: 4px; cursor: pointer;
   padding: 3px 8px; font-size: 11px;
@@ -455,6 +543,7 @@ input:required:invalid:not(:placeholder-shown) {
 .heartbeat-toggle-on { background: #e6f4ea; color: #137333; }
 .heartbeat-toggle-off { background: #f1f3f4; color: #888; }
 .heartbeat-delete { background: #fce4ec; color: #c5221f; }
+.heartbeat-cookie { background: #fff8e1; color: #f57f17; }
 
 /* 可折叠卡片 */
 .card-collapsible {
@@ -506,12 +595,7 @@ input:required:invalid:not(:placeholder-shown) {
   margin: 0 12px;
 }
 
-/* 分隔线 */
-.section-divider {
-  height: 1px;
-  background: #e0e0e0;
-  margin: 4px 0;
-}
+/* 同步日志 */
 .sync-log {
   font-size: 12px;
   color: #666;
@@ -642,6 +726,7 @@ input:required:invalid:not(:placeholder-shown) {
   background: #455a64;
   color: #fff;
 }
+.copy-code-btn { /* 继承 .guide-card-code .btn-small */ }
 .guide-card-hint {
   font-size: 11px;
   color: #888;

@@ -3,22 +3,115 @@
 (function() {
   'use strict';
 
-  // ===== 更新日志"查看更多"切换 =====
-  function initChangelogToggle() {
-    var oldDiv = document.getElementById('oldVersions');
-    var btnMore = document.getElementById('btnShowMore');
-    var btnLess = document.getElementById('btnShowLess');
-    if (!oldDiv || !btnMore || !btnLess) return;
+  // ===== 更新日志：从 changelog.json 动态加载 =====
+  function initChangelogPagination() {
+    var root = document.getElementById('changelogDynamic');
+    var container = document.getElementById('changelogContainer');
+    var btnLoadMore = document.getElementById('btnLoadMore');
+    if (!root || !container || !btnLoadMore) return;
 
-    function toggleVersions() {
-      var isHidden = oldDiv.style.display === 'none';
-      oldDiv.style.display = isHidden ? 'block' : 'none';
-      btnMore.style.display = isHidden ? 'none' : 'block';
-      btnLess.style.display = isHidden ? 'block' : 'none';
+    var jsonUrl;
+    if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.getURL) {
+      jsonUrl = chrome.runtime.getURL('changelog.json');
+    } else {
+      var base = window.location.href.replace(/\/[^/]*$/, '/');
+      jsonUrl = base + '../changelog.json';
     }
 
-    btnMore.addEventListener('click', toggleVersions);
-    btnLess.addEventListener('click', toggleVersions);
+    fetch(jsonUrl)
+      .then(function(resp) { return resp.json(); })
+      .then(function(versions) {
+        if (!versions || versions.length === 0) return;
+        renderChangelog(root, container, btnLoadMore, versions);
+      })
+      .catch(function() {
+        root.innerHTML = '<p class="hint" style="padding:8px">⚠️ 更新日志加载失败</p>';
+      });
+  }
+
+  function renderChangelog(root, container, btnLoadMore, versions) {
+    var PAGE_SIZE = 20;
+
+    // 最新版（始终展开）
+    var latest = versions[0];
+    root.innerHTML = buildChangelogEntry(latest, true);
+
+    // 旧版本列表（初始折叠）
+    var oldHtml = '';
+    for (var i = 1; i < versions.length; i++) {
+      oldHtml += buildChangelogEntry(versions[i], false);
+    }
+    container.innerHTML = oldHtml;
+
+    var total = versions.length - 1; // 除最新版外的旧版本数
+
+    if (total > 0) {
+      var firstBatch = Math.min(PAGE_SIZE, total);
+      btnLoadMore.style.display = 'block';
+      btnLoadMore.textContent = '📋 更多版本（' + firstBatch + '）';
+    }
+
+    btnLoadMore.addEventListener('click', function() {
+      var isCollapsed = container.classList.contains('collapsed');
+      if (isCollapsed) {
+        container.classList.remove('collapsed');
+        btnLoadMore.textContent = '📋 收起旧版本';
+      } else {
+        container.classList.add('collapsed');
+        var firstBatch = Math.min(PAGE_SIZE, total);
+        btnLoadMore.textContent = '📋 更多版本（' + firstBatch + '）';
+      }
+    });
+
+    // 事件代理：点击旧版本标题切换展开/收起
+    container.addEventListener('click', function(e) {
+      var summary = e.target.closest('.changelog-summary');
+      if (!summary) return;
+      var entry = summary.parentNode;
+      entry.classList.toggle('open');
+      summary.classList.toggle('open');
+    });
+  }
+
+  function buildChangelogEntry(ver, isLatest) {
+    var label = 'v' + ver.version;
+    if (ver.date) label += ' (' + ver.date + ')';
+    if (isLatest) label += ' <span class="tag-latest">🔵 最新</span>';
+
+    var bodyHtml = '';
+    var inList = false;
+
+    for (var i = 0; i < ver.items.length; i++) {
+      var item = ver.items[i];
+
+      // 检测标题标签行（如 "✨ 新增"、"🎨 优化"、"🐛 修复"）
+      if (item.match(/^[✨🎨🐛]\s*(新增|优化|修复|首版发布)/)) {
+        if (inList) { bodyHtml += '</ul>'; inList = false; }
+
+        var tagClass = 'tag-new';
+        if (item.indexOf('🎨') !== -1) tagClass = 'tag-update';
+        else if (item.indexOf('🐛') !== -1 || item.indexOf('🔧') !== -1) tagClass = 'tag-fix';
+
+        bodyHtml += '<p><span class="tag ' + tagClass + '">' + escapeHtml2(item) + '</span></p>';
+        continue;
+      }
+
+      if (!inList) { bodyHtml += '<ul>'; inList = true; }
+      bodyHtml += '<li>' + item + '</li>';
+    }
+    if (inList) bodyHtml += '</ul>';
+
+    return '<div class="changelog-entry' + (isLatest ? ' open' : '') + '">' +
+      '<div class="changelog-summary' + (isLatest ? ' open' : '') + '">' + label + '</div>' +
+      '<div class="version-body">' + bodyHtml + '</div></div>';
+  }
+
+  function escapeHtml2(str) {
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
   }
 
   // ===== 动态版本号 =====
@@ -324,12 +417,12 @@
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', function() {
       initSidebar();
-      initChangelogToggle();
+      initChangelogPagination();
       checkHelpUpdate();
     });
   } else {
     initSidebar();
-    initChangelogToggle();
+    initChangelogPagination();
     checkHelpUpdate();
   }
 })();

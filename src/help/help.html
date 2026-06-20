@@ -16,7 +16,8 @@
       --sidebar-width: 240px;
     }
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    html { scroll-behavior: smooth; scroll-padding-top: 100px; }
+    button { border: none; background: none; cursor: pointer; font-family: inherit; font-size: inherit; }
+    html { scroll-behavior: smooth; scroll-padding-top: 70px; }
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
       background: var(--bg);
@@ -25,15 +26,7 @@
       font-size: 15px;
     }
 
-    /* ===== 页面包装器 ===== */
-    .page-wrapper {
-      max-width: 1200px;
-      margin: 0 auto;
-      padding: 0 24px;
-      min-height: 100vh;
-    }
-
-    /* ===== 头部（随页面滚动，不固定） ===== */
+    /* ===== 头部（固定，Logo左 + 使用说明右，自动高度） ===== */
     .hero {
       position: fixed;
       top: 0;
@@ -42,46 +35,67 @@
       z-index: 100;
       background: linear-gradient(135deg, #1a73e8, #0d47a1);
       color: white;
-      padding: 18px 32px;
-      text-align: center;
+      padding: 14px 32px;
       box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      min-height: auto;
     }
-    .hero h1 { font-size: 24px; margin-bottom: 2px; letter-spacing: 1px; }
-    .hero p { opacity: 0.85; font-size: 14px; }
-    .hero .version {
+    .hero-left {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .hero-left .logo-text {
+      font-size: 20px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      white-space: nowrap;
+    }
+    .hero-left .logo-sub {
+      font-size: 14px;
+      opacity: 0.85;
+    }
+    .hero-left .version {
       display: inline-block;
       background: rgba(255,255,255,0.18);
-      padding: 2px 14px;
+      padding: 2px 12px;
       border-radius: 12px;
-      font-size: 12px;
-      margin-top: 3px;
+      font-size: 11px;
+    }
+    .hero-right {
+      font-size: 13px;
+      opacity: 0.8;
+      white-space: nowrap;
     }
 
-    .page-wrapper { max-width: 1200px; margin: 0 auto; padding: 0 20px; padding-top: 100px; }
+    .page-wrapper { max-width: 1200px; margin: 0 auto; padding: 0 20px; padding-top: 70px; }
 
     /* ===== 主布局（侧边栏固定 + 内容自适应） ===== */
     .main-layout {
       display: flex;
       gap: 24px;
       align-items: flex-start;
+      min-height: calc(100vh - 88px);
     }
 
-    /* ===== 左侧边栏（粘性定位，不固定头部） ===== */
+    /* ===== 左侧边栏（粘性定位，底部自适应） ===== */
     .sidebar {
       width: var(--sidebar-width);
       flex-shrink: 0;
       position: sticky;
-      top: 112px;
-      align-self: flex-start;
-      max-height: calc(100vh - 128px);
+      top: 70px;
+      align-self: stretch;
+      max-height: calc(100vh - 85px);
+      overflow-y: auto;
     }
     .sidebar-inner {
       background: var(--card);
       border-radius: 12px;
       padding: 12px 0;
       box-shadow: 0 1px 4px rgba(0,0,0,0.06);
-      max-height: calc(100vh - 160px);
-      overflow-y: auto;
     }
     .sidebar h3 {
       font-size: 14px;
@@ -112,8 +126,6 @@
       border-left-color: var(--primary);
       background: #eef4ff;
     }
-    .sidebar-nav a.sub { padding-left: 28px; font-size: 12px; color: var(--text-muted); }
-    .sidebar-nav a.sub.active { color: var(--primary); }
     .sidebar-nav a.changelog-link {
       margin-top: 4px;
       border-top: 1px solid var(--border);
@@ -211,6 +223,25 @@
     }
     pre .comment { color: #6b7280; font-style: italic; }
 
+    .code-block {
+      position: relative;
+      background: #1e293b;
+      border-radius: 8px;
+      margin: 10px 0;
+    }
+    .code-block code {
+      display: block;
+      padding: 14px 18px;
+      background: transparent;
+      color: #e2e8f0;
+      font-size: 13px;
+      line-height: 1.5;
+      overflow-x: auto;
+      white-space: pre-wrap;
+      word-break: break-all;
+      font-family: 'JetBrains Mono', 'Courier New', monospace;
+    }
+
     /* ===== 表格 ===== */
     table {
       width: 100%;
@@ -259,34 +290,40 @@
     .changelog-card[open] > summary::after { transform: rotate(90deg); }
     .changelog-card .card-body { padding: 8px 24px 16px; }
 
-    .changelog-version {
+    .changelog-entry {
       border-bottom: 1px solid var(--border);
     }
-    .changelog-version:last-child { border-bottom: none; }
-    .changelog-version summary {
+    .changelog-entry:last-child { border-bottom: none; }
+    .changelog-summary {
       cursor: pointer;
       padding: 10px 0;
       font-size: 15px;
       font-weight: 600;
       color: var(--text);
       user-select: none;
-      list-style: none;
       display: flex;
       align-items: center;
       gap: 8px;
     }
-    .changelog-version summary::-webkit-details-marker { display: none; }
-    .changelog-version summary::before {
+    .changelog-summary::before {
       content: '▶';
       font-size: 11px;
       color: var(--text-muted);
       transition: transform 0.2s;
       flex-shrink: 0;
     }
-    .changelog-version[open] summary::before { transform: rotate(90deg); }
-    .changelog-version .version-body { padding: 2px 0 10px 18px; }
-    .changelog-version .version-body ul { padding-left: 18px; margin: 4px 0; }
-    .changelog-version .version-body li { margin-bottom: 3px; font-size: 13px; }
+    .changelog-summary.open::before {
+      transform: rotate(90deg);
+    }
+    .changelog-entry .version-body {
+      display: none;
+      padding: 2px 0 10px 18px;
+    }
+    .changelog-entry.open .version-body {
+      display: block;
+    }
+    .changelog-entry .version-body ul { padding-left: 18px; margin: 4px 0; }
+    .changelog-entry .version-body li { margin-bottom: 3px; font-size: 13px; }
 
     .btn-show-more {
       display: block;
@@ -294,6 +331,7 @@
       padding: 6px;
       margin: 4px 0 0;
       background: transparent;
+      border: none;
       border-radius: 6px;
       color: var(--text-muted);
       font-size: 13px;
@@ -305,6 +343,41 @@
     .btn-show-more:hover {
       background: var(--bg);
       color: var(--text-secondary);
+    }
+
+    .muted { opacity: 0.65; }
+
+    .hint {
+      font-size: 13px;
+      color: var(--text-muted);
+      line-height: 1.6;
+    }
+
+    #changelogContainer.collapsed {
+      max-height: 0;
+      overflow: hidden;
+    }
+
+    .sidebar-link { /* 继承 .sidebar-nav a */ }
+    .sidebar-link.sub { padding-left: 28px; font-size: 12px; color: var(--text-muted); }
+    .sidebar-link.sub.active { color: var(--primary); }
+
+    .copy-btn {
+      position: absolute;
+      top: 4px;
+      right: 4px;
+      padding: 4px 10px;
+      border-radius: 4px;
+      font-size: 12px;
+      color: var(--text-secondary);
+      background: var(--card);
+      border: 1px solid var(--border);
+      transition: all 0.15s;
+    }
+    .copy-btn:hover {
+      background: var(--bg);
+      color: var(--primary);
+      border-color: var(--primary);
     }
 
     .tag {
@@ -327,13 +400,14 @@
       vertical-align: middle;
     }
 
-    /* ===== 底部 ===== */
+    /* ===== 底部（在内容区内） ===== */
     .footer {
       text-align: center;
       font-size: 12px;
       color: var(--text-muted);
       padding: 24px 28px;
-      margin-top: 8px;
+      margin-top: 18px;
+      margin-bottom: 18px;
       background: var(--card);
       border-radius: 12px;
     }
@@ -343,11 +417,15 @@
     @media (max-width: 800px) {
       .page-wrapper { padding: 0 14px; }
       .hero {
-        padding: 10px 16px;
+        padding: 10px 14px;
       }
-      .hero h1 { font-size: 17px; }
-      .hero p { font-size: 12px; display: inline; }
-      .hero .version { font-size: 10px; }
+      .hero-left {
+        gap: 6px;
+      }
+      .hero-left .logo-text { font-size: 15px; }
+      .hero-left .logo-sub { font-size: 12px; }
+      .hero-left .version { font-size: 10px; }
+      .hero-right { font-size: 11px; }
       .main-layout {
         flex-direction: column;
         padding-top: 60px;
@@ -358,6 +436,7 @@
         width: 100%;
         position: static;
         max-height: none;
+        overflow-y: visible;
       }
       .sidebar-inner {
         position: static;
@@ -397,9 +476,11 @@
 
   <!-- ===== 头部 ===== -->
   <div class="hero">
-    <h1>🔐 SessionMaster</h1>
-    <p>会话大师 — 使用说明</p>
-    <span class="version" id="appVersion">v1.5.1</span>
+    <div class="hero-left">
+      <span class="logo-text">🔐 SessionMaster 会话大师</span>
+      <span class="version" id="appVersion">v1.5.13</span>
+    </div>
+    <div class="hero-right">📖 使用说明</div>
   </div>
 
   <!-- ===== 主布局 ===== -->
@@ -436,131 +517,13 @@
     <!-- ===== 右侧内容 ===== -->
     <main class="content">
 
-      <!-- ===== 更新日志（放在最前面） ===== -->
+      <!-- ===== 更新日志（由 changelog.json 动态渲染） ===== -->
       <details class="changelog-card" id="changelog" open>
         <summary>📋 更新日志</summary>
         <div class="card-body">
-
-          <!-- v1.5.1（最新，默认展开） -->
-          <details class="changelog-version" open>
-            <summary>v1.5.1 (2026-06-20) <span class="tag-latest">🔵 最新</span></summary>
-            <div class="version-body">
-              <ul>
-                <li>🔧 修复 CSS 语法错误（第 251 行缺失闭合大括号），251 行后全部样式恢复正常</li>
-                <li>🎨 同步模块布局重构：`sync-group` 改为完整白底卡片，内部可折叠区平铺避免卡中卡</li>
-                <li>🖼️ Kali Chromium 无头浏览器自检流程已就绪</li>
-              </ul>
-            </div>
-          </details>
-
-          <button id="btnShowMore" class="btn-show-more muted">📋 查看更多版本</button>
-          <button id="btnShowLess" class="btn-show-more muted" style="display:none">▲ 收起</button>
-
-          <div id="oldVersions" style="display:none">
-          <details class="changelog-version">
-            <summary>v1.4.0 (2026-06-20)</summary>
-            <div class="version-body">
-              <ul>
-                <li>🎯 空白标签页检测：自动识别新标签页/空白页，显示引导提示，锁定需要域名的操作</li>
-                <li>💾 P2P 同步配置卡片增加「保存配置」按钮</li>
-                <li>🌐 自动发现本地服务器：插件启动时检测 localhost:5789，自动填入同步地址</li>
-                <li>🚀 一键安装脚本: Linux/macOS (install.sh) + Windows (install.ps1)，自动守护后台</li>
-                <li>🏗️ 帮助页改为左侧固定导航 + 右侧内容布局，新增 IntersectionObserver 章节高亮</li>
-                <li>📋 更新日志移至帮助页最前，默认展示最新版本详情</li>
-                <li>🖼️ 推荐规则关键词显示中文标签（替代英文字段名）</li>
-              </ul>
-            </div>
-          </details>
-
-          <!-- v1.3.0 -->
-          <details class="changelog-version">
-            <summary>v1.3.0 (2026-06-20)</summary>
-            <div class="version-body">
-              <p><span class="tag tag-new">✨ 新增</span></p>
-              <ul>
-                <li>📤 会话管理导出增加「下载文件」按钮</li>
-                <li>📥 导入增加「从文件导入」按钮</li>
-              </ul>
-              <p><span class="tag tag-update">🎨 优化</span></p>
-              <ul>
-                <li>保活记录增加 siteName 站点名称字段显示</li>
-                <li>保活按钮图标改为 ▶️/⏸️，增加悬停 tooltip</li>
-                <li>导入/导出结果面板增加 ✕ 关闭按钮</li>
-                <li>浏览器图标角标增加动态动画效果</li>
-                <li>服务器配置保存后弹窗问是否立即开始同步</li>
-                <li>全部三个 Tab 按功能操作顺序重新排列</li>
-                <li>站点名称弱化显示（半透明）</li>
-                <li>各模块配置界面交互优化: 折叠卡片、必填校验、同步内容说明</li>
-              </ul>
-            </div>
-          </details>
-
-          <!-- v1.2.0 -->
-          <details class="changelog-version">
-            <summary>v1.2.0 (2026-06-19)</summary>
-            <div class="version-body">
-              <p><span class="tag tag-new">✨ 新增</span></p>
-              <ul>
-                <li>☁️ 云端自动同步模式（通过服务器中继）</li>
-                <li>📡 主从设备模式（主设备上传，从设备接收）</li>
-                <li>🔄 可配置同步间隔（1-60 分钟）</li>
-                <li>📋 同步记录功能（本地保存同步历史）</li>
-              </ul>
-              <p><span class="tag tag-update">🎨 优化</span></p>
-              <ul>
-                <li>P2P 模式增加保活连接定时器显示</li>
-                <li>UI 主界面交互优化，提升操作流畅度</li>
-                <li>服务器端存储优化，增加设备注册与管理</li>
-              </ul>
-            </div>
-          </details>
-
-          <!-- v1.1.2 -->
-          <details class="changelog-version">
-            <summary>v1.1.2</summary>
-            <div class="version-body">
-              <p><span class="tag tag-fix">🐛 修复</span></p>
-              <ul>
-                <li>修复 P2P 连接稳定性问题</li>
-              </ul>
-            </div>
-          </details>
-
-          <!-- v1.1.0 -->
-          <details class="changelog-version">
-            <summary>v1.1.0</summary>
-            <div class="version-body">
-              <p><span class="tag tag-new">✨ 新增</span></p>
-              <ul>
-                <li>🔗 P2P 直连模式（WebRTC 信令服务器配对）</li>
-                <li>📄 帮助文档页面</li>
-                <li>📥 一键导入 Cookie 文本</li>
-                <li>📤 Cookie 文本导出</li>
-              </ul>
-              <p><span class="tag tag-update">🎨 优化</span></p>
-              <ul>
-                <li>UI 界面优化，增加当前域名显示</li>
-              </ul>
-            </div>
-          </details>
-
-          <!-- v1.0.0 -->
-          <details class="changelog-version">
-            <summary>v1.0.0 (2026-06-19)</summary>
-            <div class="version-body">
-              <p><span class="tag tag-new">✨ 首版发布</span></p>
-              <ul>
-                <li>🍪 Cookie 手动导出/导入</li>
-                <li>🛡️ 踢人请求拦截（内置规则库覆盖主流 OA）</li>
-                <li>💓 会话保活（定时心跳请求）</li>
-                <li>📦 服务端部署（Docker + Node.js）</li>
-                <li>🖥️ 浏览器端 UI 三 Tab 设计</li>
-              </ul>
-            </div>
-          </details>
-
-          </div>
-
+          <div id="changelogDynamic"></div>
+          <div id="changelogContainer" class="collapsed"></div>
+          <button id="btnLoadMore" class="btn-show-more muted" style="display:none">📋 更多版本</button>
         </div>
       </details>
 
@@ -915,17 +878,17 @@ node server.js 5789
         </div>
       </div>
 
-    </main>
-  </div>
+      <!-- ===== 底部 ===== -->
+      <div class="footer">
+        <p><strong>SessionMaster <span id="footerVersion">v1.5.13</span> · 会话大师</strong></p>
+        <p style="margin-top:4px">© 2026 <strong>BenSon.Album</strong> · <a href="mailto:chinasir@qq.com">chinasir@qq.com</a></p>
+        <p style="margin-top:6px;border-top:1px solid var(--border);padding-top:6px">
+          <strong>免责声明：</strong>本插件仅供学习研究使用。使用者应遵守相关网站的服务条款，
+          不得用于非法用途。作者不对因使用本插件而产生的任何直接或间接损失承担责任。
+        </p>
+      </div>
 
-  <!-- ===== 底部 ===== -->
-  <div class="footer">
-    <p><strong>SessionMaster <span id="footerVersion">v1.5.1</span> · 会话大师</strong></p>
-    <p style="margin-top:4px">© 2026 <strong>BenSon.Album</strong> · <a href="mailto:chinasir@qq.com">chinasir@qq.com</a></p>
-    <p style="margin-top:6px;border-top:1px solid var(--border);padding-top:6px">
-      <strong>免责声明：</strong>本插件仅供学习研究使用。使用者应遵守相关网站的服务条款，
-      不得用于非法用途。作者不对因使用本插件而产生的任何直接或间接损失承担责任。
-    </p>
+    </main>
   </div>
 
 </div>
