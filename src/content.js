@@ -7,6 +7,38 @@
 (function() {
   'use strict';
   
+  // ========== 拦截开关状态 ==========
+  // 默认开启（向后兼容），background 会异步更新此值
+  let blockingEnabled = true;
+  
+  // 获取当前站点域名
+  function getDomain() {
+    try { return window.location.hostname; } catch { return ''; }
+  }
+  
+  // 异步查询拦截状态
+  function checkBlockingState() {
+    const domain = getDomain();
+    if (!domain) return;
+    try {
+      chrome.runtime.sendMessage(
+        { action: 'isBlockingEnabled', domain: domain },
+        function(response) {
+          if (response && response.enabled === false) {
+            blockingEnabled = false;
+            console.log('[SessionMaster] 🛡️ 当前站点未匹配拦截规则，拦截已暂停');
+          } else {
+            blockingEnabled = true;
+            console.log('[SessionMaster] 🛡️ 拦截已激活 -', domain);
+          }
+        }
+      );
+    } catch(e) {
+      // 发送消息失败时保持默认开启
+      console.log('[SessionMaster] ⚠️ 查询拦截状态失败:', e.message);
+    }
+  }
+  
   // ========== 拦截前端踢人脚本 ==========
   
   // 关键词列表 - 匹配可能触发踢人的函数/变量/事件
@@ -50,6 +82,7 @@
 
     // 检查函数体或字符串参数是否含踢人关键词
     function hasKickKeyword(fn, args) {
+      if (!blockingEnabled) return false;      // ← 新增：拦截开关检查
       const fnStr = safeFnStr(fn);
       if (fnStr && matchKickKeywords(fnStr)) return true;
       for (const arg of args) {
@@ -60,6 +93,8 @@
 
     // 重写 setInterval
     window.setInterval = function(fn, delay, ...args) {
+      if (!blockingEnabled)                    // ← 新增：拦截开关检查
+        return origSetInterval.call(window, fn, delay, ...args);
       // 只检查常见 OA 踢人检测间隔（1-3秒），且必须含关键词
       if (delay >= 800 && delay <= 3000 && hasKickKeyword(fn, args)) {
         console.log('[SessionMaster] 🛑 已拦截踢人检测定时器');
@@ -70,6 +105,8 @@
 
     // 重写 setTimeout
     window.setTimeout = function(fn, delay, ...args) {
+      if (!blockingEnabled)                    // ← 新增：拦截开关检查
+        return origSetTimeout.call(window, fn, delay, ...args);
       if (delay >= 800 && delay <= 3000 && hasKickKeyword(fn, args)) {
         console.log('[SessionMaster] 🛑 已拦截踢人检测 setTimeout');
         return 0;
@@ -79,7 +116,7 @@
 
     // 拦截 addEventListener
     EventTarget.prototype.addEventListener = function(type, listener, options) {
-      if (type === 'message' || type === 'storage' || type === 'beforeunload') {
+      if (blockingEnabled && (type === 'message' || type === 'storage' || type === 'beforeunload')) {
         const fnStr = safeFnStr(listener);
         if (fnStr && matchKickKeywords(fnStr)) {
           console.log('[SessionMaster] 🛑 已拦截踢人事件监听:', type);
@@ -97,6 +134,8 @@
     };
 
     console.log('[SessionMaster] ✅ 踢人拦截已部署');
+    // 查询后台拦截状态
+    checkBlockingState();
   }
   
   // ========== 页面加载时执行 ==========

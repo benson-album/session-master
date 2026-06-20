@@ -66,6 +66,8 @@
   });
 
   // ========== Cookie 管理 ==========
+  let lastExportData = null;
+
   document.getElementById('btnExport').addEventListener('click', async () => {
     if (!currentDomain) return showToast('⚠️ 无法获取当前站点域名');
     const result = await chrome.runtime.sendMessage({ action: 'getCookies', domain: currentDomain });
@@ -75,6 +77,7 @@
     document.getElementById('resultHint').textContent = `✅ 导出成功！导出时间: ${new Date(result.data.exportTime).toLocaleString()}`;
     document.getElementById('cookieResult').style.display = 'block';
     document.getElementById('importBox').style.display = 'none';
+    lastExportData = result.data;
     showToast(`✅ 已导出 ${result.data.cookies.length} 个 Cookie`);
   });
 
@@ -84,6 +87,34 @@
     navigator.clipboard.writeText(textarea.value)
       .then(() => showToast('✅ 已复制到剪贴板'))
       .catch(() => { document.execCommand('copy'); showToast('✅ 已复制'); });
+  });
+
+  document.getElementById('btnExportFile').addEventListener('click', () => {
+    if (!lastExportData) return showToast('⚠️ 请先导出 Cookie');
+    const fileData = {
+      domain: lastExportData.domain,
+      exportTime: lastExportData.exportTime,
+      cookies: lastExportData.cookies.map(c => ({
+        name: c.name,
+        value: c.value,
+        domain: c.domain,
+        path: c.path,
+        secure: c.secure,
+        httpOnly: c.httpOnly,
+        sameSite: c.sameSite,
+        hostOnly: c.hostOnly
+      }))
+    };
+    const blob = new Blob([JSON.stringify(fileData, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `cookies-${lastExportData.domain}-${new Date(lastExportData.exportTime).toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast('📥 已下载 Cookie 文件');
   });
 
   document.getElementById('btnImport').addEventListener('click', () => {
@@ -121,6 +152,42 @@
     document.getElementById('importBox').style.display = 'none';
     if (result.success > 0) showToast(`✅ 成功导入 ${result.success} 个 Cookie！刷新页面生效`);
     if (result.failed > 0) console.warn('导入失败:', result.errors);
+  });
+
+  // 从 JSON 文件导入 Cookie
+  document.getElementById('btnImportFromFile').addEventListener('click', () => {
+    document.getElementById('importCookieFile').click();
+  });
+  document.getElementById('importCookieFile').addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const parsed = JSON.parse(text);
+      if (!parsed.cookies || !Array.isArray(parsed.cookies))
+        return showToast('⚠️ 文件格式不正确，缺少 cookies 数组');
+      const importData = {
+        domain: parsed.domain || currentDomain,
+        exportTime: parsed.exportTime || new Date().toISOString(),
+        cookies: parsed.cookies
+      };
+      await chrome.runtime.sendMessage({ action: 'clearCookies', domain: currentDomain });
+      const result = await chrome.runtime.sendMessage({ action: 'importCookies', data: importData });
+      document.getElementById('importBox').style.display = 'none';
+      if (result.success > 0) showToast(`✅ 从文件成功导入 ${result.success} 个 Cookie！刷新页面生效`);
+      if (result.failed > 0) console.warn('导入失败:', result.errors);
+    } catch (err) {
+      showToast('⚠️ 文件读取或解析失败: ' + err.message);
+    }
+    e.target.value = '';
+  });
+
+  // 关闭导出/导入面板
+  document.getElementById('btnCloseResult').addEventListener('click', () => {
+    document.getElementById('cookieResult').style.display = 'none';
+  });
+  document.getElementById('btnCloseImport').addEventListener('click', () => {
+    document.getElementById('importBox').style.display = 'none';
   });
 
   document.getElementById('btnClear').addEventListener('click', async () => {
@@ -168,54 +235,189 @@
 
   // ========== 规则库管理（按网站归类）==========
 
-  async function loadRulesDB() {
-    const db = await chrome.runtime.sendMessage({ action: 'getRulesDB' });
-    const countEl = document.getElementById('ruleDBCount');
+  // ========== 拦截模块配置 ==========
+
+  let blockerConfig = null;  // 缓存运行时配置
+
+  // 加载拦截模块状态
+  async function loadBlockerState() {
+    const config = await chrome.runtime.sendMessage({ action: 'getBlockerConfig' });
+    blockerConfig = config;
+
+    // 主开关
+    document.getElementById('blockerMasterToggle').checked = config.masterEnabled;
+
+    // 模式按钮
+    document.getElementById('blockerModeAuto').classList.toggle('active', config.mode === 'auto');
+    document.getElementById('blockerModeManual').classList.toggle('active', config.mode === 'manual');
+    document.getElementById('blockerModeHint').textContent =
+      config.mode === 'auto' ? '访问匹配站点时自动激活规则' : '手动开启各站点的规则';
+
+    // 灰度显示模式区域（主开关关掉时淡化）
+    document.getElementById('blockerModeArea').style.opacity = config.masterEnabled ? '1' : '0.4';
+
+    // 渲染当前站点激活规则 / 未匹配提示
+    await renderActiveRules(config);
+
+    // 渲染规则库（带站点开关）
+    await renderSiteRules(config);
+
+    return config;
+  }
+
+  // 保存拦截配置
+  async function saveBlockerConfig(updates) {
+    const current = blockerConfig || await chrome.runtime.sendMessage({ action: 'getBlockerConfig' });
+    const merged = { ...current, ...updates };
+    const result = await chrome.runtime.sendMessage({ action: 'saveBlockerConfig', config: merged });
+    blockerConfig = result;
+    return result;
+  }
+
+  // 渲染当前站点激活规则
+  async function renderActiveRules(config) {
+    const section = document.getElementById('activeRulesSection');
+    const noMatch = document.getElementById('noMatchSection');
+    const container = document.getElementById('activeRulesContainer');
+    const domainLabel = document.getElementById('activeRulesDomain');
+
+    if (!currentDomain) {
+      section.style.display = 'none';
+      noMatch.style.display = 'none';
+      return;
+    }
+
+    domainLabel.textContent = '(' + currentDomain + ')';
+
+    if (!config.masterEnabled) {
+      section.style.display = 'none';
+      noMatch.style.display = 'none';
+      return;
+    }
+
+    // 获取生效关键词
+    const kwResult = await chrome.runtime.sendMessage({ action: 'getEffectiveKeywords', domain: currentDomain });
+    const keywords = kwResult.keywords || [];
+    const keywordLabels = kwResult.keywordLabels || {};
+
+    if (keywords.length === 0) {
+      section.style.display = 'none';
+      noMatch.style.display = 'block';
+      return;
+    }
+
+    section.style.display = 'block';
+    noMatch.style.display = 'none';
+
+    // 渲染可点击的关键词标签
+    const overrides = config.keywordOverrides || {};
+    container.innerHTML = keywords.map(function(kw) {
+      var label = keywordLabels[kw] || kw;
+      var enabled = overrides[kw] !== false;  // 默认启用
+      return '<span class="rule-tag kw-toggle" data-keyword="' + kw + '" style="cursor:pointer;' +
+        (!enabled ? 'opacity:0.4;text-decoration:line-through;' : '') +
+        '" title="点击' + (enabled ? '关闭' : '开启') + '「' + label + '」">' +
+        (enabled ? '✅ ' : '⬜ ') + label + '</span>';
+    }).join('');
+  }
+
+  // 渲染规则库（带站点级开关）
+  async function renderSiteRules(config) {
     const listEl = document.getElementById('ruleDBList');
-    if (!db || !db.sites) {
+    const countEl = document.getElementById('ruleDBCount');
+    const db = await chrome.runtime.sendMessage({ action: 'getRulesDB' });
+    if (!db || !db.sites || db.sites.length === 0) {
       countEl.textContent = '0 站点';
       listEl.innerHTML = '<p class="hint">规则库为空</p>';
       return;
     }
     countEl.textContent = db.sites.length + ' 站点';
-    listEl.innerHTML = db.sites.map(site => {
-      const kwCount = (site.keywords || []).length;
-      return '<div style="padding:6px 0;border-bottom:1px solid #f0f0f0">' +
-        '<div style="font-weight:600;font-size:13px;color:#333">' + site.name + '</div>' +
-        '<div style="font-size:11px;color:#888;margin:2px 0">域名: ' + (site.domains || []).join(', ') + '</div>' +
-        '<div style="font-size:11px;color:#666">' +
-          '<span class="badge badge-green">' + kwCount + ' 条规则</span> ' +
-          (kwCount > 0 ? '<code style="font-size:10px">' + site.keywords.join(', ') + '</code>' : '') +
+    const siteEnabled = config.siteEnabled || {};
+    const keywordLabels = db.keywordLabels || {};
+
+    listEl.innerHTML = db.sites.map(function(site) {
+      var enabled = siteEnabled[site.id] !== false;  // 默认启用
+      var kwCount = (site.keywords || []).length;
+      var kwHtml = kwCount > 0 ? site.keywords.map(function(kw) {
+        var label = keywordLabels[kw] || kw;
+        return '<code style="font-size:10px;color:#666;margin-right:4px">' + label + '</code>';
+      }).join('') : '<span style="font-size:10px;color:#999">（暂无关键词）</span>';
+
+      return '<div class="site-rule-row" style="padding:6px 0;border-bottom:1px solid #f0f0f0;display:flex;align-items:flex-start;gap:8px">' +
+        // 站点开关
+        '<label class="switch" style="width:30px;height:17px;flex-shrink:0;margin-top:2px" title="' + (enabled ? '关闭' : '开启') + site.name + '">' +
+          '<input type="checkbox" class="site-toggle" data-site-id="' + site.id + '"' + (enabled ? ' checked' : '') + '>' +
+          '<span class="slider" style="height:17px"></span>' +
+        '</label>' +
+        // 站点信息
+        '<div style="flex:1;min-width:0">' +
+          '<div style="font-weight:600;font-size:13px;color:' + (enabled ? '#333' : '#aaa') + '">' +
+            site.name +
+            (kwCount > 0 ? ' <span class="badge badge-green" style="font-size:10px">' + kwCount + ' 条</span>' : '') +
+          '</div>' +
+          '<div style="font-size:10px;color:#999;margin:2px 0">' + (site.domains || []).join(', ') + '</div>' +
+          '<div style="font-size:10px;color:#666;line-height:1.6;margin-top:2px">' + kwHtml + '</div>' +
+          (site.description ? '<div style="font-size:9px;color:#bbb;margin-top:1px">' + site.description + '</div>' : '') +
         '</div>' +
-        (site.description ? '<div style="font-size:10px;color:#999;margin-top:2px">' + site.description + '</div>' : '') +
       '</div>';
     }).join('');
+
     if (db.sites.length === 0) listEl.innerHTML = '<p class="hint">规则库为空，可导入或从服务器更新</p>';
+
+    // 给每个站点开关绑定事件
+    listEl.querySelectorAll('.site-toggle').forEach(function(toggle) {
+      toggle.addEventListener('change', async function() {
+        var siteId = this.dataset.siteId;
+        var newVal = this.checked;
+        var overrides = Object.assign({}, (blockerConfig || {}).siteEnabled || {});
+        overrides[siteId] = newVal;
+        await saveBlockerConfig({ siteEnabled: overrides });
+        // 刷新当前站点激活规则
+        await renderActiveRules(blockerConfig);
+        // 刷新本列表（更新文字颜色）
+        await renderSiteRules(blockerConfig);
+      });
+    });
   }
 
-  async function loadRecommendedRules() {
-    const section = document.getElementById('recommendedSection');
-    const container = document.getElementById('recommendedRules');
-    if (!currentDomain) { section.style.display = 'none'; return; }
-    const result = await chrome.runtime.sendMessage({ action: 'getRecommendedRules', domain: currentDomain });
-    const matched = result.sites || [];
-    const keywords = result.keywords || [];
-    if (keywords.length === 0) { section.style.display = 'none'; return; }
-    section.style.display = 'block';
-    if (matched.length > 0) {
-      container.innerHTML = '<div style="margin-bottom:4px">🔍 匹配到 <strong>' + matched.length + '</strong> 个网站：' +
-        matched.map(s => ' <span class="badge badge-green">' + s.name + '</span>').join('') + '</div>' +
-        '<div style="font-size:11px;color:#555;word-break:break-all;overflow-wrap:break-word">' +
-          keywords.map(k => '<code style="margin:2px 4px 2px 0;display:inline-block">' + k + '</code>').join('') +
-        '</div>' +
-        '<p class="hint" style="margin-top:4px">以上规则已自动生效</p>';
+  // ========== 事件绑定 ==========
+
+  // 主开关
+  document.getElementById('blockerMasterToggle').addEventListener('change', async function() {
+    await saveBlockerConfig({ masterEnabled: this.checked });
+    await loadBlockerState();
+  });
+
+  // 自动模式按钮
+  document.getElementById('blockerModeAuto').addEventListener('click', async function() {
+    if (blockerConfig && blockerConfig.mode === 'auto') return;
+    await saveBlockerConfig({ mode: 'auto' });
+    await loadBlockerState();
+  });
+
+  // 手动模式按钮
+  document.getElementById('blockerModeManual').addEventListener('click', async function() {
+    if (blockerConfig && blockerConfig.mode === 'manual') return;
+    await saveBlockerConfig({ mode: 'manual' });
+    await loadBlockerState();
+  });
+
+  // 关键词标签点击切换（事件委托）
+  document.getElementById('activeRulesContainer').addEventListener('click', async function(e) {
+    var tag = e.target.closest('.kw-toggle');
+    if (!tag) return;
+    var kw = tag.dataset.keyword;
+    if (!kw) return;
+    var overrides = Object.assign({}, (blockerConfig || {}).keywordOverrides || {});
+    // 切换：若当前已明确关闭（false），则恢复默认启用（删除条目）
+    if (overrides[kw] === false) {
+      delete overrides[kw];
     } else {
-      container.innerHTML = '<p class="hint">当前站点暂无可自动匹配的专用规则，通用规则已生效</p>' +
-        '<div style="font-size:11px;color:#555;margin-top:4px;word-break:break-all;overflow-wrap:break-word">' +
-          keywords.map(k => '<code style="margin:2px">' + k + '</code>').join('') +
-        '</div>';
+      overrides[kw] = false;
     }
-  }
+    await saveBlockerConfig({ keywordOverrides: overrides });
+    await renderActiveRules(blockerConfig);
+  });
 
   // 导出规则库
   document.getElementById('btnExportRules').addEventListener('click', async () => {
@@ -243,8 +445,7 @@
       const result = await chrome.runtime.sendMessage({ action: 'importRulesDB', data: text });
       if (result.success) {
         showToast('✅ ' + result.message);
-        await loadRulesDB();
-        await loadRecommendedRules();
+        await loadBlockerState();
       } else {
         showToast('⚠️ ' + (result.error || '导入失败'));
       }
@@ -267,8 +468,7 @@
     if (result.success) {
       statusEl.textContent = '✅ ' + result.message;
       statusEl.style.color = '#137333';
-      await loadRulesDB();
-      await loadRecommendedRules();
+      await loadBlockerState();
     } else {
       statusEl.textContent = '⚠️ ' + (result.error || '更新失败');
       statusEl.style.color = '#c5221f';
@@ -452,18 +652,56 @@
   // ========== 主从设备模式 ==========
 
   async function loadMasterMode() {
-    let config;
-    if (currentMode === 'server') {
-      config = await chrome.runtime.sendMessage({ action: 'serverGetSyncConfig' });
-    } else {
-      config = await chrome.runtime.sendMessage({ action: 'getSyncConfig' });
-    }
+    const config = await chrome.runtime.sendMessage({ action: 'serverGetSyncConfig' });
     const masterMode = config.masterMode || false;
     const isMaster = config.isMaster !== false; // 默认 true
     
     document.getElementById('masterModeToggle').checked = masterMode;
     document.getElementById('isMasterToggle').checked = isMaster;
     updateMasterUI(masterMode, isMaster);
+    
+    await loadDeviceStatus(config);
+  }
+
+  async function loadDeviceStatus(localConfig) {
+    const config = localConfig || await chrome.runtime.sendMessage({ action: 'serverGetSyncConfig' });
+    const warningsEl = document.getElementById('masterWarnings');
+    const deviceListEl = document.getElementById('masterDeviceList');
+    const deviceItemsEl = document.getElementById('masterDeviceItems');
+    
+    try {
+      const status = await chrome.runtime.sendMessage({ action: 'serverGetPairStatus' });
+      if (status && status.success !== false && status.devices) {
+        // 显示设备列表
+        deviceListEl.style.display = 'block';
+        deviceItemsEl.innerHTML = status.devices.map(d => 
+          '<div style="display:flex;align-items:center;gap:4px;padding:3px 0;border-bottom:1px solid #f0f0f0">' +
+            '<span>' + (d.isMaster ? '📡' : '📥') + '</span>' +
+            '<span style="flex:1;font-size:11px">' + (d.name || d.id) + '</span>' +
+            '<span style="font-size:10px;color:' + (d.isMaster ? '#137333' : '#e65100') + ';font-weight:600">' +
+              (d.isMaster ? '主' : '从') + '</span>' +
+          '</div>'
+        ).join('');
+        
+        // 显示冲突警告
+        if (status.warnings && status.warnings.length > 0) {
+          warningsEl.style.display = 'block';
+          warningsEl.innerHTML = status.warnings.map(w =>
+            '<div style="padding:6px 10px;background:#fce4ec;border-radius:6px;font-size:11px;color:#c5221f;margin-bottom:4px">⚠️ ' + w + '</div>'
+          ).join('');
+        } else if (status.masterCount === 1 && status.slaveCount > 0) {
+          // 正常的主从模式状态
+          warningsEl.style.display = 'none';
+        }
+      }
+    } catch (e) {
+      deviceListEl.style.display = 'none';
+    }
+  }
+
+  function setMasterConfigLocked(locked) {
+    const toggle = document.getElementById('isMasterToggle');
+    if (toggle) toggle.disabled = locked;
   }
 
   function updateMasterUI(masterMode, isMaster) {
@@ -475,11 +713,13 @@
       statusEl.style.background = isMaster ? '#e6f4ea' : '#fff3e0';
       statusEl.style.color = isMaster ? '#137333' : '#e65100';
       deviceRow.style.display = 'block';
+      setMasterConfigLocked(true); // 开启后锁定主从身份切换
     } else {
       statusEl.textContent = '⏸️ 已关闭（多设备平等模式，自动版本控制）';
       statusEl.style.background = '#f1f3f4';
       statusEl.style.color = '#888';
       deviceRow.style.display = 'none';
+      setMasterConfigLocked(false);
     }
   }
 
@@ -490,6 +730,7 @@
     await chrome.runtime.sendMessage({ action: 'saveMasterMode', masterMode, isMaster });
     updateMasterUI(masterMode, isMaster);
     showToast(masterMode ? '📡 主从模式已开启' : '📡 主从模式已关闭，切换为平等模式');
+    if (currentMode === 'server') loadDeviceStatus();
   });
 
   // 主/从身份切换
@@ -506,6 +747,51 @@
       statusEl.style.background = '#fff3e0'; statusEl.style.color = '#e65100';
     }
     showToast(isMaster ? '✅ 已设为主设备' : '⏸️ 已设为从设备，不再上传 Cookie');
+    if (currentMode === 'server') loadDeviceStatus();
+  });
+
+  // ========== P2P 主从设备模式 ==========
+
+  function updateP2PMasterUI(masterMode, isMaster) {
+    const statusEl = document.getElementById('p2pMasterStatus');
+    const deviceRow = document.getElementById('p2pMasterDeviceRow');
+    const isToggle = document.getElementById('p2pIsMasterToggle');
+    if (masterMode) {
+      statusEl.textContent = '📡 已开启 — ' + (isMaster ? '主设备（上传 Cookie）' : '从设备（仅接收）');
+      statusEl.style.background = isMaster ? '#e6f4ea' : '#fff3e0';
+      statusEl.style.color = isMaster ? '#137333' : '#e65100';
+      deviceRow.style.display = 'block';
+      if (isToggle) isToggle.disabled = true;
+    } else {
+      statusEl.textContent = '⏸️ 已关闭（平等模式）';
+      statusEl.style.background = '#f1f3f4';
+      statusEl.style.color = '#888';
+      deviceRow.style.display = 'none';
+      if (isToggle) isToggle.disabled = false;
+    }
+  }
+
+  document.getElementById('p2pMasterModeToggle').addEventListener('change', async function() {
+    const masterMode = this.checked;
+    const isMaster = masterMode ? document.getElementById('p2pIsMasterToggle').checked : true;
+    await chrome.runtime.sendMessage({ action: 'saveSyncConfig', config: { masterMode, isMaster } });
+    updateP2PMasterUI(masterMode, isMaster);
+    showToast(masterMode ? '📡 P2P 主从模式已开启' : '📡 P2P 主从模式已关闭');
+  });
+
+  document.getElementById('p2pIsMasterToggle').addEventListener('change', async function() {
+    const isMaster = this.checked;
+    const masterMode = document.getElementById('p2pMasterModeToggle').checked;
+    await chrome.runtime.sendMessage({ action: 'saveSyncConfig', config: { masterMode, isMaster } });
+    const statusEl = document.getElementById('p2pMasterStatus');
+    if (isMaster) {
+      statusEl.textContent = '📡 已开启 — 主设备（上传 Cookie）';
+      statusEl.style.background = '#e6f4ea'; statusEl.style.color = '#137333';
+    } else {
+      statusEl.textContent = '📡 已开启 — 从设备（仅接收）';
+      statusEl.style.background = '#fff3e0'; statusEl.style.color = '#e65100';
+    }
+    showToast(isMaster ? '✅ 已设为主设备' : '⏸️ 已设为从设备');
   });
 
   // ========== P2P 配对 ==========
@@ -519,6 +805,12 @@
     document.getElementById('p2pSignalUrl').value = config.signalUrl || 'http://你的信令服务器地址:5789';
     document.getElementById('p2pSyncDomain').value = config.syncedDomains?.[0] || '';
     document.getElementById('p2pSyncToggle').checked = config.enabled && config.mode === 'p2p';
+    // P2P 主从
+    const p2pMasterMode = config.masterMode || false;
+    const p2pIsMaster = config.isMaster !== false;
+    document.getElementById('p2pMasterModeToggle').checked = p2pMasterMode;
+    document.getElementById('p2pIsMasterToggle').checked = p2pIsMaster;
+    updateP2PMasterUI(p2pMasterMode, p2pIsMaster);
     
     if (p2pState === 'connected') {
       updateP2PStatus('connected');
@@ -571,13 +863,15 @@
 
   // 创建配对
   document.getElementById('btnP2PCreate').addEventListener('click', async () => {
-    const deviceName = document.getElementById('p2pDeviceName').value.trim() || '我的电脑';
+    const deviceName = document.getElementById('p2pDeviceName').value.trim();
+    if (!deviceName) return showToast('⚠️ 请输入设备名称');
+    const signalUrl = document.getElementById('p2pSignalUrl').value.trim();
+    if (!signalUrl) return showToast('⚠️ 请输入信令服务器地址');
     
     const result = await chrome.runtime.sendMessage({ action: 'p2pCreateRoom', deviceName });
     if (!result.success) return showToast('⚠️ ' + result.error);
     
-    // 保存信令地址
-    const signalUrl = document.getElementById('p2pSignalUrl').value.trim();
+    // 保存信令地址（上面已获取 signalUrl）
     await chrome.runtime.sendMessage({ action: 'saveSyncConfig', config: { signalUrl, p2pDeviceName: deviceName } });
     
     document.getElementById('p2pRoomCodeDisplay').textContent = result.roomId;
@@ -599,7 +893,8 @@
     const roomId = document.getElementById('p2pRoomCode').value.trim().toUpperCase();
     if (!roomId || roomId.length < 4) return showToast('⚠️ 请输入有效的配对码');
     
-    const deviceName = document.getElementById('p2pDeviceName').value.trim() || '我的电脑';
+    const deviceName = document.getElementById('p2pDeviceName').value.trim();
+    if (!deviceName) return showToast('⚠️ 请输入设备名称');
     
     const result = await chrome.runtime.sendMessage({ action: 'p2pJoinRoom', roomId, deviceName });
     if (!result.success) return showToast('⚠️ ' + result.error);
@@ -609,6 +904,20 @@
     
     document.getElementById('p2pJoinInput').style.display = 'none';
     showToast('✅ 已加入配对，正在连接...');
+  });
+
+  // P2P 保存配置
+  document.getElementById('btnP2pSaveConfig').addEventListener('click', async () => {
+    const signalUrl = document.getElementById('p2pSignalUrl').value.trim();
+    if (!signalUrl) return showToast('⚠️ 请输入信令服务器地址');
+    const syncDomain = document.getElementById('p2pSyncDomain').value.trim();
+    const p2pDeviceName = document.getElementById('p2pDeviceName').value.trim();
+    const masterMode = document.getElementById('p2pMasterModeToggle').checked;
+    const isMaster = document.getElementById('p2pIsMasterToggle').checked;
+    await chrome.runtime.sendMessage({ action: 'saveSyncConfig', config: { 
+      signalUrl, p2pDeviceName, syncedDomains: syncDomain ? [syncDomain] : [], masterMode, isMaster 
+    }});
+    showToast('✅ P2P 配置已保存');
   });
 
   // 断开连接
@@ -628,6 +937,14 @@
 
   // P2P 同步开关
   document.getElementById('p2pSyncToggle').addEventListener('change', async function() {
+    // 检查服务器同步是否已启用 — 两者互斥
+    const serverCfg = await chrome.runtime.sendMessage({ action: 'serverGetSyncConfig' });
+    if (this.checked && serverCfg.enabled) {
+      showToast('⚠️ 请先关闭服务器同步，再启用 P2P 同步');
+      this.checked = false;
+      return;
+    }
+
     const config = await chrome.runtime.sendMessage({ action: 'getSyncConfig' });
     const domain = document.getElementById('p2pSyncDomain').value.trim() || currentDomain || '';
     
@@ -723,17 +1040,39 @@
     updateServerStatus(config);
   }
 
+  function setServerConfigLocked(locked) {
+    const els = [
+      document.getElementById('syncServerUrl'),
+      document.getElementById('syncPairKey'),
+      document.getElementById('syncDeviceName'),
+      document.getElementById('syncDomain'),
+      document.getElementById('syncInterval'),
+      document.getElementById('btnSaveSync'),
+      document.getElementById('btnGenerateKey'),
+      document.getElementById('btnFillSyncDomain')
+    ];
+    els.forEach(el => { if (el) el.disabled = locked; });
+    // 视觉提示：锁定后配置区域半透明
+    const section = document.getElementById('syncConfigSection');
+    if (section) section.style.opacity = locked ? '0.5' : '1';
+  }
+
   function updateServerStatus(config) {
     const statusEl = document.getElementById('syncStatus');
+    const syncNowBtn = document.getElementById('btnSyncNow');
     if (config.enabled) {
       const lastSync = config.lastSyncTime ? `最后同步: ${new Date(config.lastSyncTime).toLocaleTimeString()}` : '尚未同步';
       statusEl.textContent = `✅ 已启用 | ${lastSync} | 间隔: ${config.intervalMinutes} 分钟`;
       statusEl.style.background = '#e6f4ea'; statusEl.style.color = '#137333';
       if (config.lastSyncTime) startServerConnectionTimer(config.lastSyncTime);
       else stopServerConnectionTimer();
+      setServerConfigLocked(true);
+      if (syncNowBtn) syncNowBtn.style.display = '';
     } else {
       statusEl.textContent = '⏸️ 未启用'; statusEl.style.background = '#f1f3f4'; statusEl.style.color = '#888';
       stopServerConnectionTimer();
+      setServerConfigLocked(false);
+      if (syncNowBtn) syncNowBtn.style.display = 'none';
     }
   }
 
@@ -742,18 +1081,42 @@
       serverUrl: document.getElementById('syncServerUrl').value.trim(),
       pairKey: document.getElementById('syncPairKey').value.trim(),
       deviceName: document.getElementById('syncDeviceName').value.trim(),
-      syncedDomains: document.getElementById('syncDomain').value.trim() ? [document.getElementById('syncDomain').value.trim()] : (currentDomain ? [currentDomain] : []),
+      syncedDomains: (function() {
+        var val = document.getElementById('syncDomain').value.trim();
+        if (val) return [val];
+        if (currentDomain) return [currentDomain];
+        return [];
+      })(),
       intervalMinutes: parseInt(document.getElementById('syncInterval').value)
     };
     if (!config.serverUrl) return showToast('⚠️ 请输入服务器地址');
     if (!config.pairKey) return showToast('⚠️ 请输入配对码');
+    if (!config.deviceName) return showToast('⚠️ 请输入设备名称');
+    if (!config.syncedDomains || config.syncedDomains.length === 0) return showToast('⚠️ 请输入要同步的站点域名');
     await chrome.runtime.sendMessage({ action: 'serverSaveSyncConfig', config });
     showToast('✅ 配置已保存');
+    // 询问用户是否立即开始同步
+    if (confirm('配置已保存，是否立即开始同步？')) {
+      // 开启开关 + 执行同步
+      document.getElementById('syncToggle').checked = true;
+      await chrome.runtime.sendMessage({ action: 'serverSaveSyncConfig', config: { enabled: true, ...config } });
+      const result = await chrome.runtime.sendMessage({ action: 'serverToggleSync', enabled: true });
+      if (result.success) showToast('✅ ' + result.message);
+      else { showToast('⚠️ ' + (result.error || '启用同步失败')); document.getElementById('syncToggle').checked = false; }
+    }
     loadServerConfig();
   });
 
   document.getElementById('syncToggle').addEventListener('change', async function() {
     if (this.checked) {
+      // 检查 P2P 同步是否已启用 — 两者互斥
+      const p2pCfg = await chrome.runtime.sendMessage({ action: 'getSyncConfig' });
+      if (p2pCfg.enabled && p2pCfg.mode === 'p2p') {
+        showToast('⚠️ 请先关闭 P2P 同步，再启用服务器同步');
+        this.checked = false;
+        return;
+      }
+
       const config = await chrome.runtime.sendMessage({ action: 'serverGetSyncConfig' });
       const serverUrl = document.getElementById('syncServerUrl').value.trim() || config.serverUrl;
       const pairKey = document.getElementById('syncPairKey').value.trim() || config.pairKey;
@@ -821,12 +1184,15 @@
     container.innerHTML = beats.map(beat => {
       const intervalText = beat.intervalMinutes + ' 分钟';
       const displayUrl = beat.url.length > 35 ? beat.url.substring(0, 32) + '...' : beat.url;
-      // 从URL提取可读的站点名
-      let siteDomain = beat.domain || '';
-      if (!siteDomain) {
-        try { siteDomain = new URL(beat.url.startsWith('http') ? beat.url : 'https://' + beat.url).hostname; } catch {}
+      // 优先使用存储的 siteName，其次从 domain 取
+      let siteLabel = beat.siteName || '';
+      if (!siteLabel) {
+        let siteDomain = beat.domain || '';
+        if (!siteDomain) {
+          try { siteDomain = new URL(beat.url.startsWith('http') ? beat.url : 'https://' + beat.url).hostname; } catch {}
+        }
+        siteLabel = siteDomain ? siteDomain.replace(/^www\./, '') : '';
       }
-      const siteLabel = siteDomain ? siteDomain.replace(/^www\./, '') : '';
       const lastTime = beat.lastHeartbeatTime ? new Date(beat.lastHeartbeatTime).toLocaleTimeString() : '尚未保活';
       const lastStatus = beat.lastHeartbeatTime
         ? (beat.lastStatus === 'ok' ? '✅' : '❌') + ' ' + (beat.lastStatusDetail || '')
@@ -843,7 +1209,7 @@
           '<div style="flex:1;min-width:0">' +
             '<span class="heartbeat-url">' + displayUrl + '</span>' +
             '<br><span style="font-size:10px;color:#999">每' + intervalText + '</span>' +
-            '<span style="font-size:10px;color:#1a73e8;margin-left:4px">' + (siteLabel ? '📍 ' + siteLabel : '') + '</span>' +
+            '<span style="font-size:10px;color:#bbb;margin-left:4px">' + (siteLabel ? '📍 ' + siteLabel : '') + '</span>' +
             '<div class="hb-countdown" style="font-size:11px;margin-top:3px">' +
               '<span class="hb-timer" data-id="' + beat.id + '">⏱ ' + countdownText + '</span>' +
               '<span style="color:#888;margin-left:8px;font-size:10px">上次: ' + lastStatus + ' ' + lastTime + '</span>' +
@@ -851,10 +1217,11 @@
           '</div>' +
           '<div class="heartbeat-actions" style="margin-left:6px">' +
             '<button class="' + (beat.enabled ? 'heartbeat-toggle-on' : 'heartbeat-toggle-off') + '" ' +
+              'title="' + (beat.enabled ? '暂停此保活' : '启用此保活') + '" ' +
               'data-action="toggle" data-id="' + beat.id + '" data-enabled="' + beat.enabled + '">' +
-              (beat.enabled ? '✅' : '⏸️') +
+              (beat.enabled ? '▶️' : '⏸️') +
             '</button>' +
-            '<button class="heartbeat-delete" data-action="delete" data-id="' + beat.id + '">✕</button>' +
+            '<button class="heartbeat-delete" data-action="delete" data-id="' + beat.id + '" title="删除此保活">✕</button>' +
           '</div>' +
         '</div>' +
       '</div>';
@@ -923,7 +1290,13 @@
     let url = input.value.trim();
     if (!url) return showToast('⚠️ 请输入保活 URL');
     const interval = parseInt(select.value);
-    const result = await chrome.runtime.sendMessage({ action: 'addHeartbeat', url, interval, domain: currentDomain });
+    // 获取当前页面标题，计算可读站点名
+    let siteName = '';
+    const tabInfo = await getCurrentTabInfo();
+    if (tabInfo.title) {
+      siteName = getSiteName(tabInfo.title, tabInfo.domain);
+    }
+    const result = await chrome.runtime.sendMessage({ action: 'addHeartbeat', url, interval, domain: currentDomain, siteName });
     if (result.success) {
       showToast(`✅ 已添加保活（每 ${interval} 分钟）`);
       input.value = '';
@@ -966,6 +1339,33 @@
   document.getElementById('btnHelp').addEventListener('click', () => {
     const helpUrl = chrome.runtime.getURL('help/help.html');
     chrome.tabs.create({ url: helpUrl });
+  });
+
+  // 导出日志
+  document.getElementById('btnExportLog').addEventListener('click', async () => {
+    const result = await chrome.runtime.sendMessage({ action: 'exportLogs' });
+    if (!result.text) return showToast('⚠️ 暂无日志记录');
+    const blob = new Blob([result.text], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'sessionmaster-logs-' + new Date().toISOString().slice(0, 10) + '.txt';
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast('📋 日志已导出');
+  });
+
+  // 查看设备身份
+  document.getElementById('btnDeviceInfo').addEventListener('click', async () => {
+    const result = await chrome.runtime.sendMessage({ action: 'getDeviceIdentity' });
+    const nameLine = result.deviceName ? '📛 设备名称: ' + result.deviceName + '\n' : '';
+    const msg = '🖥️ 当前设备信息\n' +
+      nameLine +
+      '🆔 设备 ID: ' + result.id.substring(0, 20) + '...\n' +
+      '💻 系统: ' + result.os + (result.arch ? ' (' + result.arch + ')' : '') + '\n' +
+      '🌐 浏览器: ' + result.browserInfo.substring(0, 60) + '...\n' +
+      '📅 创建时间: ' + new Date(result.createdAt).toLocaleString();
+    showToast(msg, 4000);
   });
 
   // 信令服务器帮助图标
@@ -1131,6 +1531,267 @@
     });
   });
 
+  // 检测是否为空白/新标签页
+  function isBlankTab(tabInfo) {
+    if (!tabInfo || !tabInfo.url) return true;
+    var url = tabInfo.url;
+    // 新标签页、空白页、浏览器内部页面
+    if (url === 'about:blank' || url === 'about:newtab' || url === 'about:new-tab-page') return true;
+    if (url.startsWith('chrome://newtab')) return true;
+    if (url.startsWith('chrome://')) return true;
+    if (url.startsWith('about:')) return true;
+    if (url.startsWith('edge://')) return true;
+    if (!/^https?:/.test(url)) return true;
+    return false;
+  }
+
+  // ========== 本地服务器自动检测 ==========
+
+  var appConfig = null;
+  var localServerFound = false;
+
+  async function checkLocalServer() {
+    // 获取配置（如果还没加载）
+    if (!appConfig) {
+      try { appConfig = await chrome.runtime.sendMessage({ action: 'getAppConfig' }); } catch(e) {}
+      if (!appConfig || !appConfig.DEFAULT_PORT) return;
+    }
+    var port = appConfig.DEFAULT_PORT;
+    var hosts = (appConfig.LOCAL_DISCOVERY && appConfig.LOCAL_DISCOVERY.HOSTS) || ['localhost', '127.0.0.1'];
+    var timeout = (appConfig.LOCAL_DISCOVERY && appConfig.LOCAL_DISCOVERY.TIMEOUT_MS) || 3000;
+    
+    // 生成检测 URL 列表
+    var urls = hosts.map(function(h) { return 'http://' + h + ':' + port + '/api/config'; });
+    for (const url of urls) {
+      try {
+        const resp = await fetch(url, { method: 'GET', signal: AbortSignal.timeout(timeout) });
+        if (resp.ok) {
+          const data = await resp.json();
+          if (data && data.success !== false && data.config && data.config.serverUrl) {
+            localServerFound = true;
+            onLocalServerFound(data.config);
+            return;
+          }
+          // config 为 null 但服务器在线（手动启动的、没有 config.json）
+          if (data && data.success !== false) {
+            localServerFound = true;
+            onLocalServerFound({ serverUrl: url.replace('/api/config', ''), port: LOCAL_PORT, localIP: '127.0.0.1' });
+            return;
+          }
+        }
+      } catch (e) {
+        // 超时或连接拒绝，正常，继续尝试下一个
+      }
+    }
+    localServerFound = false;
+    onLocalServerNotFound();
+  }
+
+  function onLocalServerFound(config) {
+    var serverUrl = config.serverUrl;
+    if (!serverUrl) serverUrl = 'http://' + (config.localIP || '127.0.0.1') + ':' + (config.port || String(appConfig && appConfig.DEFAULT_PORT || 5789));
+    
+    // 显示状态指示器
+    var statusEl = document.getElementById('localServerStatus');
+    var urlDisplay = document.getElementById('localServerUrlDisplay');
+    if (statusEl && urlDisplay) {
+      urlDisplay.textContent = serverUrl;
+      statusEl.style.display = 'block';
+    }
+    
+    // 隐藏引导卡片
+    var guideEl = document.getElementById('localServerGuide');
+    if (guideEl) guideEl.style.display = 'none';
+    
+    // 自动填入 P2P 信令地址和服务器地址（仅在输入框为空或占位符时）
+    var signalInput = document.getElementById('p2pSignalUrl');
+    if (signalInput && (!signalInput.value || signalInput.value.indexOf('你的') !== -1)) {
+      signalInput.value = serverUrl;
+    }
+    var serverInput = document.getElementById('syncServerUrl');
+    if (serverInput && (!serverInput.value || serverInput.value.indexOf('你的') !== -1)) {
+      serverInput.value = serverUrl;
+    }
+  }
+
+  function onLocalServerNotFound() {
+    // 隐藏状态指示器
+    var statusEl = document.getElementById('localServerStatus');
+    if (statusEl) statusEl.style.display = 'none';
+    
+    // 如果用户从未配置过任何同步，显示引导卡片
+    chrome.runtime.sendMessage({ action: 'getSyncConfig' }).then(function(config) {
+      chrome.runtime.sendMessage({ action: 'serverGetSyncConfig' }).then(function(srvCfg) {
+        var neverConfigured = !config.signalUrl || config.signalUrl.indexOf('你的') !== -1;
+        var neverDismissed = !localStorage.getItem('guide_dismissed');
+        var guideEl = document.getElementById('localServerGuide');
+        if (guideEl && neverConfigured && neverDismissed) {
+          guideEl.style.display = 'block';
+        }
+      });
+    });
+  }
+
+  // ========== 版本更新检查 ==========
+
+  function compareVersions(a, b) {
+    var pa = a.split('.').map(Number);
+    var pb = b.split('.').map(Number);
+    for (var i = 0; i < Math.max(pa.length, pb.length); i++) {
+      var na = pa[i] || 0;
+      var nb = pb[i] || 0;
+      if (na > nb) return 1;
+      if (na < nb) return -1;
+    }
+    return 0;
+  }
+
+  async function checkUpdate() {
+    try {
+      // 从后台获取升级检测配置（URL 可从配置文件自定义）
+      var ucfg = await chrome.runtime.sendMessage({ action: 'getUpdateConfig' });
+      if (!ucfg || !ucfg.url || ucfg.enabled === false) return;
+      var updateUrl = ucfg.url;
+      
+      var resp = await fetch(updateUrl, { method: 'GET', signal: AbortSignal.timeout(5000) });
+      if (!resp.ok) return;
+      var latest = (await resp.text()).trim();
+      var current = chrome.runtime.getManifest().version;
+      if (compareVersions(latest, current) > 0) {
+        showUpdateAvailable(latest, current);
+      } else {
+        showUpToDate();
+      }
+    } catch (e) {
+      // 网络不可达时静默
+    }
+  }
+
+  function showUpdateAvailable(latest, current) {
+    var badge = document.getElementById('updateBadge');
+    if (!badge) return;
+    badge.textContent = '⬆ ' + latest;
+    badge.className = 'update-badge has-update';
+    badge.style.display = 'inline-flex';
+    badge.title = '新版本 v' + latest + ' 可用（当前 v' + current + '），点击查看下载';
+    badge.onclick = function() {
+      var helpUrl = chrome.runtime.getURL('help/help.html?update=v' + latest);
+      chrome.tabs.create({ url: helpUrl });
+    };
+  }
+
+  function showUpToDate() {
+    var badge = document.getElementById('updateBadge');
+    if (!badge) return;
+    badge.textContent = '✓';
+    badge.className = 'update-badge';
+    badge.style.display = 'inline-flex';
+    badge.title = '已是最新版本';
+    // 2 秒后淡出
+    setTimeout(function() {
+      badge.style.transition = 'opacity 0.6s';
+      badge.style.opacity = '0';
+      setTimeout(function() { badge.style.display = 'none'; }, 600);
+    }, 2000);
+  }
+
+  // 锁定/解锁站点相关操作（含 P2P、服务器同步、网络地址保持可用）
+  function setDomainDependentState(hasDomain, tabInfo) {
+    var isBlank = isBlankTab(tabInfo);
+    var banner = document.getElementById('blankPageBanner');
+    var hintEl = document.getElementById('domainHint');
+    var domainEl = document.getElementById('currentDomain');
+    
+    if (isBlank) {
+      // 空白标签页：显示引导横幅
+      if (banner) banner.style.display = 'flex';
+      if (hintEl) hintEl.style.display = 'none';
+      if (domainEl) {
+        var tabUrl = (tabInfo && tabInfo.url) || '';
+        if (!tabUrl || tabUrl === 'about:blank') {
+          domainEl.textContent = '📄 空白标签页';
+        } else {
+          domainEl.textContent = '⚠️ 浏览器内部页面';
+        }
+        domainEl.style.color = '#e65100';
+        domainEl.className = 'domain-display';
+        domainEl.title = tabUrl || '未知';
+      }
+    } else if (!hasDomain) {
+      // 有 URL 但获取不到域名（极少见情况）
+      if (banner) banner.style.display = 'none';
+      if (hintEl) hintEl.style.display = 'block';
+      if (domainEl) {
+        domainEl.textContent = '⚠️ 无法访问';
+        domainEl.style.color = '#ea4335';
+        domainEl.className = 'domain-display';
+      }
+    } else {
+      // 正常站点：隐藏横幅和提示
+      if (banner) banner.style.display = 'none';
+      if (hintEl) hintEl.style.display = 'none';
+    }
+    
+    // 需要锁定的操作按钮（有站点才可用）
+    var lockedEls = [
+      // Cookie 管理
+      'btnExport', 'btnImport', 'btnClear',
+      // 保活
+      'btnAddHeartbeat',
+      // Cookie 列表
+      'btnLoadCookies',
+      // P2P 配对
+      'btnP2PCreate', 'btnP2PJoin', 'btnP2PDoJoin', 'btnP2PSyncNow', 'btnP2PDisconnect', 'btnP2PCancel',
+      // P2P 同步开关
+      'p2pSyncToggle',
+      // P2P 填入域名
+      'btnP2pFillDomain',
+      // 服务器同步开关
+      'syncToggle',
+      // 服务器同步
+      'btnSaveSync', 'btnSyncNow',
+      // 服务器填入域名
+      'btnFillSyncDomain',
+      // 生成配对码（服务器模式）
+      'btnGenerateKey'
+    ];
+    var locked = !hasDomain;
+    lockedEls.forEach(function(id) {
+      var el = document.getElementById(id);
+      if (el) el.disabled = locked;
+    });
+    
+    // 锁定输入框
+    var inputIds = [
+      'heartbeatUrl',
+      'p2pDeviceName', 'p2pRoomCode', 'p2pSyncDomain', 'p2pSignalUrl',
+      'syncServerUrl', 'syncPairKey', 'syncDeviceName', 'syncDomain', 'syncInterval'
+    ];
+    inputIds.forEach(function(id) {
+      var el = document.getElementById(id);
+      if (el) el.disabled = locked;
+    });
+    
+    // 填入当前页面地址按钮
+    var fillUrlBtn = document.getElementById('btnFillUrl');
+    if (fillUrlBtn) fillUrlBtn.disabled = locked;
+    
+    // 保活按钮保持锁定控制（单项控制因为类型为 select）
+    var heartbeatSelect = document.getElementById('heartbeatInterval');
+    if (heartbeatSelect) heartbeatSelect.disabled = locked;
+    
+    // 以下功能保持可用：
+    // - 获取本机网络地址 (btnGetNetInfo)
+    // - 使用说明 (btnHelp)
+    // - 同步模式切换 (modeP2P, modeServer)
+    // - P2P/服务器 主从设备开关 (masterModeToggle, p2pMasterModeToggle)
+    // - 自定义规则 (customRuleInput, btnAddRule)
+    // - 规则管理 (btnExportRules, btnImportRules, btnUpdateRules)
+    // - 信令帮助图标 (signalHelpIcon, serverHelpIcon)
+    // - 帮助页链接
+    // 以上按钮不在此函数中禁用，保持始终可用
+  }
+
   // ========== 初始化 ==========
   (async () => {
     const tabInfo = await getCurrentTabInfo();
@@ -1141,10 +1802,36 @@
       displayEl.textContent = siteName;
       displayEl.title = siteName + ' (' + currentDomain + ')';
       displayEl.className = 'domain-display domain-display-ellipsis';
-    } else {
-      displayEl.textContent = '⚠️ 无法访问';
-      displayEl.style.color = '#ea4335';
+      displayEl.style.color = '#1a73e8';
     }
+    setDomainDependentState(!!currentDomain, tabInfo);
+    
+    // 自动检测本地服务器（先于配置加载）
+    checkLocalServer();
+    
+    // 引导卡片关闭按钮
+    document.getElementById('btnDismissGuide').addEventListener('click', function() {
+      document.getElementById('localServerGuide').style.display = 'none';
+      try { localStorage.setItem('guide_dismissed', 'true'); } catch(e) {}
+    });
+    
+    // 复制代码按钮
+    document.querySelectorAll('.copy-code-btn').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var targetId = btn.dataset.target;
+        var codeEl = document.getElementById(targetId);
+        if (codeEl) {
+          navigator.clipboard.writeText(codeEl.textContent).then(function() {
+            showToast('✅ 已复制安装命令');
+          }).catch(function() {
+            showToast('❌ 复制失败');
+          });
+        }
+      });
+    });
+    
+    // 自动检查版本更新
+    checkUpdate();
     
     // 加载配置
     const syncConfig = await chrome.runtime.sendMessage({ action: 'getSyncConfig' });
@@ -1157,8 +1844,7 @@
     await loadP2PConfig();
     await loadServerConfig();
     await loadHeartbeats();
-    await loadRulesDB();
-    await loadRecommendedRules();
+    await loadBlockerState();
     await loadMasterMode();
     await loadSyncHistory_('p2p');
     await loadSyncHistory_('server');

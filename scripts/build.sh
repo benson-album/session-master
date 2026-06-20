@@ -7,19 +7,19 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 PROJECT_ROOT="$SCRIPT_DIR"
 SRC_DIR="$PROJECT_ROOT/src"
-OUTPUT_ZIP="$PROJECT_ROOT/session-master.zip"
+# OUTPUT_ZIP 在获取版本号后定义
 
 echo "============================================"
 echo " SessionMaster 构建脚本"
 echo "============================================"
 echo "源目录: $SRC_DIR"
-echo "输出:   $OUTPUT_ZIP"
 echo ""
 
 # 1. 验证关键文件
 echo "[1/3] 验证源文件..."
 REQUIRED_FILES=(
   "$SRC_DIR/manifest.json"
+  "$SRC_DIR/config.js"
   "$SRC_DIR/background.js"
   "$SRC_DIR/content.js"
   "$SRC_DIR/blocking_rules.json"
@@ -29,7 +29,10 @@ REQUIRED_FILES=(
   "$SRC_DIR/popup/popup.js"
   "$SRC_DIR/popup/popup.css"
   "$SRC_DIR/help/help.html"
+  "$SRC_DIR/help/help.js"
   "$SRC_DIR/server/server.js"
+  "$SRC_DIR/scripts/sessionmaster-install.sh"
+  "$SRC_DIR/scripts/sessionmaster-install.ps1"
   "$SRC_DIR/deploy/Dockerfile"
   "$SRC_DIR/deploy/docker-compose.yaml"
   "$SRC_DIR/deploy/deploy.sh"
@@ -52,6 +55,8 @@ MANIFEST_VER=$(grep '"version"' "$SRC_DIR/manifest.json" | sed 's/.*"version": *
 VERSION_FILE=$(cat "$PROJECT_ROOT/VERSION" 2>/dev/null || echo "unknown")
 echo "  manifest.json: v$MANIFEST_VER"
 echo "  VERSION 文件:  $VERSION_FILE"
+OUTPUT_ZIP="$PROJECT_ROOT/session-master-v$MANIFEST_VER.zip"
+echo "  输出: $OUTPUT_ZIP"
 if [ "$MANIFEST_VER" != "$VERSION_FILE" ]; then
   echo "  ⚠️  版本号不一致，请同步两份文件"
 fi

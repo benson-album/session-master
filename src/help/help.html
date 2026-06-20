@@ -3,83 +3,169 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>SessionMaster 使用说明</title>
+  <title>SessionMaster · 使用说明</title>
   <style>
     :root {
       --primary: #1a73e8;
-      --bg: #f8f9fa;
+      --bg: #f5f7fa;
       --card: #ffffff;
-      --text: #333;
-      --text-secondary: #666;
-      --border: #e9ecef;
+      --text: #2c3e50;
+      --text-secondary: #5a6872;
+      --text-muted: #8e9bae;
+      --border: #e2e8f0;
+      --sidebar-width: 240px;
     }
     * { margin: 0; padding: 0; box-sizing: border-box; }
+    html { scroll-behavior: smooth; scroll-padding-top: 100px; }
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
       background: var(--bg);
       color: var(--text);
-      line-height: 1.8;
+      line-height: 1.7;
       font-size: 15px;
     }
-    .container { max-width: 820px; margin: 0 auto; padding: 20px; }
 
-    /* 头部 */
-    .hero {
-      background: linear-gradient(135deg, #1a73e8, #1557b0);
-      color: white;
-      border-radius: 16px;
-      padding: 40px;
-      margin-bottom: 32px;
-      text-align: center;
+    /* ===== 页面包装器 ===== */
+    .page-wrapper {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 24px;
+      min-height: 100vh;
     }
-    .hero h1 { font-size: 32px; margin-bottom: 8px; }
-    .hero p { opacity: 0.9; font-size: 16px; }
+
+    /* ===== 头部（随页面滚动，不固定） ===== */
+    .hero {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 100;
+      background: linear-gradient(135deg, #1a73e8, #0d47a1);
+      color: white;
+      padding: 18px 32px;
+      text-align: center;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+    }
+    .hero h1 { font-size: 24px; margin-bottom: 2px; letter-spacing: 1px; }
+    .hero p { opacity: 0.85; font-size: 14px; }
     .hero .version {
       display: inline-block;
-      background: rgba(255,255,255,0.2);
-      padding: 2px 12px;
+      background: rgba(255,255,255,0.18);
+      padding: 2px 14px;
       border-radius: 12px;
-      font-size: 13px;
-      margin-top: 10px;
+      font-size: 12px;
+      margin-top: 3px;
     }
 
-    /* 卡片 */
+    .page-wrapper { max-width: 1200px; margin: 0 auto; padding: 0 20px; padding-top: 100px; }
+
+    /* ===== 主布局（侧边栏固定 + 内容自适应） ===== */
+    .main-layout {
+      display: flex;
+      gap: 24px;
+      align-items: flex-start;
+    }
+
+    /* ===== 左侧边栏（粘性定位，不固定头部） ===== */
+    .sidebar {
+      width: var(--sidebar-width);
+      flex-shrink: 0;
+      position: sticky;
+      top: 112px;
+      align-self: flex-start;
+      max-height: calc(100vh - 128px);
+    }
+    .sidebar-inner {
+      background: var(--card);
+      border-radius: 12px;
+      padding: 12px 0;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+      max-height: calc(100vh - 160px);
+      overflow-y: auto;
+    }
+    .sidebar h3 {
+      font-size: 14px;
+      color: var(--text-muted);
+      padding: 0 16px 12px;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      border-bottom: 1px solid var(--border);
+    }
+    .sidebar-nav { padding: 8px 0; }
+    .sidebar-nav a {
+      display: block;
+      padding: 7px 16px;
+      color: var(--text-secondary);
+      text-decoration: none;
+      font-size: 13px;
+      transition: all 0.15s;
+      border-left: 3px solid transparent;
+      position: relative;
+    }
+    .sidebar-nav a:hover {
+      color: var(--primary);
+      background: #f0f6ff;
+    }
+    .sidebar-nav a.active {
+      color: var(--primary);
+      font-weight: 600;
+      border-left-color: var(--primary);
+      background: #eef4ff;
+    }
+    .sidebar-nav a.sub { padding-left: 28px; font-size: 12px; color: var(--text-muted); }
+    .sidebar-nav a.sub.active { color: var(--primary); }
+    .sidebar-nav a.changelog-link {
+      margin-top: 4px;
+      border-top: 1px solid var(--border);
+      padding-top: 10px;
+      font-weight: 500;
+    }
+
+    /* ===== 右侧内容 ===== */
+    .content { flex: 1; min-width: 0; }
+
+    /* ===== 卡片 ===== */
     .card {
       background: var(--card);
       border-radius: 12px;
-      padding: 24px;
-      margin-bottom: 20px;
+      padding: 24px 28px;
+      margin-bottom: 18px;
       box-shadow: 0 1px 4px rgba(0,0,0,0.06);
     }
     .card h2 {
       font-size: 20px;
       color: var(--primary);
-      margin-bottom: 16px;
+      margin-bottom: 14px;
       padding-bottom: 8px;
       border-bottom: 2px solid var(--border);
     }
     .card h3 {
       font-size: 16px;
-      color: #444;
-      margin: 16px 0 8px;
+      color: #3a4a5c;
+      margin: 18px 0 8px;
+    }
+    .card h4 {
+      font-size: 14px;
+      color: #4a5a6c;
+      margin: 14px 0 6px;
     }
     .card p { margin-bottom: 10px; color: var(--text-secondary); }
-    .card ul, .card ol { padding-left: 22px; margin-bottom: 12px; }
-    .card li { margin-bottom: 6px; }
+    .card ul, .card ol { padding-left: 22px; margin-bottom: 10px; }
+    .card li { margin-bottom: 5px; color: var(--text-secondary); }
 
-    /* 步骤编号 */
+    /* ===== 步骤 ===== */
     .step {
       display: flex;
       gap: 12px;
-      margin-bottom: 12px;
-      padding: 12px;
-      background: #f8f9fa;
+      margin-bottom: 10px;
+      padding: 10px 14px;
+      background: #f8fafd;
       border-radius: 8px;
       border-left: 3px solid var(--primary);
     }
     .step-num {
       flex-shrink: 0;
-      width: 28px; height: 28px;
+      width: 26px; height: 26px;
       background: var(--primary);
       color: white;
       border-radius: 50%;
@@ -87,55 +173,45 @@
       align-items: center;
       justify-content: center;
       font-weight: bold;
-      font-size: 14px;
+      font-size: 13px;
     }
     .step-content { flex: 1; }
-    .step-content strong { display: block; margin-bottom: 2px; }
+    .step-content strong { display: block; margin-bottom: 1px; font-size: 14px; }
 
-    /* 提示框 */
+    /* ===== 提示框 ===== */
     .tip {
-      padding: 12px 16px;
+      padding: 10px 16px;
       border-radius: 8px;
-      margin: 12px 0;
-      font-size: 14px;
+      margin: 10px 0;
+      font-size: 13px;
+      line-height: 1.6;
     }
-    .tip.info { background: #e8f0fe; color: #1a56db; border-left: 4px solid #1a73e8; }
-    .tip.warn { background: #fef7e0; color: #946600; border-left: 4px solid #f9d849; }
-    .tip.success { background: #e6f4ea; color: #137333; border-left: 4px solid #34a853; }
+    .tip.info { background: #eef4ff; color: #1a56db; border-left: 4px solid var(--primary); }
+    .tip.warn { background: #fef7e0; color: #856404; border-left: 4px solid #ffc107; }
+    .tip.success { background: #e6f4ea; color: #1e7e34; border-left: 4px solid #28a745; }
 
-    /* 代码 */
+    /* ===== 代码 ===== */
     code {
-      background: #f1f3f4;
+      background: #eef0f4;
       padding: 2px 6px;
       border-radius: 4px;
       font-size: 13px;
-      font-family: 'Courier New', monospace;
+      font-family: 'JetBrains Mono', 'Courier New', monospace;
     }
     pre {
-      background: #1e1e1e;
-      color: #d4d4d4;
+      background: #1e293b;
+      color: #e2e8f0;
       padding: 14px 18px;
       border-radius: 8px;
       overflow-x: auto;
       font-size: 13px;
       line-height: 1.5;
       margin: 10px 0;
+      font-family: 'JetBrains Mono', 'Courier New', monospace;
     }
-    pre .comment { color: #6a9955; }
+    pre .comment { color: #6b7280; font-style: italic; }
 
-    /* 截图占位 */
-    .screenshot {
-      background: #f0f4f8;
-      border: 2px dashed #ccc;
-      border-radius: 8px;
-      padding: 20px;
-      text-align: center;
-      color: #999;
-      font-size: 13px;
-      margin: 10px 0;
-    }
-
-    /* 表格 */
+    /* ===== 表格 ===== */
     table {
       width: 100%;
       border-collapse: collapse;
@@ -143,587 +219,686 @@
       font-size: 14px;
     }
     th, td {
-      padding: 8px 12px;
-      text-align: left;
       border: 1px solid var(--border);
+      padding: 10px 14px;
+      text-align: left;
     }
-    th { background: #f1f3f4; font-weight: 600; }
-    tr:nth-child(even) { background: #fafafa; }
+    th { background: #f0f4f8; font-weight: 600; color: #3a4a5c; }
+    td { color: var(--text-secondary); }
 
-    /* 目录 */
-    .toc {
+    /* ===== 更新日志 ===== */
+    .changelog-card {
       background: var(--card);
       border-radius: 12px;
-      padding: 20px 24px;
-      margin-bottom: 24px;
       box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+      margin-bottom: 18px;
+      overflow: hidden;
     }
-    .toc h3 { margin-bottom: 12px; color: var(--primary); }
-    .toc a {
-      display: block;
-      padding: 4px 0;
-      color: var(--text-secondary);
-      text-decoration: none;
-      font-size: 14px;
+    .changelog-card > summary {
+      padding: 16px 24px;
+      cursor: pointer;
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--text);
+      user-select: none;
+      list-style: none;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      border-bottom: 2px solid var(--border);
     }
-    .toc a:hover { color: var(--primary); }
-    .toc .sub { padding-left: 20px; font-size: 13px; }
+    .changelog-card > summary::-webkit-details-marker { display: none; }
+    .changelog-card > summary::after {
+      content: '▶';
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-left: auto;
+      transition: transform 0.2s;
+    }
+    .changelog-card[open] > summary { border-bottom-color: transparent; }
+    .changelog-card[open] > summary::after { transform: rotate(90deg); }
+    .changelog-card .card-body { padding: 8px 24px 16px; }
 
-    /* 底部 */
+    .changelog-version {
+      border-bottom: 1px solid var(--border);
+    }
+    .changelog-version:last-child { border-bottom: none; }
+    .changelog-version summary {
+      cursor: pointer;
+      padding: 10px 0;
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--text);
+      user-select: none;
+      list-style: none;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .changelog-version summary::-webkit-details-marker { display: none; }
+    .changelog-version summary::before {
+      content: '▶';
+      font-size: 11px;
+      color: var(--text-muted);
+      transition: transform 0.2s;
+      flex-shrink: 0;
+    }
+    .changelog-version[open] summary::before { transform: rotate(90deg); }
+    .changelog-version .version-body { padding: 2px 0 10px 18px; }
+    .changelog-version .version-body ul { padding-left: 18px; margin: 4px 0; }
+    .changelog-version .version-body li { margin-bottom: 3px; font-size: 13px; }
+
+    .btn-show-more {
+      display: block;
+      width: 100%;
+      padding: 6px;
+      margin: 4px 0 0;
+      background: transparent;
+      border-radius: 6px;
+      color: var(--text-muted);
+      font-size: 13px;
+      cursor: pointer;
+      transition: all 0.15s;
+      text-align: center;
+      font-family: inherit;
+    }
+    .btn-show-more:hover {
+      background: var(--bg);
+      color: var(--text-secondary);
+    }
+
+    .tag {
+      display: inline-block;
+      padding: 1px 8px;
+      border-radius: 10px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+    .tag-new { background: #e6f4ea; color: #137333; }
+    .tag-update { background: #e8f0fe; color: #1a73e8; }
+    .tag-fix { background: #fce4ec; color: #c5221f; }
+    .tag-latest {
+      background: #ffd54f;
+      color: #654321;
+      font-size: 9px;
+      padding: 1px 6px;
+      border-radius: 8px;
+      margin-left: 6px;
+      vertical-align: middle;
+    }
+
+    /* ===== 底部 ===== */
     .footer {
       text-align: center;
-      padding: 20px;
-      color: #aaa;
-      font-size: 13px;
+      font-size: 12px;
+      color: var(--text-muted);
+      padding: 24px 28px;
+      margin-top: 8px;
+      background: var(--card);
+      border-radius: 12px;
     }
+    .footer a { color: var(--primary); }
 
-    @media (max-width: 600px) {
-      .container { padding: 12px; }
-      .hero { padding: 24px 16px; }
-      .hero h1 { font-size: 24px; }
-      .card { padding: 16px; }
+    /* ===== 响应式 ===== */
+    @media (max-width: 800px) {
+      .page-wrapper { padding: 0 14px; }
+      .hero {
+        padding: 10px 16px;
+      }
+      .hero h1 { font-size: 17px; }
+      .hero p { font-size: 12px; display: inline; }
+      .hero .version { font-size: 10px; }
+      .main-layout {
+        flex-direction: column;
+        padding-top: 60px;
+        gap: 14px;
+        min-height: auto;
+      }
+      .sidebar {
+        width: 100%;
+        position: static;
+        max-height: none;
+      }
+      .sidebar-inner {
+        position: static;
+        max-height: none;
+        overflow: visible;
+        padding: 8px 0;
+      }
+      .sidebar h3 { display: none; }
+      .sidebar-nav {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 2px;
+        padding: 4px 10px;
+      }
+      .sidebar-nav a {
+        padding: 4px 10px;
+        border-left: none;
+        border-radius: 6px;
+        font-size: 11px;
+      }
+      .sidebar-nav a.sub { padding-left: 10px; }
+      .sidebar-nav a.active {
+        border-left: none;
+        background: var(--primary);
+        color: white;
+      }
+      .sidebar-nav a.changelog-link { border-top: none; padding-top: 4px; }
+      .card { padding: 16px 18px; }
+      .changelog-card > summary { padding: 12px 18px; font-size: 16px; }
+      .changelog-card .card-body { padding: 4px 18px 12px; }
     }
   </style>
 </head>
 <body>
-<div class="container">
 
-  <!-- ======= 头部 ======= -->
+<div class="page-wrapper">
+
+  <!-- ===== 头部 ===== -->
   <div class="hero">
-    <h1>🔐 会话大师 · 使用说明</h1>
-    <p>一款通用浏览器扩展，轻松突破网站「单设备登录」限制</p>
-    <span class="version">v1.2.0</span>
+    <h1>🔐 SessionMaster</h1>
+    <p>会话大师 — 使用说明</p>
+    <span class="version" id="appVersion">v1.5.1</span>
   </div>
 
-  <!-- ======= 目录 ======= -->
-  <div class="toc">
-    <h3>📖 目录</h3>
-    <a href="#intro">一、概述</a>
-    <a href="#install" class="sub">1.1 功能简介</a>
-    <a href="#cookie-sync">二、Cookie 手动同步（基础功能）</a>
-    <a href="#cookie-export" class="sub">2.1 导出 Cookie</a>
-    <a href="#cookie-import" class="sub">2.2 导入 Cookie</a>
-    <a href="#cloud-sync">三、云端自动同步（高级功能）</a>
-    <a href="#server-install" class="sub">3.1 部署同步服务器</a>
-    <a href="#download-files" class="sub">3.2 下载服务器文件</a>
-    <a href="#extension-config" class="sub">3.3 浏览器端配置</a>
-    <a href="#sync-flow" class="sub">3.4 P2P 直连配对</a>
-    <a href="#server-flow" class="sub">3.5 服务器模式</a>
-    <a href="#signaling-server" class="sub">3.6 关于信令服务器</a>
-    <a href="#network-info" class="sub">3.7 查看本机网络地址</a>
-    <a href="#blocker">四、踢人请求拦截</a>
-    <a href="#heartbeat">五、会话保活</a>
-    <a href="#faq">六、常见问题（FAQ）</a>
-    <a href="#tips">七、使用技巧</a>
-  </div>
+  <!-- ===== 主布局 ===== -->
+  <div class="main-layout">
 
-  <!-- ======= 一、概述 ======= -->
-  <div class="card" id="intro">
-    <h2>一、概述</h2>
-    <p>
-      <strong>SessionMaster（会话大师）</strong> 是一款专为解决「单设备登录限制」而生的浏览器扩展。
-      很多 OA 系统、企业内部平台强制用户只能在一处登录，新登录会踢掉旧会话。
-    </p>
-    <p>
-      经实际测试，大多数 OA 系统的限制是 <strong>纯前端实现</strong> 的——服务端其实允许多会话共存，
-      只是浏览器端的 JS 脚本在检测到其他设备登录后主动退出。
-    </p>
+    <!-- ===== 左侧边栏 ===== -->
+    <aside class="sidebar">
+      <div class="sidebar-inner">
+        <h3>📖 目录</h3>
+        <nav class="sidebar-nav" id="sidebarNav">
+          <a href="#changelog" class="sidebar-link changelog-link" style="border-top:none;margin-top:0">📋 更新日志</a>
+          <a href="#intro" class="sidebar-link">一、概述</a>
+          <a href="#cookie-sync" class="sidebar-link">二、Cookie 同步</a>
+          <a href="#cookie-export" class="sidebar-link sub">2.1 导出 Cookie</a>
+          <a href="#cookie-import" class="sidebar-link sub">2.2 导入 Cookie</a>
+          <a href="#cloud-sync" class="sidebar-link">三、云端自动同步</a>
+          <a href="#choose-mode" class="sidebar-link sub">3.1 选择方式</a>
+          <a href="#sync-flow" class="sidebar-link sub">3.2 P2P 直连</a>
+          <a href="#server-install" class="sidebar-link sub">3.3 服务器模式</a>
+          <a href="#download-files" class="sidebar-link sub" style="padding-left:36px">3.3.1 下载文件</a>
+          <a href="#deploy-server" class="sidebar-link sub" style="padding-left:36px">3.3.2 部署服务器</a>
+          <a href="#extension-config" class="sidebar-link sub" style="padding-left:36px">3.3.3 浏览器配置</a>
+          <a href="#signaling-server" class="sidebar-link sub">3.4 信令服务器</a>
+          <a href="#network-info" class="sidebar-link sub">3.5 本机网络地址</a>
+          <a href="#blocker" class="sidebar-link">四、踢人拦截</a>
+          <a href="#heartbeat" class="sidebar-link">五、会话保活</a>
+          <a href="#faq" class="sidebar-link">六、常见问题</a>
+          <a href="#tips" class="sidebar-link">七、使用技巧</a>
+        </nav>
+      </div>
+    </aside>
 
-    <h3>核心功能一览</h3>
-    <table>
-      <tr><th>功能</th><th>说明</th><th>难度</th></tr>
-      <tr><td>🍪 Cookie 手动同步</td><td>手动导出 Cookie 文本，在另一台电脑导入</td><td>⭐ 简单</td></tr>
-      <tr><td>☁️ 云端自动同步</td><td>两台设备通过中继服务器自动双向同步 Cookie</td><td>⭐⭐ 中等</td></tr>
-      <tr><td>🛡️ 踢人请求拦截</td><td>自动阻止浏览器检测多设备登录的请求</td><td>⭐ 自动</td></tr>
-      <tr><td>💓 会话保活</td><td>定时发送心跳请求防止 Cookie 过期</td><td>⭐ 简单</td></tr>
-    </table>
+    <!-- ===== 右侧内容 ===== -->
+    <main class="content">
 
-    <div class="tip info">
-      <strong>💡 核心结论：</strong>如果贵司的 OA 和本例中的致远 OA V9.0SP1 一样服务端不踢人，
-      那么只需要 Cookie 同步即可实现多设备同时在线。
-    </div>
-  </div>
+      <!-- ===== 更新日志（放在最前面） ===== -->
+      <details class="changelog-card" id="changelog" open>
+        <summary>📋 更新日志</summary>
+        <div class="card-body">
 
-  <!-- ======= 二、Cookie 手动同步 ======= -->
-  <div class="card" id="cookie-sync">
-    <h2>二、🍪 Cookie 手动同步</h2>
-    <p>这是最基础、最通用的方式，适用于任何支持 Cookie 的网站。</p>
+          <!-- v1.5.1（最新，默认展开） -->
+          <details class="changelog-version" open>
+            <summary>v1.5.1 (2026-06-20) <span class="tag-latest">🔵 最新</span></summary>
+            <div class="version-body">
+              <ul>
+                <li>🔧 修复 CSS 语法错误（第 251 行缺失闭合大括号），251 行后全部样式恢复正常</li>
+                <li>🎨 同步模块布局重构：`sync-group` 改为完整白底卡片，内部可折叠区平铺避免卡中卡</li>
+                <li>🖼️ Kali Chromium 无头浏览器自检流程已就绪</li>
+              </ul>
+            </div>
+          </details>
 
-    <h3 id="cookie-export">2.1 导出 Cookie（电脑 A 操作）</h3>
-    <div class="step">
-      <div class="step-num">1</div>
-      <div class="step-content"><strong>打开 OA 并登录</strong>确保已登录到目标网站</div>
-    </div>
-    <div class="step">
-      <div class="step-num">2</div>
-      <div class="step-content"><strong>点击插件图标</strong>在浏览器工具栏点击 SessionMaster 图标</div>
-    </div>
-    <div class="step">
-      <div class="step-num">3</div>
-      <div class="step-content"><strong>切换到「🍪 会话管理 Tab」</strong>确认「当前站点」显示的是你的 OA 域名</div>
-    </div>
-    <div class="step">
-      <div class="step-num">4</div>
-      <div class="step-content"><strong>点击「导出 Cookie」</strong>所有会话 Cookie 会自动提取出来</div>
-    </div>
-    <div class="step">
-      <div class="step-num">5</div>
-      <div class="step-content"><strong>复制内容</strong>点击「复制」按钮，Copy 到剪贴板</div>
-    </div>
-    <div class="step">
-      <div class="step-num">6</div>
-      <div class="step-content"><strong>发送给电脑 B</strong>通过微信/飞书/邮件发给另一台电脑</div>
-    </div>
+          <button id="btnShowMore" class="btn-show-more muted">📋 查看更多版本</button>
+          <button id="btnShowLess" class="btn-show-more muted" style="display:none">▲ 收起</button>
 
-    <div class="tip success">
-      <strong>✅ 导出的内容类似：</strong><code>JSESSIONID=ABC123; SESSION=XYZ789</code>
-    </div>
+          <div id="oldVersions" style="display:none">
+          <details class="changelog-version">
+            <summary>v1.4.0 (2026-06-20)</summary>
+            <div class="version-body">
+              <ul>
+                <li>🎯 空白标签页检测：自动识别新标签页/空白页，显示引导提示，锁定需要域名的操作</li>
+                <li>💾 P2P 同步配置卡片增加「保存配置」按钮</li>
+                <li>🌐 自动发现本地服务器：插件启动时检测 localhost:5789，自动填入同步地址</li>
+                <li>🚀 一键安装脚本: Linux/macOS (install.sh) + Windows (install.ps1)，自动守护后台</li>
+                <li>🏗️ 帮助页改为左侧固定导航 + 右侧内容布局，新增 IntersectionObserver 章节高亮</li>
+                <li>📋 更新日志移至帮助页最前，默认展示最新版本详情</li>
+                <li>🖼️ 推荐规则关键词显示中文标签（替代英文字段名）</li>
+              </ul>
+            </div>
+          </details>
 
-    <h3 id="cookie-import">2.2 导入 Cookie（电脑 B 操作）</h3>
-    <div class="step">
-      <div class="step-num">1</div>
-      <div class="step-content"><strong>打开目标网站的登录页</strong>不需要登录，停留在登录页即可</div>
-    </div>
-    <div class="step">
-      <div class="step-num">2</div>
-      <div class="step-content"><strong>点击插件 → 导入 Cookie</strong>在弹出的输入框粘贴电脑 A 发来的内容</div>
-    </div>
-    <div class="step">
-      <div class="step-num">3</div>
-      <div class="step-content"><strong>点击「执行导入」</strong>Cookie 会被写入浏览器</div>
-    </div>
-    <div class="step">
-      <div class="step-num">4</div>
-      <div class="step-content"><strong>刷新页面</strong>按 F5 刷新，直接进入系统！</div>
-    </div>
+          <!-- v1.3.0 -->
+          <details class="changelog-version">
+            <summary>v1.3.0 (2026-06-20)</summary>
+            <div class="version-body">
+              <p><span class="tag tag-new">✨ 新增</span></p>
+              <ul>
+                <li>📤 会话管理导出增加「下载文件」按钮</li>
+                <li>📥 导入增加「从文件导入」按钮</li>
+              </ul>
+              <p><span class="tag tag-update">🎨 优化</span></p>
+              <ul>
+                <li>保活记录增加 siteName 站点名称字段显示</li>
+                <li>保活按钮图标改为 ▶️/⏸️，增加悬停 tooltip</li>
+                <li>导入/导出结果面板增加 ✕ 关闭按钮</li>
+                <li>浏览器图标角标增加动态动画效果</li>
+                <li>服务器配置保存后弹窗问是否立即开始同步</li>
+                <li>全部三个 Tab 按功能操作顺序重新排列</li>
+                <li>站点名称弱化显示（半透明）</li>
+                <li>各模块配置界面交互优化: 折叠卡片、必填校验、同步内容说明</li>
+              </ul>
+            </div>
+          </details>
 
-    <div class="tip warn">
-      <strong>⚠️ 注意：</strong>Cookie 有过期时间（通常 OA 的会话有效期 30 分钟到 8 小时）。
-      过期后需要重新导出导入。可以用「会话保活」功能延长有效期。
-    </div>
-  </div>
+          <!-- v1.2.0 -->
+          <details class="changelog-version">
+            <summary>v1.2.0 (2026-06-19)</summary>
+            <div class="version-body">
+              <p><span class="tag tag-new">✨ 新增</span></p>
+              <ul>
+                <li>☁️ 云端自动同步模式（通过服务器中继）</li>
+                <li>📡 主从设备模式（主设备上传，从设备接收）</li>
+                <li>🔄 可配置同步间隔（1-60 分钟）</li>
+                <li>📋 同步记录功能（本地保存同步历史）</li>
+              </ul>
+              <p><span class="tag tag-update">🎨 优化</span></p>
+              <ul>
+                <li>P2P 模式增加保活连接定时器显示</li>
+                <li>UI 主界面交互优化，提升操作流畅度</li>
+                <li>服务器端存储优化，增加设备注册与管理</li>
+              </ul>
+            </div>
+          </details>
 
-  <!-- ======= 三、云端自动同步 ======= -->
-  <div class="card" id="cloud-sync">
-    <h2>三、☁️ 云端自动同步</h2>
-    <p>
-      手动复制粘贴太麻烦？云端自动同步让你一次性配好，之后全自动运行。
-      两台设备通过同一台中继服务器交换加密后的 Cookie。
-    </p>
+          <!-- v1.1.2 -->
+          <details class="changelog-version">
+            <summary>v1.1.2</summary>
+            <div class="version-body">
+              <p><span class="tag tag-fix">🐛 修复</span></p>
+              <ul>
+                <li>修复 P2P 连接稳定性问题</li>
+              </ul>
+            </div>
+          </details>
 
-    <div class="tip warn">
-      <strong>🔒 安全说明：</strong>Cookie 数据在上传前会使用配对码进行 AES-256-GCM 加密，
-      服务器只能看到密文，无法解密你的 Cookie 内容。加密过程在你的浏览器本地完成。
-    </div>
+          <!-- v1.1.0 -->
+          <details class="changelog-version">
+            <summary>v1.1.0</summary>
+            <div class="version-body">
+              <p><span class="tag tag-new">✨ 新增</span></p>
+              <ul>
+                <li>🔗 P2P 直连模式（WebRTC 信令服务器配对）</li>
+                <li>📄 帮助文档页面</li>
+                <li>📥 一键导入 Cookie 文本</li>
+                <li>📤 Cookie 文本导出</li>
+              </ul>
+              <p><span class="tag tag-update">🎨 优化</span></p>
+              <ul>
+                <li>UI 界面优化，增加当前域名显示</li>
+              </ul>
+            </div>
+          </details>
 
-    <h3 id="server-install">3.1 部署同步服务器</h3>
-    <p>你需要一台常开设备（如 NAS、云服务器）来运行同步服务器。</p>
+          <!-- v1.0.0 -->
+          <details class="changelog-version">
+            <summary>v1.0.0 (2026-06-19)</summary>
+            <div class="version-body">
+              <p><span class="tag tag-new">✨ 首版发布</span></p>
+              <ul>
+                <li>🍪 Cookie 手动导出/导入</li>
+                <li>🛡️ 踢人请求拦截（内置规则库覆盖主流 OA）</li>
+                <li>💓 会话保活（定时心跳请求）</li>
+                <li>📦 服务端部署（Docker + Node.js）</li>
+                <li>🖥️ 浏览器端 UI 三 Tab 设计</li>
+              </ul>
+            </div>
+          </details>
 
-    <p><strong>方法一：在测试服务器上运行（推荐测试用）</strong></p>
-    <pre># 上传 server 文件夹到服务器
-scp -r session-master/server user@your-server:/tmp/sync-server
+          </div>
 
-# 登录服务器启动（默认端口 5789）
-ssh user@your-server
-cd /tmp/sync-server
+        </div>
+      </details>
+
+      <!-- ===== 一、概述 ===== -->
+      <div class="card" id="intro">
+        <h2>一、概述</h2>
+        <p>
+          <strong>SessionMaster（会话大师）</strong> 是一款专为解决「单设备登录限制」而生的浏览器扩展。
+          很多 OA 系统、企业内部平台强制用户只能在一处登录，新登录会踢掉旧会话。
+        </p>
+        <p>
+          经实际测试，大多数 OA 系统的限制是 <strong>纯前端实现</strong> 的——服务端其实允许多会话共存，
+          只是浏览器端的 JS 脚本在检测到其他设备登录后主动退出。
+        </p>
+
+        <h3>核心功能一览</h3>
+        <table>
+          <tr><th>功能</th><th>说明</th><th>难度</th></tr>
+          <tr><td>🍪 Cookie 手动同步</td><td>手动导出 Cookie 文本，在另一台电脑导入</td><td>⭐ 简单</td></tr>
+          <tr><td>☁️ 云端自动同步</td><td>两台设备通过中继服务器自动双向同步 Cookie</td><td>⭐⭐ 中等</td></tr>
+          <tr><td>🛡️ 踢人请求拦截</td><td>自动阻止浏览器检测多设备登录的请求</td><td>⭐ 自动</td></tr>
+          <tr><td>💓 会话保活</td><td>定时发送心跳请求防止 Cookie 过期</td><td>⭐ 简单</td></tr>
+        </table>
+
+        <div class="tip info">
+          <strong>💡 核心结论：</strong>如果贵司的 OA 服务端不踢人，
+          那么只需要 Cookie 同步即可实现多设备同时在线。
+        </div>
+      </div>
+
+      <!-- ===== 二、Cookie 手动同步 ===== -->
+      <div class="card" id="cookie-sync">
+        <h2>二、🍪 Cookie 手动同步</h2>
+        <p>这是最基础、最通用的方式，适用于任何支持 Cookie 的网站。</p>
+
+        <h3 id="cookie-export">2.1 导出 Cookie（电脑 A 操作）</h3>
+        <div class="step">
+          <div class="step-num">1</div>
+          <div class="step-content"><strong>打开 OA 并登录</strong>确保已登录到目标网站</div>
+        </div>
+        <div class="step">
+          <div class="step-num">2</div>
+          <div class="step-content"><strong>点击插件图标</strong>在浏览器工具栏点击 SessionMaster 图标</div>
+        </div>
+        <div class="step">
+          <div class="step-num">3</div>
+          <div class="step-content"><strong>切换到「🍪 会话管理 Tab」</strong>确认「当前站点」显示的是你的 OA 域名</div>
+        </div>
+        <div class="step">
+          <div class="step-num">4</div>
+          <div class="step-content"><strong>点击「导出 Cookie」</strong>所有会话 Cookie 会自动提取出来</div>
+        </div>
+        <div class="step">
+          <div class="step-num">5</div>
+          <div class="step-content"><strong>复制内容</strong>点击「复制」按钮，Copy 到剪贴板</div>
+        </div>
+        <div class="step">
+          <div class="step-num">6</div>
+          <div class="step-content"><strong>或者下载文件</strong>点击「下载文件」按钮，Cookie 将以 JSON 文件保存</div>
+        </div>
+
+        <div class="tip info">
+          <strong>💡 提示：</strong>导出的 Cookie 包含 name、value、domain、path、secure、httpOnly 等完整属性，
+          可以使用「复制」或「下载文件」两种方式传递到另一台电脑。
+        </div>
+
+        <h3 id="cookie-import">2.2 导入 Cookie（电脑 B 操作）</h3>
+        <div class="step">
+          <div class="step-num">1</div>
+          <div class="step-content"><strong>打开 OA 登录页</strong>在另一台电脑打开相同 OA 系统</div>
+        </div>
+        <div class="step">
+          <div class="step-num">2</div>
+          <div class="step-content"><strong>点击插件图标</strong>并切换到「🍪 会话管理 Tab」</div>
+        </div>
+        <div class="step">
+          <div class="step-num">3</div>
+          <div class="step-content"><strong>点击「导入 Cookie」</strong>在文本框中粘贴从电脑 A 复制的内容</div>
+        </div>
+        <div class="step">
+          <div class="step-num">4</div>
+          <div class="step-content"><strong>点击「执行导入」</strong>或者点「从文件导入」选择 JSON 文件</div>
+        </div>
+        <div class="step">
+          <div class="step-num">5</div>
+          <div class="step-content"><strong>刷新页面</strong>即可自动登录，无需输入密码</div>
+        </div>
+
+        <div class="tip info">
+          <strong>📌 传输方式：</strong>可以用微信/飞书/邮件把 Cookie 文本发送到另一台电脑。
+          建议传输后立即清除剪贴板，防止 Cookie 泄露。
+        </div>
+      </div>
+
+      <!-- ===== 三、云端自动同步 ===== -->
+      <div class="card" id="cloud-sync">
+        <h2>三、☁️ 云端自动同步</h2>
+        <p>在每台电脑上都需要安装插件，配置好同步服务器的地址或 P2P 配对码，Cookie 就会自动在设备间同步。</p>
+
+        <h3 id="choose-mode">3.1 选择同步方式</h3>
+        <p>插件支持两种同步模式：</p>
+        <ul>
+          <li><strong>🔗 P2P 直连：</strong>两台设备通过信令服务器握手后，WebRTC 直连传输 Cookie，数据不经过服务端。适用于两台设备都在内网或都有公网可达的 NAT。</li>
+          <li><strong>☁️ 云端同步（服务器模式）：</strong>所有设备通过指定的同步服务器中转数据。数据经配对码加密后上传，服务器无法解密。</li>
+        </ul>
+        <p>在插件的「🔗 同步 Tab」顶部切换模式：</p>
+        <div class="tip info">
+          <strong>提示：</strong>两种模式互斥，同一时间只能启用一种。切换前需要先关闭另一种。
+        </div>
+
+        <h3 id="sync-flow">3.2 P2P 直连模式</h3>
+        <div class="step">
+          <div class="step-num">1</div>
+          <div class="step-content"><strong>设备 A：输入设备名称 → 点击「创建配对」</strong>生成 6 位配对码</div>
+        </div>
+        <div class="step">
+          <div class="step-num">2</div>
+          <div class="step-content"><strong>设备 B：输入设备名称 → 点击「加入配对」→ 输入配对码</strong></div>
+        </div>
+        <div class="step">
+          <div class="step-num">3</div>
+          <div class="step-content"><strong>配对成功后</strong>状态变为「已连接」，显示对端设备名称</div>
+        </div>
+        <div class="step">
+          <div class="step-num">4</div>
+          <div class="step-content"><strong>开启「P2P 自动同步」开关</strong>填写要同步的站点域名，开始自动同步</div>
+        </div>
+
+        <h4>P2P 同步配置</h4>
+        <p>在「P2P 同步配置」可折叠卡片中，可以配置：</p>
+        <ul>
+          <li><strong>服务器地址：</strong>信令服务器地址（必须填写）</li>
+          <li><strong>主从设备模式：</strong>可选「主设备」负责上传 Cookie，「从设备」仅接收不下发</li>
+        </ul>
+
+        <h3 id="server-install">3.3 服务器模式</h3>
+        <p>适用于多设备（3 台以上）、跨网络场景。</p>
+
+        <h4 id="download-files">3.3.1 下载服务器文件</h4>
+        <div id="fileList" style="margin-top:8px">
+          <p style="font-size:13px;color:var(--text-muted)">⏳ 正在加载文件清单...</p>
+        </div>
+
+        <h4 id="deploy-server">3.3.2 部署服务端（任选一种）</h4>
+
+        <p><strong>方式一：Node.js 直接运行（推荐，零依赖）</strong></p>
+        <pre># 确保安装了 Node.js 18+
 node server.js
 
-# 如需自定义端口（防止冲突）：
-# node server.js 5790
-# 或 PORT=5790 node server.js
+# 自定义端口
+node server.js 5789
+# 或: PORT=5789 node server.js</pre>
+        <p>程序监听 <code>0.0.0.0:5789</code>，数据存储在 <code>./data/</code> 目录。</p>
 
-# 验证是否启动成功
-curl http://localhost:5789/api/health
-# 返回: {"status":"ok","time":"..."}</pre>
+        <p><strong>方式二：Docker 运行。</strong></p>
+        <pre>docker run -d \
+  --name sessionmaster-sync \
+  -p 5789:5789 \
+  -v ./data:/app/data \
+  sessionmaster-sync</pre>
 
-    <p><strong>方法二：NAS / Docker 长期运行</strong></p>
-    <pre><span class="comment"># 在服务器上创建数据目录</span>
-mkdir -p /path/to/sessionmaster-sync
-<span class="comment"># 把 server.js 传过去，后台运行（默认端口 5789）</span>
-nodejs /path/to/sessionmaster-sync/server.js &
+        <h4 id="extension-config">3.3.3 浏览器端配置</h4>
+        <div class="step">
+          <div class="step-num">1</div>
+          <div class="step-content"><strong>切换到「☁️ 云端同步」模式</strong>点击顶部开关切换</div>
+        </div>
+        <div class="step">
+          <div class="step-num">2</div>
+          <div class="step-content"><strong>展开「同步配置」</strong>填写服务器地址、配对码、设备名称、同步站点</div>
+        </div>
+        <div class="step">
+          <div class="step-num">3</div>
+          <div class="step-content"><strong>点击「保存配置」</strong>确认是否立即开始同步</div>
+        </div>
+        <div class="step">
+          <div class="step-num">4</div>
+          <div class="step-content"><strong>开启「云端双向同步」开关</strong>开始定时自动同步</div>
+        </div>
+        <p>所有设备使用相同的配对码，数据用配对码 AES-256-GCM 加密后传输。</p>
 
-<span class="comment"># 自定义端口：nodejs /path/to/sessionmaster-sync/server.js 5790</span>
-<span class="comment"># 或用 PM2 管理进程</span>
-npm install -g pm2
-pm2 start /path/to/sessionmaster-sync/server.js --name session-sync
-pm2 save</pre>
+        <h3 id="signaling-server">3.4 信令服务器说明</h3>
+        <p>P2P 模式需要一个信令服务器来帮助两台设备建立直连。信令服务器仅用于握手配对，不传输 Cookie 数据。</p>
+        <p><strong>信令服务器可以与同步服务器是同一台</strong>，因为 <code>server.js</code> 同时提供了信令服务和云端同步服务。</p>
+        <p>配置方式：</p>
+        <ul>
+          <li>在 P2P 同步配置中的「服务器地址」填入信令服务器地址</li>
+          <li>格式：<code>http://IP:5789</code></li>
+        </ul>
 
-    <div class="tip info">
-      <strong>💡 注意防火墙：</strong>确保服务器防火墙放行了相应端口（默认 5789）。
-      例如 Linux 上可能需要 <code>sudo ufw allow 5789</code>。
-      如果改了端口，记得同步修改防火墙规则。
-    </div>
-
-    <h3 id="download-files">3.2 下载服务器文件</h3>
-    <p>需要部署同步服务器的用户，可从这里下载所需文件：</p>
-    <div id="fileDownloadArea" style="background:#f8f9fa;border-radius:8px;padding:12px;margin:10px 0">
-      <p style="font-size:13px;margin-bottom:8px;color:#555">📂 文件清单（点击文件名或下载按钮保存）：</p>
-      <div id="fileList">
-        <p style="color:#888;font-size:12px">正在加载文件列表...</p>
+        <h3 id="network-info">3.5 本机网络地址</h3>
+        <p>在「同步 Tab」底部有一个「🌐 本机网络地址」可折叠卡片。点击「获取本机网络地址」按钮，插件会通过 WebRTC 检测本机局域网 IP 地址。</p>
+        <div class="tip info">
+          <strong>用途：</strong>
+          <ul>
+            <li>如果你用本机作为同步服务器，这里显示的地址就是其他设备要填的「服务器地址」</li>
+            <li>点击地址可以直接复制到剪贴板</li>
+            <li>不影响其他功能使用（即使未打开目标网站也可获取）</li>
+          </ul>
+        </div>
       </div>
-      <p style="font-size:11px;color:#888;margin-top:8px;border-top:1px solid #e0e0e0;padding-top:6px">
-        💡 文件路径：插件源码 <code>src/server/server.js</code> 和 <code>src/deploy/</code> 目录
-      </p>
-    </div>
 
-    <script>
-    (function() {
-      var files = [
-        { path: 'server/server.js', name: 'server.js', desc: '同步服务器（核心程序，零依赖，支持信令/P2P/云同步）' },
-        { path: 'deploy/server.js', name: 'deploy-server.js', desc: 'Docker 版同步服务器（与 server.js 同步更新）' },
-        { path: 'deploy/Dockerfile', name: 'Dockerfile', desc: 'Docker 镜像构建文件（node:22-alpine）' },
-        { path: 'deploy/docker-compose.yaml', name: 'docker-compose.yaml', desc: 'Docker Compose 编排配置' },
-        { path: 'deploy/deploy.sh', name: 'deploy.sh', desc: '一键部署脚本（SCP + Docker）' }
-      ];
-      
-      var container = document.getElementById('fileList');
-      if (!container) return;
-      
-      var html = '';
-      for (var i = 0; i < files.length; i++) {
-        var f = files[i];
-        var url = '';
-        try {
-          if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.getURL) {
-            url = chrome.runtime.getURL(f.path);
-          }
-        } catch(e) {}
-        var linkHtml = url
-          ? '<a href="' + url + '" download="' + f.name + '" style="font-family:monospace;font-size:13px;color:#1a73e8;text-decoration:none" target="_blank">📄 ' + f.name + '</a>'
-          : '<span style="font-family:monospace;font-size:13px;color:#555">📄 ' + f.name + '</span>';
-        var btnHtml = url
-          ? '<a href="' + url + '" download="' + f.name + '" style="padding:4px 10px;background:#1a73e8;color:white;border-radius:4px;font-size:12px;text-decoration:none;white-space:nowrap" target="_blank">⬇ 下载</a>'
-          : '<span style="padding:4px 10px;background:#ccc;color:#fff;border-radius:4px;font-size:12px">—</span>';
-        html += '<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid #eee">' +
-          '<div style="flex:1">' + linkHtml +
-            '<br><span style="font-size:11px;color:#888">' + f.desc + '</span>' +
-          '</div>' +
-          btnHtml +
-        '</div>';
-      }
-      container.innerHTML = html;
-    })();
-    </script>
+      <!-- ===== 四、踢人拦截 ===== -->
+      <div class="card" id="blocker">
+        <h2>四、🛡️ 踢人拦截</h2>
+        <p>插件在后台自动拦截含指定关键字的请求，阻止浏览器将「多设备登录」信号发送给服务器。</p>
 
-    <h3 id="extension-config">3.3 浏览器端配置</h3>
-    <div class="step">
-      <div class="step-num">1</div>
-      <div class="step-content">
-        <strong>打开插件 → 「☁️ 同步」Tab</strong>
-      </div>
-    </div>
-    <div class="step">
-      <div class="step-num">2</div>
-      <div class="step-content">
-        <strong>填写服务器地址</strong>
-        如果你在服务器上部署了同步服务，就填服务器的地址和端口，例如 <code>http://你的服务器IP:5789</code>
-      </div>
-    </div>
-    <div class="step">
-      <div class="step-num">3</div>
-      <div class="step-content">
-        <strong>生成配对码</strong>点击「生成」按钮，会自动生成 8 位配对码（如 <code>X3K8PQ2M</code>）
-        <div class="tip info" style="margin-top:6px">⚠️ A 电脑和 B 电脑必须使用 <strong>同一配对码</strong></div>
-      </div>
-    </div>
-    <div class="step">
-      <div class="step-num">4</div>
-      <div class="step-content">
-        <strong>填写设备名称</strong>如「办公室电脑」、「家里笔记本」，方便区分
-      </div>
-    </div>
-    <div class="step">
-      <div class="step-num">5</div>
-      <div class="step-content">
-        <strong>填写同步域名</strong>如 <code>你的oa域名.com</code>。留空则自动同步当前站点
-      </div>
-    </div>
-    <div class="step">
-      <div class="step-num">6</div>
-      <div class="step-content">
-        <strong>选择同步间隔</strong>建议 5 分钟。太短增加服务器负担，太长可能 Cookie 已过期
-      </div>
-    </div>
-    <div class="step">
-      <div class="step-num">7</div>
-      <div class="step-content">
-        <strong>保存配置 → 打开开关</strong>
-      </div>
-    </div>
+        <h3>使用方法</h3>
+        <div class="tip success">
+          <strong>零配置开箱即用：</strong>插件安装后，内置的拦截规则库会自动生效。
+          当你访问匹配的 OA 站点时，插件会自动加载针对该站点的拦截规则。
+        </div>
 
-    <h3 id="sync-flow">3.4 P2P 直连配对（推荐）</h3>
-    <p><strong>无需服务器，两台浏览器直接连接。</strong></p>
-    <div class="step">
-      <div class="step-num">1</div>
-      <div class="step-content"><strong>电脑 A：</strong>打开插件 → 「🔗 同步」Tab → P2P 直连模式 → 点击「创建配对」</div>
-    </div>
-    <div class="step">
-      <div class="step-num">2</div>
-      <div class="step-content">电脑 A 会生成一个 <strong>6 位配对码</strong>（如 X3K8PQ），把此码告知电脑 B</div>
-    </div>
-    <div class="step">
-      <div class="step-num">3</div>
-      <div class="step-content"><strong>电脑 B：</strong>打开插件 → 「🔗 同步」Tab → 点击「加入配对」→ 输入配对码</div>
-    </div>
-    <div class="step">
-      <div class="step-num">4</div>
-      <div class="step-content"><strong>连接成功后：</strong>开启「P2P 自动同步」开关，填入要同步的域名，Cookie 直接在浏览器之间点对点传输。</div>
-    </div>
+        <h3>自定义规则</h3>
+        <div class="step">
+          <div class="step-num">1</div>
+          <div class="step-content"><strong>在插件「🛡️ 拦截 Tab」</strong>找到「自定义规则」区域</div>
+        </div>
+        <div class="step">
+          <div class="step-num">2</div>
+          <div class="step-content"><strong>输入 URL 关键词</strong>如 <code>checkOnline</code>，点击「添加」按钮</div>
+        </div>
+        <div class="step">
+          <div class="step-num">3</div>
+          <div class="step-content"><strong>或者从 Cookie 列表添加</strong>先获取当前站点 Cookie，勾选后加入自定义规则</div>
+        </div>
+        <p>添加的规则会立即生效，拦截所有包含该关键词的请求（请求不会发送到服务器）。</p>
 
-    <div class="tip success">
-      <strong>💡 需要网络互通：</strong>两台电脑必须在互相能通信的网络上（同一局域网、VPN 或内网穿透）。<br>
-      P2P 直连走 WebRTC，数据全程加密，不经过任何第三方服务器。
-    </div>
-
-    <h3 id="server-flow">3.5 服务器模式（备选方案）</h3>
-    <p>如果 P2P 直连不可用（如网络限制），可使用中央服务器模式：</p>
-    <div class="step">
-      <div class="step-num">1</div>
-      <div class="step-content">部署同步服务器（见 3.1 节）在一台常开设备上</div>
-    </div>
-    <div class="step">
-      <div class="step-num">2</div>
-      <div class="step-content">插件中切换到「🖥️ 服务器模式」，填写服务器地址和配对码</div>
-    </div>
-    <div class="step">
-      <div class="step-num">3</div>
-      <div class="step-content">两台设备使用相同配对码 → 开启开关 → Cookie 通过服务器中转同步</div>
-    </div>
-
-    <div class="tip info">
-      <strong>💡 两种模式区别：</strong><br>
-      • <strong>P2P 直连</strong>：浏览器直连，数据不经过服务器（推荐）<br>
-      • <strong>服务器模式</strong>：数据经服务器中转，适合跨互联网、NAT 严格的场景<br>
-      • 两个模式可共存，互不干扰
-    </div>
-
-    <h3 id="signaling-server">3.6 关于信令服务器</h3>
-    <p>P2P 直连模式依赖 <strong>信令服务器</strong> 来完成两台浏览器之间的握手连接。信令服务器仅负责交换连接元数据（SDP、ICE Candidates），时间极短（几十毫秒），<strong>不参与实际数据传输</strong>，也无法解密或窃听 Cookie 内容。</p>
-    <p><strong>是否需要自行部署？</strong></p>
-    <ul>
-      <li>如果你部署了同步服务器（server.js），它已内置信令功能（<code>/api/signal/</code> 端点），无需额外配置</li>
-      <li>如果你没有部署服务器、仅使用 P2P 直连模式，则需在插件「信令服务器地址」中填写一个可达的信令服务地址</li>
-      <li>信令服务器所需资源极低，可部署在免费云平台（如 Render、Railway 免费计划），或使用社区提供的公共信令服务</li>
-    </ul>
-
-    <h3 id="network-info">3.7 查看本机网络地址</h3>
-    <p>配置服务器地址时如需获取本机 IP，插件可自动检测：</p>
-    <div class="step">
-      <div class="step-num">1</div>
-      <div class="step-content">打开插件 → 「🔗 同步」Tab → 拉到最下面</div>
-    </div>
-    <div class="step">
-      <div class="step-num">2</div>
-      <div class="step-content">展开「🌐 本机网络地址」→ 点击「获取本机网络地址」</div>
-    </div>
-    <div class="step">
-      <div class="step-num">3</div>
-      <div class="step-content">插件会列出本机的 IPv4 和 IPv6 地址，<strong>点击地址即可复制</strong>，方便填入「服务器地址」字段</div>
-    </div>
-
-    <div class="tip success">
-      <strong>✅ 验证同步状态：</strong>打开插件 → 「🔗 同步」Tab，查看同步记录区域。
-      若有「已导入新 Cookie」或「最后同步时间」则说明同步正常运行。
-    </div>
-
-    <div class="tip warn">
-      <strong>⚠️ 关于服务器地址填写：</strong><br>
-      • 局域网内使用，填 <strong>内网 IP</strong> 即可<br>
-      • 跨网络访问，需配置 <strong>端口转发</strong>（5789 端口）或使用 <strong>内网穿透</strong>（FRP/DDNS）<br>
-      • 最简单方案：两台电脑在同一局域网下，直接使用内网 IP
-    </div>
-  </div>
-
-  <!-- ======= 四、踢人请求拦截 ======= -->
-  <div class="card" id="blocker">
-    <h2>四、🛡️ 踢人请求拦截</h2>
-    <p>
-      很多 OA 系统通过浏览器定时发送 AJAX 请求来检测是否有其他设备登录。
-      插件内置了<strong>按网站分类的规则库</strong>，自动匹配当前站点并应用对应规则。
-    </p>
-
-    <h3>智能匹配规则</h3>
-    <p>
-      打开插件 → 「🛡️ 拦截 Tab」，插件会根据当前访问的网站域名自动匹配推荐规则。
-      匹配到站点时会显示该站点的专用关键词列表，同时通用规则始终生效。
-    </p>
-
-    <h3>规则库管理</h3>
-    <p>拦截 Tab 底部提供三种管理方式：</p>
-    <div class="step">
-      <div class="step-num">📥</div>
-      <div class="step-content"><strong>导入规则库</strong>点击「导入」按钮，选择 <code>.json</code> 格式的规则文件，一键替换规则库</div>
-    </div>
-    <div class="step">
-      <div class="step-num">📤</div>
-      <div class="step-content"><strong>导出规则库</strong>点击「导出」按钮，将当前规则库保存为 JSON 文件，方便备份或分享</div>
-    </div>
-    <div class="step">
-      <div class="step-num">🔄</div>
-      <div class="step-content"><strong>从服务器更新</strong>如果规则库配置了 <code>updateUrl</code>，点击即可从远程拉取最新规则</div>
-    </div>
-
-    <h3>规则库文件格式</h3>
-    <pre>{
-  "version": 1,
-  "updateUrl": "https://你的服务器/rules.json",
-  "sites": [
-    {
-      "id": "seeyon",
-      "name": "致远OA",
-      "domains": ["*.seeyon.com"],
-      "keywords": ["checkSession", "secondLogin", "singleLogin"]
-    }
-  ],
-  "generic": ["loginCheck", "singleLogin", "kickOut"]
-}</pre>
-    <p>规则库文件存放在源码 <code>src/blocking_rules_db.json</code>，可自行编辑后重新打包加载。</p>
-
-    <h3>添加自定义规则</h3>
-    <p>
-      除了规则库外，你还可以在「➕ 自定义规则」区域手动添加 URL 关键词。
-      这些规则会通过 <code>declarativeNetRequest</code> API 动态生效。
-    </p>
-    <div class="step">
-      <div class="step-num">1</div>
-      <div class="step-content">按 F12 打开开发者工具 → Network 面板</div>
-    </div>
-    <div class="step">
-      <div class="step-num">2</div>
-      <div class="step-content">过滤关键词如 <code>session</code>、<code>check</code>、<code>online</code></div>
-    </div>
-    <div class="step">
-      <div class="step-num">3</div>
-      <div class="step-content">复制请求 URL 中的特征关键词，填入插件的自定义规则中</div>
-    </div>
-
-    <div class="tip info">
-      <strong>💡 注意：</strong>拦截规则使用 Chrome 的 <code>declarativeNetRequest</code> API，
-      不需要注入脚本，性能无影响，即使用户不打开插件页面也自动生效。
-    </div>
-  </div>
-
-  <!-- ======= 五、会话保活 ======= -->
-  <div class="card" id="heartbeat">
-    <h2>五、💓 会话保活</h2>
-    <p>
-      Cookie 会过期。OA 系统的会话通常 30 分钟到 8 小时不等。
-      会话保活功能通过定时向服务器发送请求，保持会话不失效。
-    </p>
-
-    <h3>配置方法</h3>
-    <div class="step">
-      <div class="step-num">1</div>
-      <div class="step-content">
-        <strong>找到保活 URL</strong>使用 F12 → Network 过滤请求，找一个定时请求的 URL。常见的有：<br>
-        <code>/你的oa系统/保持会话的接口</code>
-      </div>
-    </div>
-    <div class="step">
-      <div class="step-num">2</div>
-      <div class="step-content">
-        <strong>打开插件「🍪 会话管理 Tab」</strong>在「会话保活」区域输入 URL 和间隔时间
-      </div>
-    </div>
-    <div class="step">
-      <div class="step-num">3</div>
-      <div class="step-content">
-        <strong>点击「💓 添加保活」</strong>插件会在后台定时发送请求。添加后可在列表中看到所有保活规则：
-        <ul style="margin-top:4px">
-          <li>✅ 启用 / ⏸️ 暂停 — 开关按钮，随时暂停某条保活</li>
-          <li>✕ 删除 — 移除不再需要的保活规则</li>
-          <li>状态栏显示共几条、活跃几条</li>
+        <h3>规则库管理</h3>
+        <ul>
+          <li><strong>📤 导出：</strong>将当前规则库导出为 JSON 文件</li>
+          <li><strong>📥 导入：</strong>从 JSON 文件导入规则库</li>
+          <li><strong>🔄 从服务器更新：</strong>从远程服务器更新规则库（需配置更新地址）</li>
         </ul>
       </div>
-    </div>
 
-    <div class="tip info">
-      <strong>💡 保活与自动同步的关系：</strong>如果开启了云端自动同步或 P2P 直连同步，
-      同步过程本身就会携带 Cookie 访问 OA，相当于也在做保活，一般不需要单独配置保活规则。
-    </div>
+      <!-- ===== 五、会话保活 ===== -->
+      <div class="card" id="heartbeat">
+        <h2>五、💓 会话保活</h2>
+        <p>
+          很多 OA 系统的 Cookie 有效期很短（30 分钟到 8 小时），即使没人踢你，Cookie 也会自动过期。
+          「会话保活」功能可以定时发送请求到指定 URL，告诉服务器「我还活着」，从而延长会话有效期。
+        </p>
+
+        <h3>如何使用</h3>
+        <div class="step">
+          <div class="step-num">1</div>
+          <div class="step-content"><strong>打开插件 → 「🍪 会话管理 Tab」</strong></div>
+        </div>
+        <div class="step">
+          <div class="step-num">2</div>
+          <div class="step-content"><strong>在「保活 URL」输入框中</strong>输入需要定时访问的地址（或点击 📌 填入当前页面地址）</div>
+        </div>
+        <div class="step">
+          <div class="step-num">3</div>
+          <div class="step-content"><strong>选择间隔时间：</strong>可选 5、10、30、60 分钟</div>
+        </div>
+        <div class="step">
+          <div class="step-num">4</div>
+          <div class="step-content"><strong>点击「💓 添加保活」</strong>即可添加到列表，会自动开始定时保活</div>
+        </div>
+        <div class="step">
+          <div class="step-num">5</div>
+          <div class="step-content"><strong>管理保活规则：</strong>在列表中可单独暂停/启用或删除每条规则</div>
+        </div>
+
+        <div class="tip info">
+          <strong>💡 提示：</strong>
+          <ul>
+            <li>保活在后台 Service Worker 中运行，即使关闭插件弹窗也会持续执行</li>
+            <li>保活 URL 必须是目标 OA 系统内的有效地址，如 <code>/main.do?method=keepAlive</code></li>
+            <li>建议间隔时间设为 OA 会话过期时间的 1/3，例如 OA 会话 30 分钟过期，则设 10 分钟保活一次</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- ===== 六、常见问题 ===== -->
+      <div class="card" id="faq">
+        <h2>六、常见问题（FAQ）</h2>
+
+        <div class="tip success">
+          <strong>❓ 插件是否兼容所有 OA 系统？</strong><br>
+          任何基于 Cookie 认证的网站都适用，不限特定 OA。不过拦截模块的内置规则默认覆盖主流 OA 系统（致远、泛微、蓝凌等）。其他系统可能需要手动添加自定义规则。
+        </div>
+        <div class="tip success">
+          <strong>❓ 如果服务端真的踢人，Cookie 同步还有用吗？</strong><br>
+          没用。如果是服务端强制踢人，即使你导入了 Cookie 也会被服务端拒绝。好在大多数 OA 只做了前端检测，服务端实际允许多会话共存。
+        </div>
+        <div class="tip info">
+          <strong>❓ Cookie 会泄露吗？</strong><br>
+          手动同步：自行选择传输方式（微信/飞书/邮件），注意安全。云端同步：数据在浏览器本地加密后上传，服务器只能看到密文。P2P 模式：数据通过 WebRTC 加密直连传输，不经过任何服务器。
+        </div>
+        <div class="tip info">
+          <strong>❓ 需要安装服务器吗？</strong><br>
+          仅用于手动同步或拦截：不需要。仅用于 P2P 同步：需要一个轻量信令服务器（可与他人共用）。使用云端自动同步：需要部署一个同步服务器（server.js，仅 407 行代码，零 npm 依赖）。
+        </div>
+        <div class="tip success">
+          <strong>❓ 自动同步多久生效？</strong><br>
+          配置保存后 1 分钟内开始首次同步。默认间隔 5 分钟，可以在设置中调整（1-60 分钟）。
+        </div>
+        <div class="tip success">
+          <strong>❓ 两台设备同时修改 Cookie 会冲突吗？</strong><br>
+          服务器模式采用版本控制：每个 Cookie 有独立时间戳，后修改的覆盖先修改的。P2P 模式平等模式下按最后写入覆盖。主从模式下只有主设备上传，从设备仅接收，不会冲突。
+        </div>
+      </div>
+
+      <!-- ===== 七、使用技巧 ===== -->
+      <div class="card" id="tips">
+        <h2>七、💡 使用技巧</h2>
+
+        <div class="tip success">
+          <strong>🔒 安全最佳实践：</strong><br>
+          • 配对码不要用简单数字，用插件生成的随机码<br>
+          • 同步服务器建议在内网运行（不暴露到公网）<br>
+          • 如果必须暴露到公网，前面加一层 Nginx HTTPS 反代<br>
+          • 不再需要同步时，关闭同步开关
+        </div>
+
+        <div class="tip success">
+          <strong>📱 手机上能用吗？</strong><br>
+          Chrome 移动版不支持扩展。但如果你用 Kiwi Browser（安卓）或 Orion（iOS），
+          支持安装 Chrome 扩展，SessionMaster 也能用。
+        </div>
+      </div>
+
+    </main>
   </div>
 
-  <!-- ======= 六、常见问题 ======= -->
-  <div class="card" id="faq">
-    <h2>六、常见问题（FAQ）</h2>
-
-    <h3>Q: Edge 浏览器能用吗？</h3>
-    <p>A: 可以。Edge 也是 Chromium 内核，完全兼容 Chrome 扩展。<br>
-    安装地址：<code>edge://extensions/</code> → 开发人员模式 → 加载解压缩的扩展</p>
-
-    <h3>Q: 同步服务器可以部署在公网吗？</h3>
-    <p>A: 可以。服务器只是一个简单的数据中继，不存储解密后的 Cookie。
-    如果部署在公网，建议用 Nginx 反代加 HTTPS，或者放在内网通过 FRP/DDNS 暴露。</p>
-
-    <h3>Q: 同步的数据安全吗？</h3>
-    <p>A: 安全。Cookie 数据使用 AES-256-GCM 加密，密钥来源于配对码，服务器无法解密。
-    即使服务器被攻破，攻击者拿到的也是密文。</p>
-
-    <h3>Q: 能同步多个网站的 Cookie 吗？</h3>
-    <p>A: 当前版本支持同步一个主域名。同步多个域名需要在「同步域名」字段中填写你要同步的网站域名。
-    如果你需要同步多个网站，可以稍后在「自定义规则」中扩展。</p>
-
-    <h3>Q: 开启同步后电脑会变卡吗？</h3>
-    <p>A: 不会。同步使用 Chrome 的 <code>chrome.alarms</code> API 触发，即使浏览器关闭了插件页面，
-    后台 Service Worker 也会按间隔自动运行。每次同步的数据量很小（几百字节到几 KB）。</p>
-
-    <h3>Q: 为什么导出了 Cookie，导入后还是没登录？</h3>
-    <p>A: 可能原因：① Cookie 已过期 ② 导入的域名不匹配 ③ 网站绑定了 IP 或 User-Agent（少见）
-    建议先「清除该站点 Cookie」再重新导入一次。</p>
-
-    <h3>Q: 手动同步和云端同步有什么区别？</h3>
-    <p>
-      A: 手动同步需要每次导出→发送→导入，适合临时用一次。
-      云端同步配置好后自动运行，两台浏览器在后台静默交换 Cookie。
-    </p>
-
-    <h3>Q: 踢人拦截规则不够用怎么办？</h3>
-    <p>A: 内置了 9 条常用规则。如果不够，按 F12 抓包找到特征关键词，在「拦截 Tab」中添加自定义规则。
-    你也可以联系我们，把新的关键词加到内置规则中。</p>
-  </div>
-
-  <!-- ======= 七、使用技巧 ======= -->
-  <div class="card" id="tips">
-    <h2>七、💡 使用技巧</h2>
-
-    <div class="tip success">
-      <strong>🚀 极简方案（只用 Cookie 导出/导入）：</strong><br>
-      如果只是临时需要在另一台电脑上访问 OA：<br>
-      电脑 A 导出 → 拍照/复制 → 电脑 B 导入 → 刷新
-    </div>
-
-    <div class="tip success">
-      <strong>⚡ 最省心方案（云端自动同步）：</strong><br>
-      如果你有一台常开设备（如 NAS、云服务器）：<br>
-      部署同步服务器 → 两台浏览器都装插件 → 配置同个配对码 → 打开开关 → 搞定
-    </div>
-
-    <div class="tip success">
-      <strong>🔒 安全最佳实践：</strong><br>
-      • 配对码不要用简单数字，用插件生成的随机码<br>
-      • 同步服务器建议在内网运行（不暴露到公网）<br>
-      • 如果必须暴露到公网，前面加一层 Nginx HTTPS 反代<br>
-      • 不再需要同步时，关闭同步开关
-    </div>
-
-    <div class="tip success">
-      <strong>📱 手机上能用吗？</strong><br>
-      Chrome 移动版不支持扩展。但如果你用 Kiwi Browser（安卓）或 Orion（iOS），
-      支持安装 Chrome 扩展，SessionMaster 也能用。
-    </div>
-  </div>
-
-  <!-- ======= 底部 ======= -->
+  <!-- ===== 底部 ===== -->
   <div class="footer">
-    <p><strong>SessionMaster v1.2.0 · 会话大师</strong></p>
-    <p style="margin-top:4px">© 2026 <strong>BenSon.Album</strong> · 联系方式：<a href="mailto:chinasir@qq.com">chinasir@qq.com</a></p>
-    <p style="margin-top:6px;border-top:1px solid #e0e0e0;padding-top:6px">
-      <strong>免责声明：</strong>本插件仅供学习研究之用。使用者应遵守相关网站的服务条款，
+    <p><strong>SessionMaster <span id="footerVersion">v1.5.1</span> · 会话大师</strong></p>
+    <p style="margin-top:4px">© 2026 <strong>BenSon.Album</strong> · <a href="mailto:chinasir@qq.com">chinasir@qq.com</a></p>
+    <p style="margin-top:6px;border-top:1px solid var(--border);padding-top:6px">
+      <strong>免责声明：</strong>本插件仅供学习研究使用。使用者应遵守相关网站的服务条款，
       不得用于非法用途。作者不对因使用本插件而产生的任何直接或间接损失承担责任。
-      使用本插件即表示同意以上条款。
     </p>
   </div>
 
 </div>
+
+<script src="help.js"></script>
 </body>
 </html>

@@ -120,8 +120,7 @@ const routes = {
 
     pair.devices[deviceId] = {
       lastSeen: new Date().toISOString(),
-      name: body.deviceName || deviceId,
-      isMaster: body.isMaster === undefined ? true : body.isMaster
+      name: body.deviceName || deviceId
     };
 
     writePair(key, pair);
@@ -160,31 +159,7 @@ const routes = {
       if (did !== deviceId) others[did] = cookie;
     }
 
-    // 主从冲突检测
-    let masterCount = 0, slaveCount = 0;
-    for (const [did, info] of Object.entries(pair.devices)) {
-      const isM = info.isMaster !== false;
-      if (isM) masterCount++; else slaveCount++;
-    }
-    const warning = [];
-    if (masterCount > 1) warning.push('检测到 ' + masterCount + ' 台主设备，建议只保留 1 台主设备');
-    if (slaveCount > 0 && masterCount === 0) warning.push('没有主设备，Cookie 将不会上传同步');
-
-    sendJSON(res, 200, {
-      success: true,
-      deviceCount: Object.keys(pair.devices).length,
-      data: others,
-      serverTime: new Date().toISOString(),
-      devices: Object.entries(pair.devices).map(([id, info]) => ({
-        id: id.substring(0, 8) + '...',
-        name: info.name,
-        isMaster: info.isMaster !== false,
-        lastSeen: info.lastSeen
-      })),
-      masterCount,
-      slaveCount,
-      warnings: warning
-    });
+    sendJSON(res, 200, { success: true, deviceCount: Object.keys(pair.devices).length, data: others, serverTime: new Date().toISOString() });
   },
 
   status(req, res) {
@@ -302,7 +277,7 @@ const routes = {
     sendJSON(res, 200, result);
   },
 
-  // GET /api/signal/room?room=X&peer=Y
+  // DELETE /api/signal/room?room=X&peer=Y
   // 离开房间
   signalLeave(req, res) {
     const params = url.parse(req.url, true).query;
@@ -321,23 +296,7 @@ const routes = {
       }
     }
     sendJSON(res, 200, { success: true });
-  },
-
-  // ========== 获取本地配置 ==========
-
-  config(req, res) {
-    try {
-      const configPath = path.join(DATA_DIR, 'config.json');
-      if (fs.existsSync(configPath)) {
-        const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-        sendJSON(res, 200, { success: true, config });
-      } else {
-        sendJSON(res, 200, { success: true, config: null, message: '未安装本地配置（远程访问正常）' });
-      }
-    } catch (e) {
-      sendJSON(res, 200, { success: false, error: e.message });
-    }
-  },
+  }
 };
 
 // ========== 路由分发 ==========
@@ -380,10 +339,6 @@ const server = http.createServer(async (req, res) => {
       await routes.signalPoll(req, res);
     } else if (pathname === '/api/signal/room' && req.method === 'DELETE') {
       routes.signalLeave(req, res);
-    }
-    // 本地配置
-    else if (pathname === '/api/config' && req.method === 'GET') {
-      routes.config(req, res);
     }
     // 主页
     else {

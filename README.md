@@ -5,7 +5,7 @@
 > 适用于 Matrix 致远 OA V9.0SP1 及其他使用前端踢人机制的企业系统。
 **经验证：大部分 OA 系统的限制是纯前端实现的——服务端其实允许多会话共存。**
 
-> 当前版本：**v1.2.0**
+> 当前版本：**v1.5.1**
 > 项目路径：`/opt/projects/session-master/`
 
 ---
@@ -37,7 +37,7 @@ session-master/
 │       ├── docker-compose.yaml
 │       ├── deploy.sh
 │       └── server.js
-└── session-master.zip    # 最新发布包（每次构建生成）
+└── session-master-v*.zip    # 最新发布包（每次构建生成）
 ```
 
 ---
@@ -81,12 +81,12 @@ session-master/
 
 | 文件 | 行数 | 职责 |
 |------|------|------|
-| `background.js` | ~626 | Service Worker — Cookie CRUD、P2P 引擎（WebRTC）、服务器模式同步、消息路由 |
+| `background.js` | ~1100 | Service Worker — Cookie CRUD、版本控制+来源追踪、P2P 引擎（WebRTC）、服务器模式同步、图标角标动画、消息路由 |
 | `content.js` | ~133 | 页面注入 — 拦截 `setTimeout`/`setInterval`/`addEventListener` 中的踢人检测 |
-| `popup/popup.js` | ~616 | 弹出窗口逻辑 — 双模式切换、P2P 配对 UI、网络地址检测 |
-| `popup/popup.html` | ~300 | 弹出窗口 UI — 4 个 Tab（Cookie/同步/拦截/保活） |
-| `popup/popup.css` | ~356 | 弹出窗口样式 |
-| `server/server.js` | ~382 | 同步服务器 + P2P 信令端点（零依赖 Node.js） |
+| `popup/popup.js` | ~1330 | 弹出窗口逻辑 — 3 Tab 切换、Cookie 导出/导入/文件、保活管理、P2P 配对、服务器模式、主从设备、网络地址检测 |
+| `popup/popup.html` | ~390 | 弹出窗口 UI — 3 个 Tab（会话管理/同步/拦截），可折叠卡片布局 |
+| `popup/popup.css` | ~460 | 弹出窗口样式（含可折叠卡片、同步模式切换、保活列表等） |
+| `server/server.js` | ~382 | 同步服务器 + P2P 信令端点 + 主从冲突检测（零依赖 Node.js） |
 | `help/help.html` | ~700 | 帮助文档（含下载区、版权声明） |
 
 ---
@@ -100,7 +100,7 @@ cd /opt/projects/session-master
 bash scripts/build.sh
 ```
 
-构建产物：`session-master.zip`（位于项目根目录）
+构建产物：`session-master-v*.zip`（位于项目根目录）
 
 ### 插件加载
 

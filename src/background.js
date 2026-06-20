@@ -1,8 +1,11 @@
 // ============================================
-// SessionMaster · 会话大师 - Background Worker
+// SessionMaster · 会话大师 - Background Service Worker
 // © 2026 BenSon.Album (chinasir@qq.com)
 // 仅供学习研究，请遵守相关服务条款
 // ============================================
+
+import { APP_CONFIG } from './config.js';
+const { DEFAULT_PORT, STORAGE_KEYS, UPDATE, SYNC_DEFAULTS, SERVER_SYNC_DEFAULTS, HEARTBEAT_DEFAULTS, GITHUB, LOCAL_DISCOVERY, TIMEOUT } = APP_CONFIG;
 
 // ========== 存储函数 ==========
 
@@ -15,13 +18,217 @@ async function setStorage(key, value) {
   await chrome.storage.local.set({ [key]: value });
 }
 
+// ========== 日志系统 ==========
+// 以文件形式记录关键操作，支持导出为文本
+// 自动清理规则：文件总大小超限后删除最旧记录
+
+const LOG_KEY = 'app_logs';
+const LOG_SIZE_KEY = 'app_logs_size';
+const MAX_LOG_SIZE = 10 * 1024 * 1024; // 日志上限 10MB（需 unlimitedStorage 权限）
+
+async function getLogs() {
+  const logs = await getStorage(LOG_KEY, []);
+  return Array.isArray(logs) ? logs : [];
+}
+
+async function addLog(level, module, message, data) {
+  let logs = await getLogs();
+  const entry = { time: new Date().toISOString(), level, module, message, data: data || null };
+  
+  // 估算单条体积（JSON 序列化长度 + 存储开销）
+  const entrySize = JSON.stringify(entry).length + 50;
+  let totalSize = (await getStorage(LOG_SIZE_KEY, 0)) + entrySize;
+  
+  logs.push(entry);
+  
+  // 超出上限时删除最旧的记录，直到低于阈值（留 20% 余量）
+  while (totalSize > MAX_LOG_SIZE * 0.8 && logs.length > 1) {
+    const removed = logs.shift();
+    totalSize -= JSON.stringify(removed).length + 50;
+    if (totalSize < 0) totalSize = 0;
+  }
+  
+  await setStorage(LOG_KEY, logs);
+  await setStorage(LOG_SIZE_KEY, Math.round(totalSize));
+  
+  // 同时输出到控制台方便调试
+  console.log(`[SessionMaster] [${level}] [${module}] ${message}`, data || '');
+}
+
+async function clearLogs() {
+  await setStorage(LOG_KEY, []);
+  await setStorage(LOG_SIZE_KEY, 0);
+  console.log('[SessionMaster] [INFO] [general] 日志已清空');
+}
+
+async function exportLogs() {
+  const logs = await getLogs();
+  const size = await getStorage(LOG_SIZE_KEY, 0);
+  const sizeStr = size > 1024 * 1024 ? (size / 1024 / 1024).toFixed(1) + ' MB' :
+                  size > 1024 ? Math.round(size / 1024) + ' KB' : size + ' B';
+  // 获取设备身份
+  const identity = await getDeviceIdentity();
+  const deviceName = await getDeviceDisplayName();
+  const osMap = { mac: 'macOS', win: 'Windows', android: 'Android', cros: 'ChromeOS', linux: 'Linux', openbsd: 'OpenBSD' };
+  const osStr = identity.os ? (osMap[identity.os] || identity.os) : '未知';
+  const deviceLine = deviceName ? '  设备名称: ' + deviceName + '\n' : '';
+  const header = 'SessionMaster 会话大师 - 操作日志\n' +
+    '生成时间: ' + new Date().toLocaleString() + '\n' +
+    '设备信息:\n' +
+    deviceLine +
+    '  设备 ID: ' + identity.id + '\n' +
+    '  系统: ' + osStr + (identity.arch ? ' (' + identity.arch + ')' : '') + '\n' +
+    '  浏览器: ' + (identity.browserInfo ? identity.browserInfo.substring(0, 120) : '未知') + '\n' +
+    '共 ' + logs.length + ' 条记录, 约 ' + sizeStr + '\n' +
+    '日志上限: ' + (MAX_LOG_SIZE / 1024 / 1024) + ' MB\n' +
+    '============================\n\n';
+  return header + logs.map(function(l) {
+    return '[' + new Date(l.time).toLocaleString() + '] [' + l.level + '] [' + l.module + '] ' + l.message;
+  }).join('\n') + '\n\n============================\n--- 日志结束 ---';
+}
+
+const logger = {
+  info: function(m, msg, d) { return addLog('INFO', m, msg, d); },
+  warn: function(m, msg, d) { return addLog('WARN', m, msg, d); },
+  error: function(m, msg, d) { return addLog('ERROR', m, msg, d); },
+  debug: function(m, msg, d) { return addLog('DEBUG', m, msg, d); },
+  clear: clearLogs,
+  export: exportLogs,
+  getAll: getLogs
+};
+
+// ========== 设备身份标识 ==========
+// 用于在日志中标记插件运行在哪个浏览器/设备上
+const DEVICE_IDENTITY_KEY = 'device_identity';
+
+async function getDeviceIdentity() {
+  let identity = await getStorage(DEVICE_IDENTITY_KEY, null);
+  if (!identity) {
+    // 首次运行：生成唯一设备标识
+    const id = 'dev-' + Date.now().toString(36) + '-' + Math.random().toString(36).substring(2, 8);
+    const platform = await new Promise(resolve => {
+      try { chrome.runtime.getPlatformInfo(info => resolve(info || null)); } catch { resolve(null); }
+    });
+    identity = {
+      id: id,
+      browserInfo: typeof navigator !== 'undefined' ? (navigator.userAgent || '').substring(0, 200) : '',
+      os: platform ? platform.os : '',
+      arch: platform ? platform.arch : '',
+      createdAt: new Date().toISOString()
+    };
+    await setStorage(DEVICE_IDENTITY_KEY, identity);
+    console.log('[SessionMaster] [INFO] [general] 设备身份已创建: ' + id);
+  }
+  return identity;
+}
+
+async function getDeviceDisplayName() {
+  // 从同步配置中获取用户自定义设备名
+  const p2pCfg = await getSyncConfig();
+  const srvCfg = await serverGetSyncConfig();
+  return p2pCfg.p2pDeviceName || srvCfg.deviceName || '';
+}
+
+// 重新生成设备 ID（手动重置用）
+async function resetDeviceIdentity() {
+  const old = await getStorage(DEVICE_IDENTITY_KEY, null);
+  const newId = 'dev-' + Date.now().toString(36) + '-' + Math.random().toString(36).substring(2, 8);
+  const platform = await new Promise(resolve => {
+    try { chrome.runtime.getPlatformInfo(info => resolve(info || null)); } catch { resolve(null); }
+  });
+  const identity = {
+    id: newId,
+    browserInfo: typeof navigator !== 'undefined' ? (navigator.userAgent || '').substring(0, 200) : '',
+    os: platform ? platform.os : '',
+    arch: platform ? platform.arch : '',
+    createdAt: new Date().toISOString(),
+    previousId: old ? old.id : null
+  };
+  await setStorage(DEVICE_IDENTITY_KEY, identity);
+  return identity;
+}
+
+// ========== 图标状态角标（动态动画）==========
+// 空闲: 无角标
+// 保活中: ♡♥ 跳动（绿色 #34a853）
+// 同步中: ◴◷◶◵ 旋转（蓝色 #1a73e8）
+// 两者  : ◴◷◶◵ 旋转（紫色 #7b1fa2）
+
+let iconAnimTimer = null;
+
+function stopIconAnimation() {
+  if (iconAnimTimer) {
+    clearInterval(iconAnimTimer);
+    iconAnimTimer = null;
+  }
+}
+
+function startIconAnimation(frames, intervalMs, bgColor) {
+  stopIconAnimation();
+  let i = 0;
+  chrome.action.setBadgeBackgroundColor({ color: bgColor }).catch(() => {});
+  chrome.action.setBadgeText({ text: frames[0] }).catch(() => {});
+  iconAnimTimer = setInterval(() => {
+    i = (i + 1) % frames.length;
+    chrome.action.setBadgeText({ text: frames[i] }).catch(() => {});
+  }, intervalMs);
+}
+
+async function updateIconState() {
+  stopIconAnimation();
+  const beats = await getHeartbeats();
+  const config = await getSyncConfig();
+  const serverConfig = await serverGetSyncConfig();
+  const hasHeartbeat = beats.some(b => b.enabled);
+  const hasSync = (config.enabled && config.mode === 'p2p') || serverConfig.enabled;
+
+  if (hasHeartbeat && hasSync) {
+    // 紫色旋转 — 两者都在运行
+    startIconAnimation(['◴', '◷', '◶', '◵'], 250, '#7b1fa2');
+  } else if (hasHeartbeat) {
+    // 绿色心跳 — 保活中
+    startIconAnimation(['♥', '♡', '♥', '♡', '♥', '♡', '♥', '♡', '♥', '♡'], 400, '#34a853');
+  } else if (hasSync) {
+    // 蓝色旋转 — 同步中
+    startIconAnimation(['◴', '◷', '◶', '◵'], 250, '#1a73e8');
+  } else {
+    // 空闲: 无角标
+    await chrome.action.setBadgeText({ text: '' });
+  }
+}
+
 // ========== Cookie 管理 ==========
 
 async function getCookies(domain) {
   let results = [];
   const formats = [];
-  if (domain.startsWith('.')) { formats.push(domain); formats.push(domain.substring(1)); }
-  else { formats.push(domain); formats.push('.' + domain); }
+  
+  function addFormat(d) {
+    if (!d || d.length < 2 || d.includes(' ')) return;
+    if (!formats.includes(d)) formats.push(d);
+    if (!d.startsWith('.')) {
+      const dotted = '.' + d;
+      if (!formats.includes(dotted)) formats.push(dotted);
+    }
+  }
+
+  // 1. 总是先查原始域名（如 localhost、IP、裸域）
+  if (domain) addFormat(domain);
+
+  // 2. 对多段域名，逐级向上查父级域
+  //    music.163.com → 查 .music.163.com → 163.com → .163.com
+  //    www.example.co.uk → 查 example.co.uk
+  //    IP 地址（192.168.1.1）跳过父级查询
+  const cleanDomain = (domain || '').replace(/^\./, '').toLowerCase().split(':')[0];
+  if (!/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(cleanDomain)) {
+    const parts = cleanDomain.split('.');
+    if (parts.length >= 2) {
+      for (let i = parts.length - 1; i >= 2; i--) {
+        addFormat(parts.slice(parts.length - i).join('.'));
+      }
+    }
+  }
+  
   for (const d of formats) {
     try { results = results.concat(await chrome.cookies.getAll({ domain: d })); } catch (e) {}
   }
@@ -31,9 +238,13 @@ async function getCookies(domain) {
 
 async function exportCookies(domain) {
   const cookies = await getCookies(domain);
-  if (cookies.length === 0) return { success: false, message: '未找到该域名的 Cookie', data: null };
+  if (cookies.length === 0) {
+    logger.warn('cookie', '导出 Cookie 为空: ' + domain);
+    return { success: false, message: '未找到该域名的 Cookie', data: null };
+  }
   const exportTime = new Date().toISOString();
   const data = { domain, exportTime, cookies: cookies.map(c => ({ name: c.name, value: c.value, domain: c.domain, path: c.path, secure: c.secure, httpOnly: c.httpOnly, sameSite: c.sameSite, hostOnly: c.hostOnly, _exportTime: exportTime })), quick: cookies.map(c => `${c.name}=${c.value}`).join('; ') };
+  logger.info('cookie', '导出 Cookie: ' + domain + ', ' + cookies.length + ' 个');
   return { success: true, message: `已导出 ${cookies.length} 个 Cookie`, data };
 }
 
@@ -47,6 +258,7 @@ async function importCookies(cookieData) {
       results.success++;
     } catch (e) { results.failed++; results.errors.push(`${c.name}: ${e.message}`); }
   }
+  logger.info('cookie', '导入 Cookie: 成功 ' + results.success + ' 个, 失败 ' + results.failed + ' 个');
   return results;
 }
 
@@ -56,6 +268,7 @@ async function clearCookies(domain) {
   for (const c of cookies) {
     try { const url = `${c.secure ? 'https' : 'http'}://${c.domain}${c.path}`; await chrome.cookies.remove({ url, name: c.name }); count++; } catch (e) {}
   }
+  logger.info('cookie', '清除 Cookie: ' + domain + ', 已清除 ' + count + ' 个');
   return { removed: count };
 }
 
@@ -161,7 +374,7 @@ async function exportCookiesSmart(domain) {
   const data = {
     domain, exportTime,
     cookies: syncCookies.map(c => ({
-      name: c.value, value: c.value, domain: c.domain, path: c.path,
+      name: c.name, value: c.value, domain: c.domain, path: c.path,
       secure: c.secure, httpOnly: c.httpOnly, sameSite: c.sameSite,
       hostOnly: c.hostOnly, _exportTime: exportTime
     })),
@@ -218,41 +431,15 @@ async function decryptData(ciphertext, password) {
 
 // ========== 同步配置 ==========
 
-const SYNC_CONFIG_KEY = 'cloud_sync_config';
-
-const DEFAULT_SYNC_CONFIG = {
-  mode: 'p2p',                // 'p2p' | 'server'
-  enabled: false,
-  // P2P 模式
-  signalUrl: 'http://你的信令服务器地址:5789',
-  p2pRoomId: '',
-  p2pPairKey: '',
-  p2pDeviceName: '',
-  p2pConnected: false,
-  p2pConnectedAt: null,
-  p2pConnectedPeerName: '',
-  masterMode: false,
-  isMaster: true,
-  // 服务器模式
-  serverUrl: 'http://你的服务器:5789',
-  pairKey: '',
-  deviceId: '',
-  deviceName: '',
-  intervalMinutes: 5,
-  syncedDomains: [],
-  lastSyncTime: null,
-  lastError: null
-};
-
 async function getSyncConfig() {
-  return await getStorage(SYNC_CONFIG_KEY, { ...DEFAULT_SYNC_CONFIG });
+  return await getStorage(STORAGE_KEYS.SYNC_CONFIG, { ...SYNC_DEFAULTS });
 }
 
-async function saveSyncConfig(updates) {
-  const config = await getSyncConfig();
-  Object.assign(config, updates);
-  await setStorage(SYNC_CONFIG_KEY, config);
-  return config;
+async function saveSyncConfig(config) {
+  const existing = await getSyncConfig();
+  Object.assign(existing, config);
+  await setStorage(STORAGE_KEYS.SYNC_CONFIG, existing);
+  return existing;
 }
 
 // ========== P2P 连接管理 ==========
@@ -538,21 +725,14 @@ async function handleP2PMessage(msg, fromPeer) {
 
 // ========== 云端同步核心逻辑（服务器模式）==========
 
-const SERVER_SYNC_CONFIG_KEY = 'cloud_sync_config';
-
 async function serverGetSyncConfig() {
-  return await getStorage(SERVER_SYNC_CONFIG_KEY, {
-    enabled: false, serverUrl: 'http://你的服务器:5789', pairKey: '',
-    deviceId: '', deviceName: '', intervalMinutes: 5,
-    syncedDomains: [], lastSyncTime: null, lastError: null,
-    masterMode: false, isMaster: true
-  });
+  return await getStorage(STORAGE_KEYS.SERVER_SYNC_CONFIG, { ...SERVER_SYNC_DEFAULTS });
 }
 
 async function serverSaveSyncConfig(updates) {
   const config = await serverGetSyncConfig();
   Object.assign(config, updates);
-  await setStorage(SERVER_SYNC_CONFIG_KEY, config);
+  await setStorage(STORAGE_KEYS.SERVER_SYNC_CONFIG, config);
   return config;
 }
 
@@ -562,7 +742,7 @@ async function serverRegisterDevice() {
   try {
     const resp = await fetch(`${config.serverUrl}/api/pair`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ key: config.pairKey, deviceId: config.deviceId || undefined, deviceName: config.deviceName || `Browser-${Date.now().toString(36)}` })
+      body: JSON.stringify({ key: config.pairKey, deviceId: config.deviceId || undefined, deviceName: config.deviceName || `Browser-${Date.now().toString(36)}`, isMaster: config.isMaster !== false })
     });
     const data = await resp.json();
     await serverSaveSyncConfig({ deviceId: data.deviceId, pairKey: data.key });
@@ -600,6 +780,10 @@ async function serverPerformSync() {
     const resp = await fetch(`${config.serverUrl}/api/sync/download?key=${config.pairKey}&deviceId=${config.deviceId}`);
     const downloadData = await resp.json();
     results.download = downloadData;
+    // 保存设备状态和冲突警告到配置中
+    if (downloadData.warnings) {
+      await serverSaveSyncConfig({ masterWarnings: downloadData.warnings, masterDevices: downloadData.devices || [] });
+    }
     if (downloadData.success && downloadData.data) {
       for (const [deviceId, cookieEntry] of Object.entries(downloadData.data)) {
         if (cookieEntry.data && cookieEntry.data.length > 0) {
@@ -627,10 +811,12 @@ async function serverToggleSync(enabled) {
     const intervalMinutes = config.intervalMinutes || 5;
     chrome.alarms.create('sessionSync', { periodInMinutes: intervalMinutes });
     await serverSaveSyncConfig({ enabled: true });
+    updateIconState().catch(() => {});
     return { success: true, message: `已启用同步（每 ${intervalMinutes} 分钟）` };
   } else {
     chrome.alarms.clear('sessionSync');
     await serverSaveSyncConfig({ enabled: false });
+    updateIconState().catch(() => {});
     return { success: true, message: '已禁用同步' };
   }
 }
@@ -690,7 +876,7 @@ async function saveHeartbeats(beats) {
   }
 }
 
-async function addHeartbeat(url, interval, domain) {
+async function addHeartbeat(url, interval, domain, siteName) {
   const beats = await getHeartbeats();
   const id = 'hb_' + Date.now().toString(36) + Math.random().toString(36).substring(2, 4);
   // 如果未传 domain，从 URL 自动提取
@@ -698,8 +884,9 @@ async function addHeartbeat(url, interval, domain) {
   if (!siteDomain) {
     try { siteDomain = new URL(url.trim().startsWith('http') ? url.trim() : 'https://' + url.trim()).hostname; } catch {}
   }
-  beats.push({ id, url: url.trim(), domain: siteDomain || '', intervalMinutes: interval || 10, enabled: true, createdAt: new Date().toISOString() });
+  beats.push({ id, url: url.trim(), domain: siteDomain || '', siteName: siteName || '', intervalMinutes: interval || 10, enabled: true, createdAt: new Date().toISOString() });
   await saveHeartbeats(beats);
+  updateIconState().catch(() => {});
   return { success: true, heartbeats: beats };
 }
 
@@ -708,6 +895,7 @@ async function removeHeartbeat(id) {
   beats = beats.filter(b => b.id !== id);
   await saveHeartbeats(beats);
   chrome.alarms.clear('heartbeat_' + id);
+  updateIconState().catch(() => {});
   return { success: true, heartbeats: beats };
 }
 
@@ -717,6 +905,7 @@ async function toggleHeartbeat(id, enabled) {
   if (!beat) return { success: false, error: '未找到该保活配置' };
   beat.enabled = enabled;
   await saveHeartbeats(beats);
+  updateIconState().catch(() => {});
   return { success: true, heartbeats: beats };
 }
 
@@ -773,6 +962,7 @@ async function addUserBlockingRule(urlPattern) {
   rules.push(urlPattern);
   await setStorage(USER_RULES_KEY, rules);
   await updateDynamicRules(rules);
+  logger.info('blocker', '添加自定义规则: ' + urlPattern);
   return { success: true, message: '规则已添加', rules };
 }
 
@@ -781,6 +971,7 @@ async function removeUserBlockingRule(urlPattern) {
   rules = rules.filter(r => r !== urlPattern);
   await setStorage(USER_RULES_KEY, rules);
   await updateDynamicRules(rules);
+  logger.info('blocker', '删除自定义规则: ' + urlPattern);
   return { success: true, message: '规则已删除', rules };
 }
 
@@ -848,7 +1039,7 @@ async function getRecommendedRules(domain) {
       if (!keywords.includes(kw)) keywords.push(kw);
     }
   }
-  return { sites: matched, keywords, generic: db.generic || [] };
+  return { sites: matched, keywords, generic: db.generic || [], keywordLabels: db.keywordLabels || {} };
 }
 
 // 远程更新规则库
@@ -884,6 +1075,73 @@ async function importRulesDB(jsonStr) {
   }
 }
 
+// ========== 拦截模块配置（主开关 + 自动/手动模式）==========
+
+const BLOCKER_CONFIG_KEY = 'blocker_config';
+const DEFAULT_BLOCKER_CONFIG = {
+  masterEnabled: true,
+  mode: 'auto',           // 'auto' | 'manual'
+  siteEnabled: {},        // { siteId: true/false }
+  keywordOverrides: {}    // { keyword: true/false }
+};
+
+async function getBlockerConfig() {
+  return await getStorage(BLOCKER_CONFIG_KEY, DEFAULT_BLOCKER_CONFIG);
+}
+
+async function saveBlockerConfig(config) {
+  // 合并默认值（保证新加的字段不会丢失）
+  const merged = { ...DEFAULT_BLOCKER_CONFIG, ...config };
+  // 清理旧的 siteEnabled 条目（规则库中已不存在的站点）
+  if (merged.siteEnabled) {
+    const db = await getRulesDB();
+    const validIds = new Set((db.sites || []).map(s => s.id));
+    for (const id of Object.keys(merged.siteEnabled)) {
+      if (!validIds.has(id)) delete merged.siteEnabled[id];
+    }
+  }
+  await setStorage(BLOCKER_CONFIG_KEY, merged);
+  const changes = [];
+  if (config && config.masterEnabled !== undefined) changes.push('主开关=' + config.masterEnabled);
+  if (config && config.mode !== undefined) changes.push('模式=' + config.mode);
+  if (changes.length > 0) logger.info('blocker', '拦截配置变更: ' + changes.join(', '));
+  return merged;
+}
+
+// 判断某个域名的拦截是否应该生效
+async function isBlockingEnabledForDomain(domain) {
+  const config = await getBlockerConfig();
+  if (!config.masterEnabled) return false;
+  if (!domain) return true;
+  const db = await getRulesDB();
+  const matched = matchSitesByDomain(db, domain);
+  if (matched.length === 0) return false;
+  // 自动模式：匹配即生效
+  if (config.mode === 'auto') return true;
+  // 手动模式：检查站点开关（默认启用）
+  for (const site of matched) {
+    if (config.siteEnabled[site.id] !== false) return true;
+  }
+  return false;
+}
+
+// 获取当前站点已经启用的有效关键词列表（排除被覆盖关闭的）
+async function getEffectiveKeywords(domain) {
+  const config = await getBlockerConfig();
+  if (!config.masterEnabled) return [];
+  const result = await getRecommendedRules(domain);
+  if (!result.keywords || result.keywords.length === 0) return [];
+  // 自动模式：按 keywordOverrides 过滤
+  if (config.mode === 'auto') {
+    return result.keywords.filter(kw => config.keywordOverrides[kw] !== false);
+  }
+  // 手动模式：按 siteEnabled + keywordOverrides 过滤
+  const matched = result.sites || [];
+  const enabledSites = matched.filter(s => config.siteEnabled[s.id] !== false);
+  if (enabledSites.length === 0) return [];
+  return result.keywords.filter(kw => config.keywordOverrides[kw] !== false);
+}
+
 // ========== API 消息处理 ==========
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
@@ -907,12 +1165,19 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       case 'exportRulesDB': sendResponse({ data: await exportRulesDB() }); break;
       case 'importRulesDB': sendResponse(await importRulesDB(request.data)); break;
 
+      // ---- 拦截模块配置（主开关 + 自动/手动） ----
+      case 'getBlockerConfig': sendResponse(await getBlockerConfig()); break;
+      case 'saveBlockerConfig': sendResponse(await saveBlockerConfig(request.config)); break;
+      case 'isBlockingEnabled': sendResponse({ enabled: await isBlockingEnabledForDomain(request.domain) }); break;
+      case 'getEffectiveKeywords': sendResponse({ keywords: await getEffectiveKeywords(request.domain), keywordLabels: (await getRulesDB()).keywordLabels || {} }); break;
+
       // ---- 同步配置 ----
       case 'getSyncConfig': sendResponse(await getSyncConfig()); break;
       case 'saveSyncConfig': sendResponse(await saveSyncConfig(request.config)); break;
       case 'saveMasterMode':
         await saveSyncConfig({ masterMode: request.masterMode, isMaster: request.isMaster });
         await serverSaveSyncConfig({ masterMode: request.masterMode, isMaster: request.isMaster });
+        updateIconState().catch(() => {});
         sendResponse({ success: true });
         break;
 
@@ -940,11 +1205,13 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           await saveSyncConfig({ enabled: true });
           chrome.alarms.create('p2pSyncAlarm', { periodInMinutes: request.intervalMinutes || 5 });
           addSyncHistoryEntry('p2p_enable', '已启用 P2P 自动同步（每 ' + (request.intervalMinutes || 5) + ' 分钟）');
-          sendResponse({ success: true, message: `已启用 P2P 同步（每 ${request.intervalMinutes || 5} 分钟）` });
+          updateIconState().catch(() => {});
+          sendResponse({ success: true, message: '已启用 P2P 同步' });
         } else {
           chrome.alarms.clear('p2pSyncAlarm');
           await saveSyncConfig({ enabled: false });
           addSyncHistoryEntry('p2p_disable', '已禁用 P2P 自动同步');
+          updateIconState().catch(() => {});
           sendResponse({ success: true, message: '已禁用 P2P 同步' });
         }
         break;
@@ -958,11 +1225,31 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         addSyncHistoryEntry('server_sync', '已手动触发服务器同步');
         break;
       case 'serverRegisterDevice': sendResponse(await serverRegisterDevice()); break;
+      case 'serverGetPairStatus':
+        const sConfig = await serverGetSyncConfig();
+        if (!sConfig.serverUrl || !sConfig.pairKey) { sendResponse({ success: false, error: '未配置' }); break; }
+        try {
+          const resp = await fetch(`${sConfig.serverUrl}/api/pair/status?key=${sConfig.pairKey}`);
+          sendResponse(await resp.json());
+        } catch (e) { sendResponse({ success: false, error: e.message }); }
+        break;
+
+      // ---- 获取/保存升级检测配置 ----
+      case 'getUpdateConfig':
+        sendResponse(await getStorage(STORAGE_KEYS.UPDATE_CONFIG, { url: UPDATE.DEFAULT_URL, enabled: UPDATE.ENABLED }));
+        break;
+      case 'setUpdateConfig':
+        await setStorage(STORAGE_KEYS.UPDATE_CONFIG, request.config);
+        sendResponse({ success: true });
+        break;
+      case 'getAppConfig':
+        sendResponse(APP_CONFIG);
+        break;
 
       // ---- 保活 ----
       case 'getHeartbeats': sendResponse({ heartbeats: await getHeartbeats() }); break;
       case 'addHeartbeat':
-        sendResponse(await addHeartbeat(request.url, request.interval, request.domain));
+        sendResponse(await addHeartbeat(request.url, request.interval, request.domain, request.siteName));
         break;
       case 'removeHeartbeat':
         sendResponse(await removeHeartbeat(request.id));
@@ -974,6 +1261,27 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       // ---- 同步历史 ----
       case 'getSyncHistory': sendResponse({ history: await getSyncHistory() }); break;
       case 'clearSyncHistory': sendResponse({ history: await clearSyncHistory() }); break;
+
+      // ---- 日志 ---- 
+      case 'getLogs': sendResponse({ logs: await getLogs() }); break;
+      case 'exportLogs': sendResponse({ text: await exportLogs() }); break;
+      case 'clearLogs': await clearLogs(); sendResponse({ success: true }); break;
+
+      // ---- 设备身份 ----
+      case 'getDeviceIdentity':
+        const devIdent = await getDeviceIdentity();
+        const devName = await getDeviceDisplayName();
+        const osMap = { mac: 'macOS', win: 'Windows', android: 'Android', cros: 'ChromeOS', linux: 'Linux', openbsd: 'OpenBSD' };
+        sendResponse({
+          id: devIdent.id,
+          os: devIdent.os ? (osMap[devIdent.os] || devIdent.os) : '未知',
+          arch: devIdent.arch || '',
+          browserInfo: devIdent.browserInfo ? devIdent.browserInfo.substring(0, 120) : '未知',
+          deviceName: devName,
+          createdAt: devIdent.createdAt
+        });
+        break;
+      case 'resetDeviceIdentity': sendResponse(await resetDeviceIdentity()); break;
       case 'addSyncHistoryEntry':
         sendResponse({ history: await addSyncHistoryEntry(request.type, request.detail) });
         break;
@@ -992,7 +1300,8 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         } catch (e) { sendResponse({ success: false, error: e.message }); }
         break;
 
-      default: sendResponse({ success: false, message: '未知操作' });
+      default:
+        sendResponse({ error: '未知操作' });
     }
   })();
   return true;
@@ -1013,6 +1322,12 @@ function notifyUser(title, message) {
 // ========== 安装时初始化 ==========
 
 chrome.runtime.onInstalled.addListener(async () => {
+  // 首次安装时创建设备身份
+  const identity = await getDeviceIdentity();
+  const deviceName = await getDeviceDisplayName();
+  const nameTag = deviceName ? ' (' + deviceName + ')' : '';
+  logger.info('general', '插件已安装 — 设备: ' + identity.id + nameTag);
+
   const rules = await getUserBlockingRules();
   if (rules.length > 0) await updateDynamicRules(rules);
 
@@ -1029,6 +1344,9 @@ chrome.runtime.onInstalled.addListener(async () => {
   }
 
   console.log('[SessionMaster] 插件已安装');
+
+  // 刷新图标角标
+  updateIconState().catch(() => {});
 
   // SW 重启后重置 P2P 连接状态（WebRTC 连接只存在内存中，重启后丢失）
   getSyncConfig().then(cfg => {

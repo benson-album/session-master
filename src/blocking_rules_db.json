@@ -2,6 +2,19 @@
   "version": 1,
   "lastUpdated": "2026-06-26",
   "updateUrl": "",
+  "keywordLabels": {
+    "loginCheck": "登录检测",
+    "sessionTimeout": "会话超时",
+    "singleLogin": "单点登录冲突",
+    "duplicateLogin": "重复登录检测",
+    "conflictLogin": "登录冲突",
+    "forcedOffline": "强制下线",
+    "kickOut": "踢出会话",
+    "checkSession": "会话检查",
+    "secondLogin": "二次登录提醒",
+    "heartbeat": "心跳保活",
+    "keepAlive": "保活请求"
+  },
   "sites": [
     {
       "id": "seeyon",

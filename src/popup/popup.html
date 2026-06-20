@@ -18,6 +18,16 @@
     <div class="section">
       <div class="section-title"><span>📍 当前站点</span></div>
       <div id="currentDomain" class="domain-display">加载中...</div>
+      <div id="blankPageBanner" class="blank-banner" style="display:none">
+        <div class="blank-banner-icon">📄</div>
+        <div class="blank-banner-text">
+          <strong>当前为空白/新标签页</strong>
+          <p class="blank-banner-desc">请导航到目标网站后重新打开插件，或在已打开的网页上使用此插件。</p>
+        </div>
+      </div>
+      <p id="domainHint" class="hint" style="display:none;margin-top:4px;color:#ea4335;font-size:11px">
+        请在目标网站页面打开此插件
+      </p>
     </div>
     
     <!-- Tab 切换 -->
@@ -27,7 +37,9 @@
       <button class="tab-btn" data-tab="blocker">🛡️ 拦截</button>
     </div>
     
-    <!-- ======= Tab: 会话管理（Cookie + 保活） ======= -->
+    <!-- ============================================================
+         Tab: 会话管理 — ① 导出/导入 Cookie → ② 保活
+         ============================================================ -->
     <div id="tab-session" class="tab-content active">
       <div class="section">
         <div class="btn-group">
@@ -40,27 +52,36 @@
       <div id="cookieResult" class="result-box" style="display:none">
         <div class="result-header">
           <span id="resultTitle">结果</span>
-          <button id="btnCopy" class="btn-small">📋 复制</button>
+          <div style="display:flex;gap:4px;align-items:center">
+            <button id="btnCopy" class="btn-small">📋 复制</button>
+            <button id="btnExportFile" class="btn-small">📥 下载文件</button>
+            <button id="btnCloseResult" class="btn-small" style="color:#999;border:none;font-size:14px;padding:2px 6px" title="关闭">✕</button>
+          </div>
         </div>
         <textarea id="resultContent" readonly rows="4"></textarea>
         <p id="resultHint" class="hint">在目标浏览器点击「导入 Cookie」粘贴即可</p>
       </div>
       
       <div id="importBox" class="section" style="display:none">
-        <label for="importTextarea" style="font-size:13px;font-weight:600">粘贴 Cookie 内容：</label>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+          <label style="font-size:13px;font-weight:600">粘贴 Cookie 内容：</label>
+          <button id="btnCloseImport" class="btn-small" style="color:#999;border:none;font-size:14px;padding:2px 6px" title="关闭">✕</button>
+        </div>
         <textarea id="importTextarea" rows="4" placeholder='从另一台电脑复制的内容...'></textarea>
-        <button id="btnDoImport" class="btn btn-primary" style="width:100%;margin-top:6px">✅ 执行导入</button>
+        <div class="btn-group" style="margin-top:6px">
+          <button id="btnDoImport" class="btn btn-primary" style="flex:1">✅ 执行导入</button>
+          <button id="btnImportFromFile" class="btn btn-secondary" style="flex:1">📂 从文件导入</button>
+        </div>
+        <input type="file" id="importCookieFile" accept=".json" style="display:none">
       </div>
 
-      <!-- 保活分隔线 -->
+      <!-- → ② 保活 -->
       <div class="section-divider"></div>
-
-      <!-- ===== 会话保活 ===== -->
       <div class="section">
         <div class="section-title"><span>💓 会话保活</span></div>
         <p class="hint" style="margin-bottom:8px">定时请求指定 URL，防止 Cookie 过期失效。</p>
         <div class="input-row">
-          <input type="text" id="heartbeatUrl" placeholder="保活 URL，如 /main.do?method=keepAlive" style="flex:1">
+          <input type="text" id="heartbeatUrl" placeholder="保活 URL，如 /main.do?method=keepAlive" required style="flex:1">
           <button id="btnFillUrl" class="btn-small" title="填入当前页面地址" style="padding:4px 8px;font-size:14px;border-radius:4px;border:1px solid #ddd;background:#f8f9fa;cursor:pointer">📌</button>
           <select id="heartbeatInterval" style="width:70px">
             <option value="5">5 分钟</option>
@@ -71,7 +92,6 @@
         </div>
         <button id="btnAddHeartbeat" class="btn btn-primary" style="width:100%">💓 添加保活</button>
 
-        <!-- 保活列表 -->
         <div id="heartbeatList" style="margin-top:10px;display:none">
           <p style="font-size:12px;font-weight:600;color:#555;margin-bottom:6px">已添加的保活：</p>
           <div id="heartbeatItems"></div>
@@ -81,250 +101,351 @@
       </div>
     </div>
     
-    <!-- ======= Tab: 同步（P2P 默认为主） ======= -->
+    <!-- ============================================================
+         Tab: 同步 — ① 选模式 → ② 配置 → ③ 主从(高级) → ④ 网络地址
+         ============================================================ -->
     <div id="tab-sync" class="tab-content">
       
-      <!-- 模式切换 -->
+      <!-- 首次安装引导卡片（无配置且无本地服务器时显示） -->
+      <div id="localServerGuide" class="section guide-card" style="display:none">
+        <div class="guide-card-header">
+          <span class="guide-card-icon">🚀</span>
+          <div class="guide-card-title">快速开始 — 安装本地同步服务器</div>
+          <button id="btnDismissGuide" class="btn-small" style="color:#999;border:none;font-size:14px;padding:2px 6px" title="关闭">✕</button>
+        </div>
+        <p class="guide-card-desc">
+          在本机运行同步服务器，无需 Docker，一键启动：
+        </p>
+        <div class="guide-card-platforms">
+          <details class="guide-card-detail">
+            <summary>🐧 Linux / macOS</summary>
+            <div class="guide-card-code">
+              <code id="guideCodeLinux">curl -fsSL https://raw.githubusercontent.com/BenSongLab/session-master/main/src/scripts/sessionmaster-install.sh | bash</code>
+              <button class="btn-small copy-code-btn" data-target="guideCodeLinux">📋 复制</button>
+            </div>
+            <p class="guide-card-hint">自动安装 Node.js + 下载 server.js + 配置 systemd/launchd 自启动</p>
+          </details>
+          <details class="guide-card-detail">
+            <summary>🪟 Windows（管理员 PowerShell）</summary>
+            <div class="guide-card-code">
+              <code id="guideCodeWin">iex ((New-Object Net.WebClient).DownloadString('https://raw.githubusercontent.com/BenSongLab/session-master/main/src/scripts/sessionmaster-install.ps1'))</code>
+              <button class="btn-small copy-code-btn" data-target="guideCodeWin">📋 复制</button>
+            </div>
+            <p class="guide-card-hint">自动安装 Node.js、注册 Windows 服务、开机自启</p>
+          </details>
+        </div>
+        <div class="guide-card-footer">
+          <span>✅ 安装后，插件会自动检测本地服务器，无需手动配置地址</span>
+        </div>
+      </div>
+      
+      <!-- 本地服务器状态指示器 -->
+      <div id="localServerStatus" style="display:none;margin-bottom:8px;padding:8px 12px;background:#e6f4ea;border-radius:8px;font-size:12px;color:#137333">
+        ✅ 本地同步服务器已发现：<span id="localServerUrlDisplay" style="font-weight:600;font-family:monospace"></span>
+      </div>
+      
+      <!-- → ① 选择同步模式 -->
       <div class="sync-mode-toggle">
         <button id="modeP2P" class="sync-mode-btn active">🔗 P2P 直连</button>
         <button id="modeServer" class="sync-mode-btn">🖥️ 服务器模式</button>
       </div>
       
-      <!-- 主从设备开关（两种模式通用） -->
-      <div class="section master-slave-section" style="margin-bottom:8px">
-        <div class="sync-toggle-row">
-          <span class="sync-toggle-label">📡 主从设备模式</span>
-          <label class="switch">
-            <input type="checkbox" id="masterModeToggle">
-            <span class="slider"></span>
-          </label>
-        </div>
-        <div id="masterStatus" class="sync-status" style="margin-top:4px">⏸️ 已关闭（多设备平等模式）</div>
-        <div id="masterDeviceRow" style="display:none;margin-top:6px">
-          <div class="sync-toggle-row" style="margin-bottom:0">
-            <span style="font-size:12px;color:#555">此设备为主设备</span>
-            <label class="switch" style="width:36px;height:20px">
-              <input type="checkbox" id="isMasterToggle" checked>
-              <span class="slider" style="height:20px"></span>
-            </label>
+      <!-- ===== → ② P2P 模式配置 ===== -->
+      <div id="p2pSection" class="sync-group">
+        <div class="section-title" style="margin-bottom:6px"><span>🔗 设备配对</span></div>
+        
+        <div id="p2pStatus" class="sync-status" style="background:#f1f3f4;color:#888">未连接</div>
+        
+        <!-- 未连接时显示 -->
+        <div id="p2pNotConnected">
+          <div class="form-row">
+            <label>设备名称 <span class="required">*</span></label>
+            <input type="text" id="p2pDeviceName" placeholder="如：办公室电脑" required>
           </div>
-          <p class="form-hint" style="font-size:10px;margin-top:2px">开启：此设备作为主设备，负责上传 Cookie 给其他设备；关闭：此设备仅接收不发送</p>
-        </div>
-      </div>
-      
-      <!-- ===== P2P 模式界面 ===== -->
-      <div id="p2pSection">
-        <div class="section">
-          <div class="section-title"><span>🔗 设备配对</span></div>
+          <div class="btn-group" style="margin-top:8px">
+            <button id="btnP2PCreate" class="btn btn-primary" style="flex:1">📡 创建配对</button>
+            <button id="btnP2PJoin" class="btn btn-secondary" style="flex:1">🔗 加入配对</button>
+          </div>
           
-          <div id="p2pStatus" class="sync-status" style="background:#f1f3f4;color:#888">未连接</div>
-          
-          <!-- 未连接时显示 -->
-          <div id="p2pNotConnected">
+          <div id="p2pJoinInput" style="display:none;margin-top:8px">
             <div class="form-row">
-              <label>设备名称</label>
-              <input type="text" id="p2pDeviceName" placeholder="如：办公室电脑">
+              <label>输入配对码 <span class="required">*</span></label>
+              <input type="text" id="p2pRoomCode" placeholder="如：X3K8PQ" required style="text-transform:uppercase;font-family:monospace;letter-spacing:3px;font-size:16px;text-align:center">
             </div>
-            <div class="btn-group" style="margin-top:8px">
-              <button id="btnP2PCreate" class="btn btn-primary" style="flex:1">📡 创建配对</button>
-              <button id="btnP2PJoin" class="btn btn-secondary" style="flex:1">🔗 加入配对</button>
-            </div>
-            
-            <!-- 加入时输入 -->
-            <div id="p2pJoinInput" style="display:none;margin-top:8px">
-              <div class="form-row">
-                <label>输入配对码</label>
-                <input type="text" id="p2pRoomCode" placeholder="如：X3K8PQ" style="text-transform:uppercase;font-family:monospace;letter-spacing:3px;font-size:16px;text-align:center">
-              </div>
-              <button id="btnP2PDoJoin" class="btn btn-primary" style="width:100%;margin-top:4px">✅ 确认加入</button>
-            </div>
-            
-            <!-- 创建成功后显示配对码 -->
-            <div id="p2pRoomDisplay" style="display:none;margin-top:8px;text-align:center;padding:12px;background:#e8f5e9;border-radius:8px">
-              <p style="font-size:12px;color:#555;margin-bottom:4px">✅ 配对已创建，给对方输入此码：</p>
-              <p id="p2pRoomCodeDisplay" style="font-size:28px;font-family:monospace;letter-spacing:6px;font-weight:bold;color:#1b5e20;margin:4px 0"></p>
-              <p style="font-size:11px;color:#888">等待对方加入...</p>
-              <button id="btnP2PCancel" class="btn-small" style="margin-top:6px;color:#d32f2f">取消配对</button>
-            </div>
+            <button id="btnP2PDoJoin" class="btn btn-primary" style="width:100%;margin-top:4px">✅ 确认加入</button>
           </div>
           
-          <!-- 已连接时显示 -->
-          <div id="p2pConnected" style="display:none">
-            <div id="p2pPeerInfo" style="padding:8px;background:#e8f5e9;border-radius:6px;margin-bottom:8px">
-              <p style="font-size:13px;color:#1b5e20">✅ 已连接到：<strong id="p2pPeerName">未知设备</strong></p>
-              <p style="font-size:11px;color:#666;margin-top:4px">数据直连传输，不经过服务器</p>
-            </div>
-            
-            <p id="p2pConnectionTime" class="connection-time" style="display:none"></p>
-            
-            <!-- 同步开关 -->
-            <div class="sync-toggle-row">
-              <span class="sync-toggle-label">🔄 P2P 自动同步</span>
-              <label class="switch">
-                <input type="checkbox" id="p2pSyncToggle">
-                <span class="slider"></span>
-              </label>
-            </div>
-            
-            <div id="p2pSyncStatus" class="sync-status" style="margin-top:6px">未启用同步</div>
-            
-            <div class="form-row" style="margin-top:8px">
-              <label>同步域名</label>
-              <div class="input-row">
-                <input type="text" id="p2pSyncDomain" placeholder="如：你的oa域名.com">
-                <button id="btnP2pFillDomain" class="btn-small" title="填入当前页面域名" style="padding:4px 8px;font-size:14px;border-radius:4px;border:1px solid #ddd;background:#f8f9fa;cursor:pointer">📌</button>
-              </div>
-              <p class="form-hint">留空则同步当前站点</p>
-            </div>
-            
-            <div class="btn-group" style="margin-top:8px">
-              <button id="btnP2PSyncNow" class="btn btn-primary" style="flex:1">🔄 立即同步</button>
-              <button id="btnP2PDisconnect" class="btn btn-danger" style="flex:1">🔌 断开连接</button>
-            </div>
+          <div id="p2pRoomDisplay" style="display:none;margin-top:8px;text-align:center;padding:12px;background:#e8f5e9;border-radius:8px">
+            <p style="font-size:12px;color:#555;margin-bottom:4px">✅ 配对已创建，给对方输入此码：</p>
+            <p id="p2pRoomCodeDisplay" style="font-size:28px;font-family:monospace;letter-spacing:6px;font-weight:bold;color:#1b5e20;margin:4px 0"></p>
+            <p style="font-size:11px;color:#888">等待对方加入...</p>
+            <button id="btnP2PCancel" class="btn-small" style="margin-top:6px;color:#d32f2f">取消配对</button>
           </div>
         </div>
         
-        <!-- P2P 同步记录 -->
-        <div id="p2pLogSection" class="section" style="display:none">
-          <div class="section-title"><span>📋 同步记录</span></div>
-          <div id="p2pLogContent" class="sync-log"></div>
-        </div>
-        
-        <!-- P2P 帮助提示 -->
-        <div class="section">
-          <div class="tip info" style="font-size:12px;padding:8px;background:#e3f2fd;border-radius:6px">
-            <strong>💡 什么是 P2P 直连？</strong><br>
-            你的两台浏览器直接握手连接，Cookie 点对点传输，不经过任何服务器。<br>
-            <span style="color:#666">需要一台信令服务器协助握手（仅需几十毫秒）。</span>
+        <!-- 已连接时显示 -->
+        <div id="p2pConnected" style="display:none">
+          <div id="p2pPeerInfo" style="padding:8px;background:#e8f5e9;border-radius:6px;margin-bottom:8px">
+            <p style="font-size:13px;color:#1b5e20">✅ 已连接到：<strong id="p2pPeerName">未知设备</strong></p>
+            <p style="font-size:11px;color:#666;margin-top:4px">数据直连传输，不经过服务器</p>
           </div>
-          <div class="form-row" style="margin-top:6px">
-            <label>信令服务器地址</label>
-            <div style="display:flex;gap:4px;align-items:center">
-              <input type="text" id="p2pSignalUrl" placeholder="http://你的服务器:5789" style="font-size:11px;flex:1">
-              <span id="signalHelpIcon" style="cursor:pointer;color:#999;font-size:11px;width:18px;height:18px;display:inline-flex;align-items:center;justify-content:center;border-radius:50%;border:1px solid #ccc;flex-shrink:0" title="点击查看信令服务器说明">?</span>
-            </div>
-            <p class="form-hint" style="font-size:10px">高级选项：如果自己部署了信令服务，可修改此地址</p>
-          </div>
-        </div>
-      </div>
-      
-      <!-- ===== 服务器模式界面（原同步界面） ===== -->
-      <div id="serverSection" style="display:none">
-        <!-- 同步开关 -->
-        <div class="section">
+          
+          <p id="p2pConnectionTime" class="connection-time" style="display:none"></p>
+          
           <div class="sync-toggle-row">
-            <span class="sync-toggle-label">☁️ 云端双向同步</span>
+            <span class="sync-toggle-label">🔄 P2P 自动同步</span>
             <label class="switch">
-              <input type="checkbox" id="syncToggle">
+              <input type="checkbox" id="p2pSyncToggle">
               <span class="slider"></span>
             </label>
           </div>
-          <div id="syncStatus" class="sync-status">未启用</div>
-          <p id="serverConnectionTime" class="connection-time" style="display:none"></p>
-        </div>
-        
-        <!-- 配置区域 -->
-        <div id="syncConfigSection" class="section">
-          <div class="section-title"><span>⚙️ 同步配置</span></div>
           
-          <div class="form-row">
-            <label>服务器地址</label>
-            <div style="display:flex;gap:4px;align-items:center">
-              <input type="text" id="syncServerUrl" placeholder="http://你的服务器:5789" style="flex:1">
-              <span id="serverHelpIcon" style="cursor:pointer;color:#999;font-size:11px;width:18px;height:18px;display:inline-flex;align-items:center;justify-content:center;border-radius:50%;border:1px solid #ccc;flex-shrink:0" title="点击查看服务器部署说明">?</span>
-            </div>
-          </div>
+          <div id="p2pSyncStatus" class="sync-status" style="margin-top:6px">未启用同步</div>
           
-          <div class="form-row">
-            <label>配对码</label>
-            <div class="input-with-btn">
-              <input type="text" id="syncPairKey" placeholder="点击右侧生成" readonly>
-              <button id="btnGenerateKey" class="btn-small" title="生成新配对码">🔄 生成</button>
-            </div>
-            <p class="form-hint">两台设备使用相同的配对码才能同步</p>
-          </div>
-          
-          <div class="form-row">
-            <label>设备名称</label>
-            <input type="text" id="syncDeviceName" placeholder="如：办公室电脑">
-          </div>
-          
-          <div class="form-row">
-            <label>同步域名</label>
+          <div class="form-row" style="margin-top:8px">
+            <label>同步站点 <span class="required">*</span></label>
             <div class="input-row">
-              <input type="text" id="syncDomain" placeholder="如：你的oa域名.com">
-              <button id="btnFillSyncDomain" class="btn-small" title="填入当前页面域名" style="padding:4px 8px;font-size:14px;border-radius:4px;border:1px solid #ddd;background:#f8f9fa;cursor:pointer">📌</button>
+              <input type="text" id="p2pSyncDomain" placeholder="如：oa.your-company.com" required>
+              <button id="btnP2pFillDomain" class="btn-small" title="填入当前页面域名" style="padding:4px 8px;font-size:14px;border-radius:4px;border:1px solid #ddd;background:#f8f9fa;cursor:pointer">📌</button>
             </div>
-            <p class="form-hint">留空则同步当前站点</p>
+            <p class="form-hint">只同步该站点下的 Cookie（含所有端口/路径）</p>
           </div>
           
-          <div class="form-row">
-            <label>同步间隔</label>
-            <select id="syncInterval">
-              <option value="1">每 1 分钟</option>
-              <option value="5" selected>每 5 分钟</option>
-              <option value="10">每 10 分钟</option>
-              <option value="30">每 30 分钟</option>
-              <option value="60">每 60 分钟</option>
-            </select>
-          </div>
-
-          <div style="display:flex;gap:6px;margin-top:8px">
-            <button id="btnSaveSync" class="btn btn-primary" style="flex:1">💾 保存配置</button>
-            <button id="btnSyncNow" class="btn btn-secondary" style="flex:1">🔄 立即同步</button>
+          <div class="btn-group" style="margin-top:8px">
+            <button id="btnP2PSyncNow" class="btn btn-primary" style="flex:1">🔄 立即同步</button>
+            <button id="btnP2PDisconnect" class="btn btn-danger" style="flex:1">🔌 断开连接</button>
           </div>
         </div>
-        
-        <!-- 同步日志 -->
-        <div id="syncLogSection" class="section" style="display:none">
-          <div class="section-title"><span>📋 同步记录</span></div>
-          <div id="syncLogContent" class="sync-log">
-            <p class="hint">暂无同步记录</p>
+
+        <!-- P2P 同步配置 & 同步记录 在同一组内 -->
+        <div class="sync-subgroup">
+          <details class="card-collapsible">
+            <summary class="card-summary">
+              <span class="card-title">⚙️ 同步配置</span>
+            </summary>
+            <div class="card-body">
+              <p style="font-size:12px;color:#666;margin-bottom:8px">两台浏览器通过服务器握手后直连传输 Cookie，数据不经过服务器。</p>
+              <div class="form-row">
+                <label>服务器地址 <span class="required">*</span></label>
+                <div style="display:flex;gap:4px;align-items:center">
+                  <input type="text" id="p2pSignalUrl" placeholder="http://你的服务器:5789" required style="font-size:11px;flex:1">
+                  <span id="signalHelpIcon" style="cursor:pointer;color:#999;font-size:11px;width:18px;height:18px;display:inline-flex;align-items:center;justify-content:center;border-radius:50%;border:1px solid #ccc;flex-shrink:0" title="信令服务器说明">?</span>
+                </div>
+                <p class="form-hint" style="font-size:10px">即你的同步服务器地址，用于两台浏览器握手配对</p>
+              </div>
+              <div class="sync-toggle-row" style="margin-top:8px;padding-top:8px;border-top:1px solid #f0f0f0">
+                <span style="font-size:12px;font-weight:600;color:#555">📡 主从设备模式</span>
+                <label class="switch" style="width:36px;height:20px">
+                  <input type="checkbox" id="p2pMasterModeToggle">
+                  <span class="slider" style="height:20px"></span>
+                </label>
+              </div>
+              <div id="p2pMasterStatus" class="sync-status" style="margin-top:4px;font-size:11px">⏸️ 已关闭</div>
+              <div id="p2pMasterDeviceRow" style="display:none;margin-top:6px">
+                <div class="sync-toggle-row" style="margin-bottom:0">
+                  <span style="font-size:11px;color:#555">此设备为主设备</span>
+                  <label class="switch" style="width:30px;height:17px">
+                    <input type="checkbox" id="p2pIsMasterToggle" checked>
+                    <span class="slider" style="height:17px"></span>
+                  </label>
+                </div>
+                <p class="form-hint" style="font-size:9px;margin-top:1px">开启：上传 Cookie；关闭：仅接收</p>
+              </div>
+              <div style="margin-top:12px;display:flex;gap:6px">
+                <button id="btnP2pSaveConfig" class="btn btn-primary" style="flex:1;font-size:12px;padding:7px">💾 保存配置</button>
+              </div>
+              <div class="sync-description" style="margin-top:12px;font-size:10px;padding:6px 8px">
+                <strong>🔒 同步内容：</strong>仅同步该站点下的 Cookie（名称、值、路径等），
+                任何基于 Cookie 认证的网站都适用。同步前不做抓取，
+                只读取浏览器中已有的 Cookie。数据经 WebRTC 加密直连传输，不经过第三方。
+              </div>
+            </div>
+          </details>
+
+          <div id="p2pLogSection" style="display:none;margin-top:8px">
+            <div class="section-title"><span>📋 同步记录</span></div>
+            <div id="p2pLogContent" class="sync-log"></div>
           </div>
         </div>
       </div>
-      <!-- ===== 本机网络地址（两种模式通用） ===== -->
-      <div class="section">
-        <details class="netinfo-detail">
-          <summary style="cursor:pointer;font-weight:600;font-size:13px;color:#1a73e8">🌐 本机网络地址 <span id="netInfoBadge" style="font-weight:normal;color:#888;font-size:11px">（点击查看）</span></summary>
-          <div id="netInfoContent" style="margin-top:8px">
-            <button id="btnGetNetInfo" class="btn btn-secondary" style="width:100%">🔄 获取本机网络地址</button>
-            <div id="netInfoResult" style="display:none;margin-top:8px;font-size:12px">
-              <div id="netInfoLoading" style="color:#888;padding:8px">正在获取...</div>
-              <div id="netInfoList" style="display:none"></div>
+      
+      <!-- ===== → ② 服务器模式配置 ===== -->
+      <div id="serverSection" class="sync-group" style="display:none">
+        <div class="section-title" style="margin-bottom:6px"><span>☁️ 云端双向同步</span></div>
+        <div class="sync-toggle-row">
+          <span class="sync-toggle-label">启用云端同步</span>
+          <label class="switch">
+            <input type="checkbox" id="syncToggle">
+            <span class="slider"></span>
+          </label>
+        </div>
+        <div id="syncStatus" class="sync-status" style="margin-top:6px">未启用</div>
+        <p id="serverConnectionTime" class="connection-time" style="display:none"></p>
+        
+        <div class="sync-subgroup">
+          <details id="syncConfigSection" class="card-collapsible">
+            <summary class="card-summary">
+              <span class="card-title">⚙️ 同步配置</span>
+            </summary>
+            <div class="card-body">
+            
+            <div class="form-row">
+              <label>服务器地址 <span class="required">*</span></label>
+              <div style="display:flex;gap:4px;align-items:center">
+                <input type="text" id="syncServerUrl" placeholder="http://你的服务器:5789" required style="flex:1">
+                <span id="serverHelpIcon" style="cursor:pointer;color:#999;font-size:11px;width:18px;height:18px;display:inline-flex;align-items:center;justify-content:center;border-radius:50%;border:1px solid #ccc;flex-shrink:0" title="点击查看服务器部署说明">?</span>
+              </div>
+            </div>
+            
+            <div class="form-row">
+              <label>配对码 <span class="required">*</span></label>
+              <div class="input-with-btn">
+                <input type="text" id="syncPairKey" placeholder="点击右侧生成" readonly required>
+                <button id="btnGenerateKey" class="btn-small" title="生成新配对码">🔄 生成</button>
+              </div>
+              <p class="form-hint">两台设备使用相同的配对码才能同步</p>
+            </div>
+            
+            <div class="form-row">
+              <label>设备名称 <span class="required">*</span></label>
+              <input type="text" id="syncDeviceName" placeholder="如：办公室电脑" required>
+            </div>
+            
+            <div class="form-row">
+              <label>同步站点 <span class="required">*</span></label>
+              <div class="input-row">
+                <input type="text" id="syncDomain" placeholder="如：oa.your-company.com" required>
+                <button id="btnFillSyncDomain" class="btn-small" title="填入当前页面域名" style="padding:4px 8px;font-size:14px;border-radius:4px;border:1px solid #ddd;background:#f8f9fa;cursor:pointer">📌</button>
+              </div>
+              <p class="form-hint">只同步该站点下的 Cookie（含所有端口/路径）</p>
+            </div>
+            
+            <div class="form-row">
+              <label>同步间隔</label>
+              <select id="syncInterval">
+                <option value="1">每 1 分钟</option>
+                <option value="5" selected>每 5 分钟</option>
+                <option value="10">每 10 分钟</option>
+                <option value="30">每 30 分钟</option>
+                <option value="60">每 60 分钟</option>
+              </select>
+            </div>
+
+            <div class="sync-toggle-row" style="margin-top:12px;padding-top:10px;border-top:1px solid #f0f0f0">
+              <span style="font-size:13px;font-weight:600;color:#555">📡 主从设备模式</span>
+              <label class="switch">
+                <input type="checkbox" id="masterModeToggle">
+                <span class="slider"></span>
+              </label>
+            </div>
+            <div id="masterStatus" class="sync-status" style="margin-top:4px">⏸️ 已关闭（多设备平等模式）</div>
+            <div id="masterDeviceRow" style="display:none;margin-top:8px">
+              <div class="sync-toggle-row" style="margin-bottom:0">
+                <span style="font-size:12px;color:#555">此设备为主设备</span>
+                <label class="switch" style="width:36px;height:20px">
+                  <input type="checkbox" id="isMasterToggle" checked>
+                  <span class="slider" style="height:20px"></span>
+                </label>
+              </div>
+              <p class="form-hint" style="font-size:10px;margin-top:2px">开启：此设备作为主设备，负责上传 Cookie 给其他设备；关闭：此设备仅接收不发送</p>
+              <div id="masterWarnings" style="display:none;margin-top:6px"></div>
+              <div id="masterDeviceList" style="display:none;margin-top:6px">
+                <p style="font-size:11px;font-weight:600;color:#555;margin-bottom:4px">🖥️ 已注册设备</p>
+                <div id="masterDeviceItems" style="font-size:11px;color:#666;max-height:80px;overflow-y:auto"></div>
+              </div>
+            </div>
+            <div style="display:flex;gap:6px;margin-top:12px">
+              <button id="btnSaveSync" class="btn btn-primary" style="flex:1">💾 保存配置</button>
+              <button id="btnSyncNow" class="btn btn-secondary" style="flex:1">🔄 立即同步</button>
+            </div>
+            
+            <div class="sync-description" style="margin-top:12px;font-size:11px;padding:8px 10px">
+              <strong>🔒 同步内容：</strong>仅同步该站点下的 <strong>Cookie</strong>（名称、值、路径、安全属性），
+              不含 localStorage/IndexedDB。<strong>任何基于 Cookie 认证的网站都适用</strong>。
+              同步前<strong>不做抓取</strong>，只读取浏览器中已有的 Cookie。需至少一台设备先登录。
+              数据使用配对码 <strong>AES-256-GCM 加密</strong>后传输，服务器无法解密。
+            </div>
+            </div>
+          </details>
+
+          <div id="syncLogSection" style="display:none;margin-top:8px">
+            <div class="section-title"><span>📋 同步记录</span></div>
+            <div id="syncLogContent" class="sync-log">
+              <p class="hint">暂无同步记录</p>
             </div>
           </div>
-        </details>
+        </div>
       </div>
+      <!-- → ④ 本机网络地址（可折叠） -->
+      <details class="card-collapsible">
+        <summary class="card-summary">
+          <span class="card-title">🌐 本机网络地址</span>
+        </summary>
+        <div class="card-body">
+          <button id="btnGetNetInfo" class="btn btn-secondary" style="width:100%">🔄 获取本机网络地址</button>
+          <div id="netInfoResult" style="display:none;margin-top:8px;font-size:12px">
+            <div id="netInfoLoading" style="color:#888;padding:8px">正在获取...</div>
+            <div id="netInfoList" style="display:none"></div>
+          </div>
+        </div>
+      </details>
     </div>
     
-    <!-- ======= Tab: 拦截 ======= -->
+    <!-- ============================================================
+         Tab: 拦截 — ① 推荐规则 → ② 规则库 → ③ 自定义 → ④ Cookie → ⑤ 管理
+         ============================================================ -->
     <div id="tab-blocker" class="tab-content">
-      <!-- 当前站点推荐规则 -->
-      <div class="section" id="recommendedSection" style="display:none">
-        <div class="section-title"><span>📋 当前站点推荐规则</span></div>
-        <div id="recommendedRules" class="hint" style="font-size:12px">加载中...</div>
+      <!-- → ① 主开关 + 模式选择（新增） -->
+      <div class="section" style="padding:10px 12px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <span style="font-weight:600;font-size:14px;color:#333">🛡️ 拦截功能</span>
+          <label class="switch" style="width:40px;height:22px">
+            <input type="checkbox" id="blockerMasterToggle" checked>
+            <span class="slider" style="height:22px"></span>
+          </label>
+        </div>
+        <!-- 模式切换 -->
+        <div id="blockerModeArea" style="display:flex;gap:4px;background:#f1f3f4;border-radius:6px;padding:3px">
+          <button id="blockerModeAuto" class="sync-mode-btn active" style="flex:1;padding:4px;font-size:12px">🤖 自动检测</button>
+          <button id="blockerModeManual" class="sync-mode-btn" style="flex:1;padding:4px;font-size:12px">👆 手动管理</button>
+        </div>
+        <p id="blockerModeHint" style="font-size:11px;color:#888;margin-top:4px">访问匹配站点时自动激活规则</p>
       </div>
 
-      <!-- 所有内置规则（按网站归类） -->
-      <div class="section">
-        <div class="section-title">
+      <!-- → ② 当前站点已激活规则（原推荐规则升级） -->
+      <div class="section" id="activeRulesSection" style="display:none;padding:10px 12px">
+        <div class="section-title" style="margin-bottom:6px;font-size:13px">
+          <span>📋 当前站点已激活规则</span>
+          <span id="activeRulesDomain" style="font-size:11px;color:#888;margin-left:4px"></span>
+        </div>
+        <div id="activeRulesContainer" class="rule-tags" style="min-height:22px">
+          <span class="hint" style="font-size:11px">加载中...</span>
+        </div>
+        <p id="activeRulesHint" class="hint" style="margin-top:4px;font-size:10px;color:#999">点击标签可临时关闭/开启</p>
+      </div>
+      <!-- 当前站点无匹配规则时显示 -->
+      <div class="section" id="noMatchSection" style="display:none;padding:10px 12px">
+        <div class="section-title" style="margin-bottom:3px;font-size:13px"><span>📋 当前站点</span></div>
+        <p class="hint" style="font-size:11px">当前站点未匹配预设规则，拦截未激活</p>
+        <p class="hint" style="font-size:10px;color:#aaa;margin-top:2px">可在下方手动开启站点的规则</p>
+      </div>
+
+      <!-- → ③ 拦截规则库（带站点级开关） -->
+      <div class="section" style="padding:10px 12px">
+        <div class="section-title" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;font-size:13px">
           <span>📂 拦截规则库</span>
           <span id="ruleDBCount" class="badge badge-green" style="font-size:11px">加载中</span>
         </div>
-        <details class="rules-detail">
-          <summary>查看所有网站规则</summary>
-          <div id="ruleDBList" style="margin-top:6px">
-            <p class="hint">加载中...</p>
-          </div>
-        </details>
+        <div id="ruleDBList" style="margin-top:4px;max-height:200px;overflow-y:auto">
+          <p class="hint">加载中...</p>
+        </div>
       </div>
 
-      <!-- 自定义规则 -->
+      <!-- → ③ 自定义规则 -->
       <div class="section">
         <div class="section-title"><span>➕ 自定义规则</span></div>
         <div class="input-row">
-          <input type="text" id="customRuleInput" placeholder="输入 URL 关键词，如: checkOnline">
+          <input type="text" id="customRuleInput" placeholder="输入 URL 关键词，如: checkOnline" required style="flex:1">
           <button id="btnAddRule" class="btn-small">添加</button>
         </div>
         <div id="userRules" class="rule-list-container">
@@ -332,13 +453,12 @@
         </div>
       </div>
 
-      <!-- 当前站点 Cookie 列表 -->
+      <!-- → ④ 当前站点 Cookie 列表 -->
       <div class="section">
         <div class="section-title"><span>🍪 当前站点 Cookie</span></div>
         <p class="hint" style="margin-bottom:6px;font-size:11px">
           从 <strong id="cookieSiteLabel" style="color:#1a73e8">当前站点</strong> 获取的 Cookie 列表。
           勾选 Cookie 名称后加入自定义规则，可拦截含该名称的请求。
-          提示：Cookie 名称（如 JSESSIONID）与规则库中的 URL 关键词是不同维度的拦截方式。
         </p>
         <button id="btnLoadCookies" class="btn btn-primary" style="width:100%;font-size:12px;padding:6px">🔄 获取当前站点 Cookie</button>
         <div id="cookieListArea" style="display:none;margin-top:6px">
@@ -352,7 +472,7 @@
         </div>
       </div>
 
-      <!-- 规则库管理 -->
+      <!-- → ⑤ 规则库管理 -->
       <div class="section">
         <div class="section-title"><span>⚙️ 规则库管理</span></div>
         <div class="btn-group" style="margin-bottom:6px">
@@ -368,7 +488,12 @@
     <!-- 底部 -->
     <div class="footer">
       <span><button id="btnHelp" class="btn-link">📖 使用说明</button></span>
-      <span>v1.3.0</span>
+      <span style="display:flex;align-items:center;gap:4px">
+        <button id="btnExportLog" class="btn-link" title="导出操作日志" style="font-size:11px;padding:1px 4px">📋</button>
+        <button id="btnDeviceInfo" class="btn-link" title="查看当前设备身份" style="font-size:11px;padding:1px 4px">🖥️</button>
+        <span id="updateBadge" class="update-badge" style="display:none"></span>
+        <span>v1.5.2</span>
+      </span>
     </div>
   </div>
   
