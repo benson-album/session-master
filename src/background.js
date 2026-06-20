@@ -1181,7 +1181,6 @@ async function importRulesDB(jsonStr) {
 const BLOCKER_CONFIG_KEY = 'blocker_config';
 const DEFAULT_BLOCKER_CONFIG = {
   masterEnabled: true,
-  mode: 'auto',           // 'auto' | 'manual'
   siteEnabled: {},        // { siteId: true/false }
   keywordOverrides: {}    // { keyword: true/false }
 };
@@ -1217,9 +1216,7 @@ async function isBlockingEnabledForDomain(domain) {
   const db = await getRulesDB();
   const matched = matchSitesByDomain(db, domain);
   if (matched.length === 0) return false;
-  // 自动模式：匹配即生效
-  if (config.mode === 'auto') return true;
-  // 手动模式：检查站点开关（默认启用）
+  // 只要有匹配的站点且该站点未被关闭，拦截即生效
   for (const site of matched) {
     if (config.siteEnabled[site.id] !== false) return true;
   }
@@ -1232,14 +1229,11 @@ async function getEffectiveKeywords(domain) {
   if (!config.masterEnabled) return [];
   const result = await getRecommendedRules(domain);
   if (!result.keywords || result.keywords.length === 0) return [];
-  // 自动模式：按 keywordOverrides 过滤
-  if (config.mode === 'auto') {
-    return result.keywords.filter(kw => config.keywordOverrides[kw] !== false);
-  }
-  // 手动模式：按 siteEnabled + keywordOverrides 过滤
+  // 检查站点是否开启（默认开启）
   const matched = result.sites || [];
   const enabledSites = matched.filter(s => config.siteEnabled[s.id] !== false);
   if (enabledSites.length === 0) return [];
+  // 过滤被用户手动关闭的关键词
   return result.keywords.filter(kw => config.keywordOverrides[kw] !== false);
 }
 

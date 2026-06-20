@@ -247,15 +247,6 @@
     // 主开关
     document.getElementById('blockerMasterToggle').checked = config.masterEnabled;
 
-    // 模式按钮
-    document.getElementById('blockerModeAuto').classList.toggle('active', config.mode === 'auto');
-    document.getElementById('blockerModeManual').classList.toggle('active', config.mode === 'manual');
-    document.getElementById('blockerModeHint').textContent =
-      config.mode === 'auto' ? '访问匹配站点时自动激活规则' : '手动开启各站点的规则';
-
-    // 灰度显示模式区域（主开关关掉时淡化）
-    document.getElementById('blockerModeArea').style.opacity = config.masterEnabled ? '1' : '0.4';
-
     // 渲染当前站点激活规则 / 未匹配提示
     await renderActiveRules(config);
 
@@ -344,12 +335,7 @@
       }).join('') : '<span style="font-size:10px;color:#999">（暂无关键词）</span>';
 
       return '<div class="site-rule-row" style="padding:6px 0;border-bottom:1px solid #f0f0f0;display:flex;align-items:flex-start;gap:8px">' +
-        // 站点开关
-        '<label class="switch" style="width:30px;height:17px;flex-shrink:0;margin-top:2px" title="' + (enabled ? '关闭' : '开启') + site.name + '">' +
-          '<input type="checkbox" class="site-toggle" data-site-id="' + site.id + '"' + (enabled ? ' checked' : '') + '>' +
-          '<span class="slider" style="height:17px"></span>' +
-        '</label>' +
-        // 站点信息
+        // 站点信息（左侧）
         '<div style="flex:1;min-width:0">' +
           '<div style="font-weight:600;font-size:13px;color:' + (enabled ? '#333' : '#aaa') + '">' +
             site.name +
@@ -359,6 +345,11 @@
           '<div style="font-size:10px;color:#666;line-height:1.6;margin-top:2px">' + kwHtml + '</div>' +
           (site.description ? '<div style="font-size:9px;color:#bbb;margin-top:1px">' + site.description + '</div>' : '') +
         '</div>' +
+        // 站点开关（右侧）
+        '<label class="switch" style="width:30px;height:17px;flex-shrink:0;margin-top:2px" title="' + (enabled ? '关闭' : '开启') + site.name + '">' +
+          '<input type="checkbox" class="site-toggle" data-site-id="' + site.id + '"' + (enabled ? ' checked' : '') + '>' +
+          '<span class="slider" style="height:17px"></span>' +
+        '</label>' +
       '</div>';
     }).join('');
 
@@ -385,20 +376,6 @@
   // 主开关
   document.getElementById('blockerMasterToggle').addEventListener('change', async function() {
     await saveBlockerConfig({ masterEnabled: this.checked });
-    await loadBlockerState();
-  });
-
-  // 自动模式按钮
-  document.getElementById('blockerModeAuto').addEventListener('click', async function() {
-    if (blockerConfig && blockerConfig.mode === 'auto') return;
-    await saveBlockerConfig({ mode: 'auto' });
-    await loadBlockerState();
-  });
-
-  // 手动模式按钮
-  document.getElementById('blockerModeManual').addEventListener('click', async function() {
-    if (blockerConfig && blockerConfig.mode === 'manual') return;
-    await saveBlockerConfig({ mode: 'manual' });
     await loadBlockerState();
   });
 

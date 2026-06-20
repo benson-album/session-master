@@ -395,21 +395,15 @@
          Tab: 拦截 — ① 推荐规则 → ② 规则库 → ③ 自定义 → ④ Cookie → ⑤ 管理
          ============================================================ -->
     <div id="tab-blocker" class="tab-content">
-      <!-- → ① 主开关 + 模式选择（新增） -->
+      <!-- → ① 主开关 -->
       <div class="section" style="padding:10px 12px">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-          <span style="font-weight:600;font-size:14px;color:#333">🛡️ 拦截功能</span>
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <span style="font-weight:600;font-size:14px;color:#333">🛡️ 拦截功能 <span style="font-size:11px;color:#888;font-weight:400">开启后自动匹配当前站点规则</span></span>
           <label class="switch" style="width:40px;height:22px">
             <input type="checkbox" id="blockerMasterToggle" checked>
             <span class="slider" style="height:22px"></span>
           </label>
         </div>
-        <!-- 模式切换 -->
-        <div id="blockerModeArea" style="display:flex;gap:4px;background:#f1f3f4;border-radius:6px;padding:3px">
-          <button id="blockerModeAuto" class="sync-mode-btn active" style="flex:1;padding:4px;font-size:12px">🤖 自动检测</button>
-          <button id="blockerModeManual" class="sync-mode-btn" style="flex:1;padding:4px;font-size:12px">👆 手动管理</button>
-        </div>
-        <p id="blockerModeHint" style="font-size:11px;color:#888;margin-top:4px">访问匹配站点时自动激活规则</p>
       </div>
 
       <!-- → ② 当前站点已激活规则（原推荐规则升级） -->
@@ -487,12 +481,14 @@
     
     <!-- 底部 -->
     <div class="footer">
-      <span><button id="btnHelp" class="btn-link">📖 使用说明</button></span>
+      <span style="display:flex;align-items:center;gap:8px">
+        <button id="btnHelp" class="btn-link" style="font-size:12px">📖 使用说明</button>
+        <button id="btnExportLog" class="btn-link" style="font-size:12px;color:#1a73e8" title="导出操作日志">📋 导出日志</button>
+      </span>
       <span style="display:flex;align-items:center;gap:4px">
-        <button id="btnExportLog" class="btn-link" title="导出操作日志" style="font-size:11px;padding:1px 4px">📋</button>
         <button id="btnDeviceInfo" class="btn-link" title="查看当前设备身份" style="font-size:11px;padding:1px 4px">🖥️</button>
         <span id="updateBadge" class="update-badge" style="display:none"></span>
-        <span>v1.5.3</span>
+        <span>v1.5.4</span>
       </span>
     </div>
   </div>
