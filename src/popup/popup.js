@@ -1423,39 +1423,60 @@
     const langLine = result.language ? '  语言: ' + result.language : '';
     const platLine = result.platform ? '  平台: ' + result.platform : '';
     const archLine = result.arch ? ' (' + result.arch + ')' : '';
-    let netLines = '';
-    if (result.network && result.network.length > 0) {
-      const typeOrder = ['有线', '无线', 'VPN/隧道', '虚拟', '虚拟机', '其他', '回环'];
-      const grouped = {};
-      for (const n of result.network) {
-        const t = n.type || '其他';
-        if (!grouped[t]) grouped[t] = [];
-        grouped[t].push(n);
-      }
-      netLines = '━━━ 🌍 网络 ━━━\n';
-      for (const t of typeOrder) {
-        if (!grouped[t]) continue;
-        netLines += '  【' + t + '】\n';
-        for (const n of grouped[t]) {
-          if (n.isLoopback) continue;
-          const addrPart = n.isIPv6 ? n.address : n.address + (n.mask ? ' / ' + n.mask : '');
-          netLines += '    ' + n.name + ': ' + addrPart + '\n';
+    const nameLine = result.deviceName
+          ? '<div class="device-card-name">' + htmlesc(result.deviceName) + '</div>'
+          : '<div class="device-card-name-hint">（未设置设备名，请前往「同步」标签页设置）</div>';
+
+        let netHtml = '';
+        if (result.network && result.network.length > 0) {
+          const typeOrder = ['有线', '无线', 'VPN/隧道', '虚拟', '虚拟机', '其他', '回环'];
+          const grouped = {};
+          for (const n of result.network) {
+            const t = n.type || '其他';
+            if (!grouped[t]) grouped[t] = [];
+            grouped[t].push(n);
+          }
+          netHtml = '<div class="device-card-network-group">';
+          for (const t of typeOrder) {
+            if (!grouped[t]) continue;
+            netHtml += '<div class="device-card-network-type">【' + t + '】</div>';
+            for (const n of grouped[t]) {
+              if (n.isLoopback) continue;
+              const addrPart = n.isIPv6 ? n.address : n.address + (n.mask ? ' / ' + n.mask : '');
+              netHtml += '<div class="device-card-network-iface">' + htmlesc(n.name) + ' <code>' + htmlesc(addrPart) + '</code></div>';
+            }
+          }
+          netHtml += '<div class="device-card-network-total">接口总数: ' + result.network.length + '</div>';
+          netHtml += '</div>';
         }
-      }
-      netLines += '  接口总数: ' + result.network.length;
-    }
-    const msg = '━━━ 📱 设备名 ━━━\n' +
-      (result.deviceName || '（未设置设备名，请前往「同步」标签页设置）') + '\n' +
-      '━━━ 💻 系统 ━━━\n' +
-      result.os + archLine + '\n' +
-      platLine + langLine + cpuLine + memLine + '\n' +
-      '━━━ 🌐 浏览器 ━━━\n' +
-      result.browser + ' ' + (result.browserVer || '') + '\n' +
-      (netLines ? netLines + '\n' : '') +
-      '━━━ 🆔 设备 ID ━━━\n' +
-      result.id + '\n' +
-      '📅 ' + new Date(result.createdAt).toLocaleString();
-    document.getElementById('deviceModalBody').textContent = msg;
+
+        const html = '' +
+          '<div class="device-card">' +
+            nameLine +
+          '</div>' +
+          '<div class="device-card">' +
+            '<div class="device-card-header"><span class="emoji">💻</span>系统</div>' +
+            '<div class="device-card-row"><span class="device-card-label">操作系统</span><span class="device-card-value">' + htmlesc(result.os) + archLine + '</span></div>' +
+            (result.platform ? '<div class="device-card-row"><span class="device-card-label">平台</span><span class="device-card-value">' + htmlesc(result.platform) + '</span></div>' : '') +
+            (result.language ? '<div class="device-card-row"><span class="device-card-label">语言</span><span class="device-card-value">' + htmlesc(result.language) + '</span></div>' : '') +
+            (cpuLine ? '<div class="device-card-row"><span class="device-card-label">CPU</span><span class="device-card-value">' + cpuLine.replace('  CPU: ', '') + '</span></div>' : '') +
+            (memLine ? '<div class="device-card-row"><span class="device-card-label">内存</span><span class="device-card-value">' + memLine.replace('  内存: ', '') + '</span></div>' : '') +
+          '</div>' +
+          '<div class="device-card">' +
+            '<div class="device-card-header"><span class="emoji">🌐</span>浏览器</div>' +
+            '<div class="device-card-row"><span class="device-card-label">浏览器</span><span class="device-card-value">' + htmlesc(result.browser) + ' ' + htmlesc(result.browserVer || '') + '</span></div>' +
+          '</div>' +
+          (netHtml ? '<div class="device-card">' +
+            '<div class="device-card-header"><span class="emoji">🌍</span>网络</div>' +
+            netHtml +
+          '</div>' : '') +
+          '<div class="device-card">' +
+            '<div class="device-card-header"><span class="emoji">🆔</span>设备 ID</div>' +
+            '<div class="device-card-id">' + htmlesc(result.id) + '</div>' +
+            '<div class="device-card-date">📅 ' + new Date(result.createdAt).toLocaleString() + '</div>' +
+          '</div>';
+
+    document.getElementById('deviceModalBody').innerHTML = html;
     document.getElementById('deviceModalOverlay').style.display = 'flex';
   });
 
