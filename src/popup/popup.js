@@ -1444,7 +1444,7 @@
       netLines += '  接口总数: ' + result.network.length;
     }
     const msg = '━━━ 📱 设备名 ━━━\n' +
-      (result.deviceName || '未命名设备') + '\n' +
+      (result.deviceName || '（未设置设备名，请前往「同步」标签页设置）') + '\n' +
       '━━━ 💻 系统 ━━━\n' +
       result.os + archLine + '\n' +
       platLine + langLine + cpuLine + memLine + '\n' +
