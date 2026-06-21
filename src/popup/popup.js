@@ -1837,6 +1837,8 @@
       'btnP2PCreate', 'btnP2PJoin', 'btnP2PDoJoin', 'btnP2PSyncNow', 'btnP2PDisconnect', 'btnP2PCancel',
       // P2P 同步开关
       'p2pSyncToggle',
+      // P2P 保存配置
+      'btnP2pSaveConfig',
       // P2P 填入域名
       'btnP2pFillDomain',
       // 服务器同步开关

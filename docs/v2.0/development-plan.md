@@ -3,12 +3,601 @@
 > **版本**：v2.0-exec
 > **粒度**：逐文件、逐函数、逐行操作
 > **工时**：12-15h（P0 3.5h / P1 4.5h / P2 2h / P3 2.5h）
-> **说明**：每个子任务完成后立即执行对应测试用例验证
+> **工作模式**：4 代理并行协作（项目管理 / 产品设计 / 功能测试 / 功能开发）
+
+---
+
+## Agent 架构总览
+
+本项目采用 **4 代理并行协作** 模式，每个 Agent 有明确职责和产入产出的契约。
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                   项目管理 Agent                          │
+│  调度 → 监控 → 同步 → 里程碑签字                          │
+└────┬────────────┬────────────┬──────────────────────────┘
+     │  PRD/设计   │  代码实现   │  测试验证
+     ▼             ▼            ▼
+┌──────────┐ ┌──────────┐ ┌──────────┐
+│ 产品设计  │ │ 功能开发  │ │ 功能测试  │
+│ Agent    │ │ Agent    │ │ Agent    │
+└──────────┘ └──────────┘ └──────────┘
+```
+
+### Agent 定义
+
+| 角色 | 代号 | 核心职责 | 产出物 | 输入依赖 | 签字权 |
+|:----:|:----:|:---------|:-------|:---------|:------:|
+| **项目管理** | `PM` | 任务调度、进度跟踪、里程碑判断、风险上报、版本发布 | 开发计划、任务看板、里程碑报告、Release | PRD + 测试计划 | ✅ M0~M3 |
+| **产品设计** | `PD` | PRD 维护、UI/UX 决策、方案评审、帮助文档 | PRD.md、UI 原型/说明、帮助页文案 | 需求讨论 | — |
+| **功能开发** | `DE` | 代码实现、模块拆分、bug 修复 | `src/*.js`、`*.html`、`*.css` | PRD + 开发计划 | — |
+| **功能测试** | `QA` | 测试用例编写、自动验证、回归测试、bug 报告 | test-plan.md、测试执行记录、bug 清单 | PRD + 代码改动 | ✅ 质量门禁 |
+
+### 工作流契约
+
+```
+PM 分解任务 ──→ DE 实施 ──→ QA 验证 ──→ PM 评估进度
+      ↑                                      │
+      └────────── PD 审核设计变化 ─────────────┘
+```
+
+**每批次工作流**（以 P0 为例）：
+
+1. **PM**：从开发计划取出 T1，分配给对应的 Agent（T1→DE，T1-V→QA），设定截止时间
+2. **DE**：读取 PRD + 开发计划 → 实施代码 → 提交到 PR 分支
+3. **QA**：读取 PRD + 开发计划中的验证步骤 → 执行测试 → 写入测试报告
+4. **PM**：收集 QA 结果 + DE 完成状态 → 判断任务是否通过 → 若通过则进入下一个任务
+5. **里程碑评估**：批次内全部任务通过 → **PM 发起里程碑签字**（QA + PM 双签）
+
+### 每个 Agent 的问责点
+
+#### 项目管理（PM）
+
+| 职责 | 具体要求 |
+|:-----|:---------|
+| **任务分解** | 将 P0~P3 的批次拆分为可并行/可串行的子任务，分配给对应 Agent |
+| **进度跟踪** | 每完成一个子任务更新一次 todo list，标记完成百分比 |
+| **里程碑判断** | 发布时检查交付物清单是否完备、QA 是否已签过 |
+| **变体追踪** | DE 发现计划不可行时 PM 负责协商调整 |
+| **版本发布** | T13 的发布由 PM 最终执行 |
+| **风险上报** | 遇到阻塞项（如构建失败、核心依赖不兼容）立即升级 |
+
+#### 产品设计（PD）
+
+| 职责 | 具体要求 |
+|:-----|:---------|
+| **PRD 维护** | 开发过程中发现 PRD 遗漏或歧义时更新 |
+| **UI 一致性** | 审查 DE 实现的 UI 是否匹配 PRD 描述 |
+| **帮助文档** | P3 阶段审查 help.html 的内容准确性 |
+| **方案评审** | DE 提交涉及 API 变更/数据模型调整的方案时审核 |
+
+#### 功能测试（QA）
+
+| 职责 | 具体要求 |
+|:-----|:---------|
+| **测试用例维护** | 开发前确保 test-plan.md 覆盖本次改动 |
+| **手动验证** | 每个 T? 子任务的验证步骤（T?-V）逐一执行 |
+| **回归测试** | 每次合入新代码后执行受影响模块的回归用例 |
+| **缺陷报告** | 发现 bug 时记录：复现步骤 + 预期 + 实际 + 影响范围 |
+| **质量门禁** | ⛔ 未通过 QA 签字的代码不得合并到 master |
+
+#### 功能开发（DE）
+
+| 职责 | 具体要求 |
+|:-----|:---------|
+| **代码实现** | 按照开发计划的逐行操作准确实施 |
+| **自测** | 提交前至少跑一次 build 确认无语法错误 |
+| **模块拆分** | 遵循 `src/core/` 和 `src/popup/` 的模块划分约定 |
+| **回滚保障** | 迁移代码保留旧键，确保可回滚 |
+| **构建产物** | zip 包可正常加载到浏览器 |
+
+### Agent 协作时序图
+
+```
+时间轴     PM               PD               DE               QA
+──────┐    │                │                │                │
+T1    │    ├─ 分配T1 ──────►│                │                │
+      │    │                │                ├─ 实施代码 ─────►│
+      │    │                │                │                ├─ 执行T1-V
+      │    │                ├─ 审查UI/数据 ─►│                │
+      │    │◄── 结果 ───────┤◄── 完成 ──────┤◄── VERIFIED ───┤
+      │    ├─ 判断通过 ────►│                │                │
+T2    │    ├─ 分配T2 ──────►│                ├─ 实施代码 ─────►│
+      │    │                │                │                │
+...   │    │                │                │                │
+M-P0  │    ├─ 里程碑签字 ──►│                │                │
+──────┘    │                │                │                │
+```
+
+---
+
+## Agent 通信协议
+
+### 通信拓扑
+
+采用 **Hub-and-Spoke**（星型）拓扑：**PM 是中央调度枢纽**，所有跨 Agent 通信必须经过 PM 中转。
+
+```
+        DE
+       ╱  ╲
+      ╱    ╲
+     PD ─── PM ─── QA
+               ╲
+                ╱
+             用户(User)
+```
+
+**通信规则**：
+
+| 方向 | 是否允许 | 说明 |
+|:----:|:--------:|:-----|
+| PM → DE | ✅ | 分配实施任务 |
+| DE → PM | ✅ | 返回实施报告 |
+| PM → QA | ✅ | 分配测试任务 |
+| QA → PM | ✅ | 返回测试报告 |
+| PM → PD | ✅ | 请求设计审查 |
+| PD → PM | ✅ | 返回审查报告 |
+| DE → QA | ❌ 禁止 | **质量独立性原则**：QA 不得从 DE 获取上下文，只能基于 PRD + test-plan 验证 |
+| DE → PD | ❌ 禁止 | DE 发现设计问题 → 报告 PM → PM 转 PD |
+| PD → QA | ❌ 禁止 | 设计变更 → 经 PM 更新 PRD → QA 以 PRD 为准 |
+| DE → User | ❌ 禁止 | DE 发现的阻塞 → 通过 PM 升级给用户决策 |
+| PM → User | ✅ | 需要人工决策的升级通道 |
+
+**质量独立性原则**：QA Agent 在测试时不得读取 DE Agent 的实施报告，只以 PRD、开发计划、文件系统上的代码为输入，确保测试结果客观公正。
+
+---
+
+### 5 种标准通信卡片
+
+Agent 之间的所有交流使用 **结构化通信卡片**，每个卡片有固定 Schema。
+
+#### 卡片 1：任务分配单 — PM → DE/QA/PD
+
+| 字段 | 类型 | 必填 | 说明 |
+|:-----|:----:|:----:|:-----|
+| `taskId` | string | ✅ | 唯一编号，格式 `{批次}-{任务}-{子步骤}`，如 `P0-T1-S2` |
+| `assignee` | string | ✅ | 接收 Agent 代号：`DE` / `QA` / `PD` |
+| `type` | string | ✅ | 任务类型：`code` / `test` / `review` / `design` |
+| `priority` | string | ✅ | `high`（阻塞后续）/ `medium`（正常）/ `low`（可延后）|
+| `title` | string | ✅ | 一句话任务标题 |
+| `description` | string | ✅ | 具体要做的事情（可引用开发计划中的对应章节）|
+| `input` | object | ✅ | 输入信息 |
+| `input.files` | string[] | ✅ | 需要读取或修改的文件路径列表 |
+| `input.references` | string[] | — | 参考文档（PRD 章节、开发计划链接等）|
+| `input.constraints` | string | — | 特殊约束（如"保留旧键不动"）|
+| `dependencies` | string[] | — | 必须先完成的任务 ID 列表 |
+| `deadline` | string | ✅ | 预期耗时估算，如 `30min` / `1h` |
+| `acceptance` | string[] | ✅ | 验收条件清单（完成本任务的最低标准）|
+
+**传递方式**：写入 `docs/v2.0/communication/task-cards/{taskId}.md` + 通过 `delegate_task` 的 `context` 参数传递给子 Agent。
+
+**模板**：
+
+```markdown
+## 任务分配单
+
+| 字段 | 值 |
+|:-----|:----|
+| taskId | P0-T1-S2 |
+| assignee | DE |
+| type | code |
+| priority | high |
+| title | 实现 migration.js 链式迁移框架 |
+| deadline | 30min |
+
+### 输入
+- **文件**: src/core/migration.js
+- **参考**: development-plan.md §T1-S2
+- **约束**: 保留所有旧键不动，只新增 v2_ 键
+
+### 验收条件
+1. [ ] runMigrations() 执行后 v2_sites 存在
+2. [ ] v2_schema_version = 2
+3. [ ] 旧键 heartbeat_configs / sync_config 未被删除
+4. [ ] scripts/build.sh 通过
+```
+
+---
+
+#### 卡片 2：实施报告 — DE → PM
+
+| 字段 | 类型 | 必填 | 说明 |
+|:-----|:----:|:----:|:-----|
+| `taskId` | string | ✅ | 对应的任务分配单 ID |
+| `status` | string | ✅ | `done` / `partial` / `blocked` / `found_issue` |
+| `filesChanged` | array | ✅ | 变更的文件列表 |
+| `filesChanged[].path` | string | ✅ | 文件路径 |
+| `filesChanged[].operation` | string | ✅ | `create` / `modify` / `delete` |
+| `filesChanged[].summary` | string | — | 改了些什么 |
+| `buildResult.passed` | boolean | ✅ | 构建是否通过 |
+| `buildResult.output` | string | — | 构建日志摘要 |
+| `discoveredIssues` | array | — | 实施中发现的问题 |
+| `discoveredIssues[].severity` | string | ✅ | `info` / `warning` / `blocker` |
+| `discoveredIssues[].description` | string | ✅ | 问题描述 |
+| `discoveredIssues[].suggestedAction` | string | — | DE 建议的解决方式 |
+| `blockingReason` | string | — | 当 status=blocked 时必填 |
+| `nextTask` | string | — | DE 建议下一步做什么 |
+| `selfCheck` | array | ✅ | 自检清单（逐条标记 ✅ / ❌）|
+
+**传递方式**：写入 `docs/v2.0/communication/impl-reports/{taskId}.md` + 在 `delegate_task` 返回值中作为总结返回。
+
+**模板**：
+
+```markdown
+## 实施报告
+
+| 字段 | 值 |
+|:-----|:----|
+| taskId | P0-T1-S2 |
+| status | done |
+| 耗时 | 25min |
+
+### 变更文件
+| 操作 | 文件 | 摘要 |
+|:----:|:-----|:-----|
+| create | src/core/migration.js | 实现 runMigrations + migrateV1toV2，131 行 |
+| modify | src/background.js | 新增 onInstalled 调用 runMigrations 和 alarm 恢复 |
+
+### 构建结果
+✅ 通过（scripts/build.sh 无错误）
+
+### 发现的问题
+| 严重度 | 描述 | 建议 |
+|:------:|:-----|:-----|
+| info | getSites() 在 background.js 中尚未 import | 在 T1-S4 的 import 行中处理 |
+
+### 自检清单
+- [x] runMigrations 在 onInstalled 中被调用
+- [x] 旧键保留，新键写入
+- [x] v2_schema_version 递增
+- [x] 代码无 console.log 调试残留
+- [x] scripts/build.sh 通过
+```
+
+---
+
+#### 卡片 3：测试报告 — QA → PM
+
+| 字段 | 类型 | 必填 | 说明 |
+|:-----|:----:|:----:|:-----|
+| `taskId` | string | ✅ | 对应的任务分配单 ID |
+| `status` | string | ✅ | `passed` / `failed` / `partial` |
+| `environment` | string | ✅ | 测试环境描述（如 "Chrome 130, 加载 unpacked"）|
+| `testResults` | array | ✅ | 每条测试用例的执行结果 |
+| `testResults[].caseId` | string | ✅ | 用例编号，如 `T1-V-1` |
+| `testResults[].description` | string | ✅ | 测试步骤描述 |
+| `testResults[].result` | string | ✅ | `pass` / `fail` / `skip` |
+| `testResults[].expected` | string | — | 预期结果 |
+| `testResults[].actual` | string | — | 实际结果（fail 时必填）|
+| `defects` | array | — | 发现的缺陷 |
+| `defects[].id` | string | ✅ | 缺陷编号 `D001`、`D002`… |
+| `defects[].severity` | string | ✅ | `critical`（阻塞流程）/ `major`（功能异常）/ `minor`（显示问题）|
+| `defects[].title` | string | ✅ | 一句话概括 |
+| `defects[].steps` | string | ✅ | 复现步骤 |
+| `defects[].expected` | string | ✅ | 期望行为 |
+| `defects[].actual` | string | ✅ | 实际行为 |
+| `defects[].affectedFiles` | string[] | — | 涉及的文件 |
+| `summary` | string | ✅ | 测试总结（几过几败，是否可以进入下一步）|
+
+**传递方式**：写入 `docs/v2.0/communication/test-reports/{taskId}.md` + 在 `delegate_task` 返回值中返回。
+
+**模板**：
+
+```markdown
+## 测试报告
+
+| 字段 | 值 |
+|:-----|:----|
+| taskId | P0-T1-V |
+| status | passed |
+| 环境 | Chrome 130, 加载 unpacked, 已有 v1.5.14 数据 |
+| 耗时 | 15min |
+
+### 测试结果
+| # | 用例 | 结果 | 说明 |
+|:-:|:-----|:----:|:-----|
+| T1-V-1 | scripts/build.sh 构建 | ✅ pass | 构建通过 |
+| T1-V-2 | v2_sites 存在，含原站点域名 | ✅ pass | heartbeat_configs 中 3 个域名正确迁移 |
+| T1-V-3 | v2_global 包含 signalUrl/serverUrl | ✅ pass | 设备名称正确 |
+| T1-V-4 | 旧键未被删除 | ✅ pass | 4 个旧键全部保留 |
+| T1-V-5 | 重载后 v2_schema_version=2，不再重复写入 | ✅ pass | 第二次 onInstalled 未修改 |
+| T1-V-6 | 控制台无报错 | ✅ pass | 无异常 |
+
+### 总结
+所有 6 条测试用例通过。可以进入 P0-T2。
+
+### 签字
+- [x] QA: 功能验证通过
+```
+
+---
+
+#### 卡片 4：设计审查报告 — PD → PM
+
+| 字段 | 类型 | 必填 | 说明 |
+|:-----|:----:|:----:|:-----|
+| `taskId` | string | ✅ | 对应的任务分配单 ID |
+| `status` | string | ✅ | `approved` / `changes_requested` / `needs_discussion` |
+| `reviewScope` | string | ✅ | 审查范围（代码 / UI / 数据模型 / 文档）|
+| `reviewedItems` | array | ✅ | 逐项审查结果 |
+| `reviewedItems[].item` | string | ✅ | 审查项 |
+| `reviewedItems[].finding` | string | ✅ | 发现（合规 / 偏差 / 不足）|
+| `reviewedItems[].decision` | string | ✅ | `ok` / `modify` / `discuss` |
+| `requestedChanges` | array | — | 要求修改的内容 |
+| `requestedChanges[].description` | string | ✅ | 变更描述 |
+| `requestedChanges[].priority` | string | ✅ | `must`（必须改）/ `should`（建议改）/ `nice`（锦上添花）|
+| `docUpdates` | string[] | — | 需要更新的文档列表 |
+| `notes` | string | — | 审查备注 |
+
+**传递方式**：写入 `docs/v2.0/communication/design-reviews/{taskId}.md` + 在 `delegate_task` 返回值中返回。
+
+---
+
+#### 卡片 5：里程碑签字单 — PM 汇总
+
+| 字段 | 类型 | 必填 | 说明 |
+|:-----|:----:|:----:|:-----|
+| `milestoneId` | string | ✅ | `M-P0` ~ `M-P3` |
+| `batchPhase` | string | ✅ | 批次阶段名 |
+| `deliverables` | array | ✅ | 交付物清单 |
+| `deliverables[].id` | string | ✅ | 交付物编号 |
+| `deliverables[].name` | string | ✅ | 交付物名称 |
+| `deliverables[].verified` | boolean | ✅ | 已验证 |
+| `deliverables[].verifier` | string | ✅ | 谁验证的 |
+| `signatures.pm` | boolean | ✅ | PM 签字 |
+| `signatures.qa` | boolean | ✅ | QA 签字 |
+| `signatures.pd` | boolean | — | PD 签字 |
+| `finalDecision` | string | ✅ | `approved` / `rejected` / `conditional` |
+| `risks` | array | — | 已知风险项 |
+| `blockersForNext` | string[] | — | 遗留问题 |
+
+**传递方式**：写入 `docs/v2.0/communication/sign-offs/{milestoneId}.md`，PM 确认后更新入开发计划。
+
+---
+
+### 4 种通信流程模式
+
+#### 模式 A：标准串行（无设计变更）
+
+最常见的流程，DE 实施后 QA 验证。
+
+```
+PM                     DE                    QA
+ │                     │                     │
+ │  任务分配单 ───────►│                     │
+ │ (P0-T1, type=code)  │                     │
+ │                     │  实施代码           │
+ │                     │  自检通过           │
+ │  ◄─── 实施报告 ─────│                     │
+ │   (status=done)     │                     │
+ │                     │                     │
+ │  任务分配单 ──────────────────────────────►│
+ │ (P0-T1-V, type=test)                     │
+ │                                          │  执行测试用例
+ │  ◄──── 测试报告 ──────────────────────────│
+ │     (status=passed)                      │
+ │                                          │
+ │  ✓ 更新 todo: T1 完成                    │
+ │  → 分配 T2                               │
+```
+
+**PM 收到实施报告后**：
+1. 检查 `buildResult.passed` — 构建必须通过
+2. 检查 `selfCheck` — 所有自检项必须 ✅
+3. 检查 `status` — 如果是 `blocked`，转模式 D（阻塞处理）
+4. 如果都通过，发出测试任务给 QA
+
+**PM 收到测试报告后**：
+1. 检查 `status` — `passed` 则标记任务完成
+2. 如果是 `failed`，提取 `defects`，转模式 C（缺陷修复）
+3. 更新 todo list，进入下一个任务
+
+---
+
+#### 模式 B：设计变更触发（DE 发现设计问题）
+
+当 DE 在实施过程中发现 PRD 未覆盖或设计不合理时触发。
+
+```
+PM                     DE                    PD
+ │                     │                     │
+ │  任务分配单 ───────►│                     │
+ │                     │                     │
+ │  ◄─── 实施报告 ─────│                     │
+ │ (status=found_issue,│                     │
+ │  discoveredIssues=  │                     │
+ │  [{severity:warning,│                     │
+ │    description:     │                     │
+ │    "数据模型缺少X"}]│                     │
+ │                     │                     │
+ │  评估问题严重度     │                     │
+ │                     │                     │
+ │  设计审查单 ──────────────────────────────►│
+ │   (type=review)     │                     │
+ │                                          │  审查设计
+ │  ◄──── 审查报告 ──────────────────────────│
+ │     (status=        │                     │
+ │      changes_request│                     │
+ │      ed,            │                     │
+ │      must:更新PRD)  │                     │
+ │                     │                     │
+ │  ✓ 更新 PRD         │                     │
+ │  任务分配单 ───────►│                     │
+ │  (追加: 按新设计改) │                     │
+ │                     │                     │
+```
+
+**PM 决策规则**：
+
+| DE 报告的 severity | PM 采取的行动 |
+|:------------------:|:-------------|
+| `info` | 记入备忘录，继续执行 |
+| `warning` | 判断是否影响里程碑质量：是→发 PD 审查；否→记入备忘录继续 |
+| `blocker` | 暂停当前批次，必须发出 PD 审查单 |
+
+**PD 审查后 PM 决策**：
+
+| PD 返回 status | PM 采取的行动 |
+|:--------------:|:-------------|
+| `approved` | 通知 DE 继续 |
+| `changes_requested (must)` | 阻塞当前任务，发出新任务分配单给 DE 修复 |
+| `changes_requested (should)` | 评估影响，可延期修复或立即修 |
+| `needs_discussion` | 升级给用户人工决策 |
+
+---
+
+#### 模式 C：缺陷修复（QA 发现 Bug）
+
+QA 测试发现缺陷后的修复流程。
+
+```
+PM                     DE                    QA
+ │                     │                     │
+ │  ◄──── 测试报告 ───│                     │
+ │   (status=failed,   │                     │
+ │    defects=[{       │                     │
+ │      id:D001,       │                     │
+ │      severity:major,│                     │
+ │      title:"X不Y",  │                     │
+ │      steps:"1.打开" │                     │
+ │    }])              │                     │
+ │                     │                     │
+ │  评估缺陷严重度     │                     │
+ │  ✓ 决定修复         │                     │
+ │                     │                     │
+ │  任务分配单 ───────►│                     │
+ │ (修复 D001)         │                     │
+ │                     │  实施修复           │
+ │  ◄─── 实施报告 ─────│                     │
+ │   (status=done,     │                     │
+ │    修复了 D001)     │                     │
+ │                     │                     │
+ │  任务分配单 ──────────────────────────────►│
+ │   (重测 P0-T1-V)    │                     │
+ │                     │                 重跑测试 + 回归
+ │  ◄──── 测试报告 ────│                     │
+ │   (D001 通过,       │                     │
+ │    回归无退化)      │                     │
+```
+
+**PM 决策规则**：
+
+| QA 报告的 severity | PM 采取的行动 |
+|:------------------:|:-------------|
+| `critical` | 停止当前所有任务，优先级最高修复 |
+| `major` | 暂停当前任务，发出修复单后再继续 |
+| `minor` | 记入缺陷清单，可延后到批次结束前统一修复 |
+
+**关键规则**：缺陷修复后必须由 **同一个子任务验证步骤** 重新执行，同时执行一次轻量回归（受影响模块的相邻测试用例）。
+
+---
+
+#### 模式 D：阻塞处理（DE 无法继续）
+
+DE 遇到无法独立解决的问题（如缺少依赖、构建工具链问题）。
+
+```
+PM                     DE                    User(你)
+ │                     │                     │
+ │  任务分配单 ───────►│                     │
+ │                     │                     │
+ │  ◄─── 实施报告 ─────│                     │
+ │   (status=blocked,  │                     │
+ │    blockingReason=  │                     │
+ │    "构建工具缺少X") │                     │
+ │                     │                     │
+ │  ✓ 评估阻塞性质     │                     │
+ │                     │                     │
+ │  ╔══════════════╗   │                     │
+ │  ║ 升级给用户    ╠────────────────────────►│
+ │  ║ 需要决策:     ║  │                     │
+ │  ║ [方案A] 安装X │  │                     │
+ │  ║ [方案B] 改用Y │  │                     │
+ │  ╚══════════════╝   │                     │
+ │                     │                     │
+ │  ◄─── 用户决策 ─────│─────────────────────│
+ │                     │                     │
+ │  ✓ 更新计划         │                     │
+ │  任务分配单 ───────►│                     │
+ │   (按决策继续)      │                     │
+```
+
+**PM 必须升级给用户的场景**：
+1. 构建工具链缺失（需要安装新软件）
+2. API 降级或废弃（需要更换方案）
+3. 项目架构设计存在根本性矛盾
+4. 时间估算偏差超过 50%（需要调整批次范围）
+
+---
+
+### 通信产物目录
+
+所有通信卡片统一存放在 `docs/v2.0/communication/` 目录下，按 Agent 分组。
+
+```
+docs/v2.0/communication/
+│
+├── task-cards/           ← PM → DE/QA/PD 的任务分配单
+│   ├── P0-T1-S1.md       （创建 core/ 目录骨架）
+│   ├── P0-T1-S2.md       （实现 migration.js）
+│   ├── P0-T1-S3.md       （实现 sites.js）
+│   ├── P0-T1-S4.md       （修改 background.js）
+│   ├── P0-T1-V.md        （测试 T1 验证步骤）
+│   ├── P0-T2-S1.md       （重构 onAlarm）
+│   └── ...
+│
+├── impl-reports/         ← DE → PM 的实施报告
+│   ├── P0-T1-S2.md
+│   ├── P0-T1-S3.md
+│   └── ...
+│
+├── test-reports/         ← QA → PM 的测试报告
+│   ├── P0-T1-V.md
+│   ├── P0-T2-V.md
+│   └── ...
+│
+├── design-reviews/       ← PD → PM 的设计审查
+│   ├── P0-T1.md
+│   └── ...
+│
+├── sign-offs/            ← PM 汇总的里程碑签字
+│   ├── M-P0.md
+│   ├── M-P1.md
+│   ├── M-P2.md
+│   └── M-P3.md
+│
+└── defects/              ← 缺陷跟踪
+    ├── active.md          （当前活跃缺陷列表）
+    └── resolved.md        （已修复缺陷列表）
+```
+
+**目录维护规则**：
+1. 每个任务完成后 PM 负责删除对应的 `task-cards/{taskId}.md`
+2. `impl-reports/` 和 `test-reports/` 保留作为审计追溯
+3. `defects/active.md` 在 QA 发现缺陷时追加，修复验证通过后移入 `resolved.md`
+4. 里程碑签字完成后，对应 `sign-offs/{milestoneId}.md` 锁定为只读
+
+---
+
+### 通信约束与纪律
+
+| # | 规则 | 违反后果 |
+|:-:|:-----|:---------|
+| 1 | **QA 不得读取 DE 的实施报告** | 质量独立性丧失，测试结果视为无效 |
+| 2 | **DE 不得直接向 QA 传话** | 视为代测舞弊，批次重新测试 |
+| 3 | **所有通信必须有书面记录** | 口头约定不视为有效沟通 |
+| 4 | **每个子任务只能有一个 assignee** | 职责不清时 PM 负责裁决 |
+| 5 | **DE 必须先自检再提交** | 自检失败的任务 PM 直接退回 |
+| 6 | **缺陷修复后必须重测** | 修复未验证的视为未完成 |
+| 7 | **PM 收到 blocked 必须 30 秒内升级** | 阻塞不升级视为 PM 失职 |
+| 8 | **PD 审查请求须在收到后 1 次交互内完成** | 设计审查不拖延开发节奏 |
 
 ---
 
 ## 目录
 
+- [Agent 架构总览](#agent-架构总览)
+- [Agent 通信协议](#agent-通信协议)
 - [P0：基础设施（3.5h）](#p0基础设施35h)
 - [P1：UI 重构（4.5h）](#p1ui-重构45h)
 - [P2：架构优化（2h）](#p2架构优化2h)
@@ -534,7 +1123,10 @@ import './core/sites.js';
 
 **回滚条件**：M0-4 迁移失败 → 删除 `v2_sites`/`v2_global`，保留旧键，扩展回退 v1.x 行为。
 
-**签字确认**：□ 功能测试通过 □ 数据迁移正确 □ 可进入 P1
+**签字确认**（PM 发起 → QA 签质量 → PD 签设计 → PM 终签）：
+- [ ] QA：功能测试通过（T1-V ~ T4-V 全部通过）
+- [ ] PD：数据模型设计审查通过
+- [ ] PM：可进入 P1
 
 ---
 
@@ -778,7 +1370,10 @@ function setDomainDependentState(hasDomain, tabInfo) {
 | M1-3 | 锁定规则 | 三态判定（无站点/有站点/正常页）| LCK-1 ~ LCK-8 |
 | M1-4 | `src/popup/site-selector.js` + 各 Tab 组件文件 | 模块化 UI 文件 | 文件存在，import 正确 |
 
-**签字确认**：□ UI 布局正确 □ 锁定规则完整 □ 可进入 P2
+**签字确认**（PM 发起 → QA 签质量 → PD 签设计 → PM 终签）：
+- [ ] QA：UI 测试通过（SEL/SES/SYN/GLB 全部通过）
+- [ ] PD：UI 布局和锁定规则审查通过
+- [ ] PM：可进入 P2
 
 ---
 
@@ -903,7 +1498,9 @@ export function renderSessionTab(container, site) {
 | M2-2 | 各模块 handler 注册 | 每个 `core/*.js` 末尾自注册 handler |
 | M2-3 | 渲染函数组件 | `renderSiteSelector()`、`renderHeartbeatList()` 等独立函数 |
 
-**签字确认**：□ 行为一致 □ 可进入 P3
+**签字确认**（PM 发起 → QA 签质量 → PM 终签）：
+- [ ] QA：消息路由行为一致，渲染函数可独立调用（T8-V ~ T9-V）
+- [ ] PM：□ 已完成（进入 P3） □ 延后至 v2.1
 
 ---
 
@@ -990,13 +1587,11 @@ git push origin master --tags
 | M3-7 | **模块化代码** | `src/core/` 7 模块 + `src/popup/` Tab 组件 |
 | M3-8 | **回滚方案** | 旧键保留，删除 `v2_` 键即可降级 |
 
-**最终签字确认**：
+**最终签字确认**（PM 发起 → QA 签质量 → PD 签文档 → PM 终签）：
 
-□ P0 基础设施完成且可回滚
-□ P1 UI 重构完成，站点选择器+三 Tab 正常工作
-□ P2 架构优化 □ 已完成 □ 延后至 v2.1
-□ P3 发布完成，v2.0.0 可下载
-□ 项目文档全部同步至 GitHub
+- [ ] QA：全部用例执行通过，P0~P3 测试覆盖 100%
+- [ ] PD：帮助文档 + README + PRD 同步审查通过
+- [ ] PM：v2.0.0 Release 已发布为 Latest
 
 ---
 
