@@ -38,7 +38,7 @@
 | 总负责 | **Hermes 主代理** | `ME` | 方向设定、里程碑审查、PM 管理、用户决策升级 | 方法论、决策记录、里程碑终签 | development-plan（审查）、communication/coordination（决策） | ✅ 终签 |
 | 执行层 | **项目管理** | `PM` | 任务调度、进度跟踪、日常决策、风险上报 | task-cards（分配单）、sign-offs（里程碑）、coordination（协调） | development-plan.md（调度依据）、feasibility-report.md（约束参考）、src/（项目代码） | ✅ 批次内 |
 | 执行层 | **产品设计** | `PD` | PRD 维护、UI/UX 决策、方案评审、帮助文档 | design-reviews（审查报告）、PRD.md 更新 | PRD.md（设计依据）、test-plan.md（测试覆盖参考）、development-plan.md（任务上下文）| — |
-| 执行层 | **功能开发** | `DE` | 代码实现、模块拆分、bug 修复 | impl-reports（实施报告）、src/*（代码变更） | PRD.md（需求）、development-plan.md（任务细节+验证标准）、feasibility-report.md（技术约束）| — |
+| 执行层 | **功能开发** | `DE` | 代码实现、模块拆分、bug 修复 | impl-reports（实施报告）、src/*（代码变更） | PRD.md（需求）、development-plan.md（任务细节+验证标准）、feasibility-report.md（技术约束）、**test-plan.md（测试用例——知道怎么验证）、test-reports/（测试结果——了解缺陷和失败原因）**| — |
 | 执行层 | **功能测试** | `QA` | 测试执行、回归测试、缺陷报告 | test-reports（测试报告）、defects（缺陷记录） | test-plan.md（用例）、PRD.md（预期行为）、development-plan.md（T?-V 验证步骤）、src/（实测代码）| ✅ 质量门禁 |
 
 > **输入文档**是指该 Agent 在执行任务前必须读取/参考的文档，在每次 delegate_task 的 context 参数中携带。

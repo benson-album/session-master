@@ -75,6 +75,8 @@
 | 📖 输入 | `PRD.md` | **需求来源**：知道要做什么、做到什么程度 | 读 |
 | 📖 输入 | `development-plan.md` | **任务细节 + 验收标准**：知道当前任务的具体操作步骤、改哪些文件、改完后怎么验证 | 读 |
 | 📖 输入 | `feasibility-report.md` | **技术约束**：知道哪些技术方案已被评估为不可行，避免重复踩坑 | 读 |
+| 📖 输入 | `test-plan.md` | **测试用例**：了解代码需要通过哪些测试场景，写代码时心中有数 | 读 |
+| 📖 输入 | `test-reports/` | **测试结果**：了解 QA 测试中发现的失败和缺陷，用于修复 | 读 |
 | 📝 产出 | `communication/impl-reports/` | 实施报告：记录改了哪些文件、构建是否通过、自检清单、发现的问题 | 写 |
 | 📝 产出 | `src/`（代码变更） | 实际的代码修改：新建文件、修改文件、删除文件 | 写 |
 
@@ -117,10 +119,10 @@
                ├─────────────────────────┤
                │ task-cards/   PM 写     │
                │ impl-reports/ DE 写     │
-               │ test-reports/ QA 写     │
+               │ test-reports/ QA 写 → DE 读 │
                │ design-reviews/ PD 写   │
                │ sign-offs/    PM 写     │
-               │ defects/      QA 写     │
+               │ defects/      QA 写 → DE 读 │
                │ coordination/ PM 写     │
                └─────────────────────────┘
 ```

@@ -184,6 +184,8 @@
 | `PRD.md` | 需求来源 |
 | `development-plan.md` | 任务细节 + 验收标准 |
 | `feasibility-report.md` | 技术约束 |
+| `test-plan.md` | 测试用例（知道代码要通过哪些验证）|
+| `test-reports/` | 测试结果（了解失败原因和缺陷）|
 
 ### 产出文档
 
