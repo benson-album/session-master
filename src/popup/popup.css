@@ -369,6 +369,90 @@ textarea {
   50% { transform: scale(1.12); }
 }
 
+/* 版本更新横幅 */
+.update-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+  background: linear-gradient(135deg, #fff3e0 0%, #ffe0b2 100%);
+  border: 1px solid #ffcc80;
+  border-radius: 8px;
+  box-shadow: 0 2px 6px rgba(230, 81, 0, 0.1);
+  animation: bannerSlideIn 0.3s ease-out;
+}
+@keyframes bannerSlideIn {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.update-banner-icon {
+  font-size: 24px;
+  line-height: 1;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+.update-banner-body {
+  flex: 1;
+  min-width: 0;
+}
+.update-banner-text {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: #bf360c;
+  margin-bottom: 6px;
+  line-height: 1.4;
+}
+.update-banner-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.update-banner-btn {
+  font-size: 11px;
+  padding: 4px 10px;
+  border-radius: 4px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  font-weight: 500;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.update-banner-btn-primary {
+  background: #e65100;
+  color: #fff;
+  border-color: #e65100;
+}
+.update-banner-btn-primary:hover {
+  background: #bf360c;
+}
+.update-banner-btn-secondary {
+  background: #fff;
+  color: #e65100;
+  border-color: #ffcc80;
+}
+.update-banner-btn-secondary:hover {
+  background: #fff8e1;
+}
+.update-banner-close {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  font-size: 14px;
+  color: #bdb76b;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 4px;
+  line-height: 1;
+  opacity: 0.6;
+  transition: opacity 0.15s;
+}
+.update-banner-close:hover {
+  opacity: 1;
+  background: rgba(0,0,0,0.06);
+}
+
 /* Toast 提示 */
 .toast {
   position: fixed;

@@ -1769,16 +1769,21 @@
   }
 
   function showUpdateAvailable(latest, current) {
+    var banner = document.getElementById('updateBanner');
+    var textEl = document.getElementById('updateBannerText');
     var badge = document.getElementById('updateBadge');
-    if (!badge) return;
-    badge.textContent = '⬆ ' + latest;
-    badge.className = 'update-badge has-update';
-    badge.style.display = 'inline-flex';
-    badge.title = '新版本 v' + latest + ' 可用（当前 v' + current + '），点击查看下载';
-    badge.onclick = function() {
-      var helpUrl = chrome.runtime.getURL('help/help.html?update=v' + latest);
-      chrome.tabs.create({ url: helpUrl });
-    };
+    if (!banner || !textEl) return;
+    textEl.textContent = '🆕 v' + latest + ' 可用（当前 v' + current + '）';
+    banner.style.display = 'flex';
+    // 绑定横幅按钮事件（只绑一次）
+    bindUpdateBannerEvents(latest);
+    // 小角标也显示（冗余但不冲突）
+    if (badge) {
+      badge.textContent = '⬆ ' + latest;
+      badge.className = 'update-badge has-update';
+      badge.style.display = 'inline-flex';
+      badge.title = '新版本 v' + latest + ' 可用';
+    }
   }
 
   function showUpToDate() {
@@ -1794,6 +1799,33 @@
       badge.style.opacity = '0';
       setTimeout(function() { badge.style.display = 'none'; }, 600);
     }, 2000);
+  }
+
+  // 版本更新横幅事件绑定
+  function bindUpdateBannerEvents(latest) {
+    var downloadBtn = document.getElementById('updateBannerDownload');
+    var changelogBtn = document.getElementById('updateBannerChangelog');
+    var dismissBtn = document.getElementById('updateBannerDismiss');
+    var banner = document.getElementById('updateBanner');
+    if (!banner) return;
+    // 下载更新 → 跳转 GitHub Releases 最新版
+    if (downloadBtn) {
+      downloadBtn.addEventListener('click', function() {
+        chrome.tabs.create({ url: 'https://github.com/benson-album/session-master/releases/latest' });
+      });
+    }
+    // 查看更新日志 → 帮助页 changelog
+    if (changelogBtn) {
+      changelogBtn.addEventListener('click', function() {
+        chrome.tabs.create({ url: chrome.runtime.getURL('help/help.html#changelog') });
+      });
+    }
+    // 关闭横幅（本 popup 生命周期内不再显示）
+    if (dismissBtn) {
+      dismissBtn.addEventListener('click', function() {
+        banner.style.display = 'none';
+      });
+    }
   }
 
   // 锁定/解锁站点相关操作（含 P2P、服务器同步、网络地址保持可用）
