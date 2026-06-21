@@ -1956,6 +1956,19 @@
       displayEl.className = 'domain-display domain-display-ellipsis';
       displayEl.style.color = '#1a73e8';
     }
+
+    // ===== 版本号：动态显示 + 点击跳转到更新日志 =====
+    var verEl = document.getElementById('popupVersion');
+    if (verEl) {
+      var ver = 'v' + chrome.runtime.getManifest().version;
+      verEl.textContent = ver;
+      verEl.title = '点击查看更新日志';
+      verEl.style.cursor = 'pointer';
+      verEl.addEventListener('click', function() {
+        chrome.tabs.create({ url: chrome.runtime.getURL('help/help.html#changelog') });
+      });
+    }
+
     setDomainDependentState(!!currentDomain, tabInfo);
     
     // 自动检测本地服务器（先于配置加载）
