@@ -40,9 +40,10 @@
 
   function getSiteName(title, domain) {
     if (!title) return domain;
-    // 策略：用分隔符（· | – — -）拆分标题，取最后一段
+    // 策略：用分隔符（· | – —）拆分标题，取最后一段
     // 因为大多网站标题格式是 "页面名 · 站点名" 或 "页面名 | 站点名"
-    var segments = title.split(/[·|–—-]/).map(function(s) { return s.trim(); }).filter(function(s) { return s.length > 0; });
+    // 注意：不包含普通连字符 -，它在域名/项目名中太常见（如 session-master）
+    var segments = title.split(/[·|–—]/).map(function(s) { return s.trim(); }).filter(function(s) { return s.length > 0; });
     if (segments.length > 1) {
       // 取最后一段作为站点名
       var name = segments[segments.length - 1];
