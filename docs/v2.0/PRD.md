@@ -1,513 +1,472 @@
-# SessionMaster v2.0 — 架构重构 PRD
+# SessionMaster v2.0 — 全面架构重构 PRD
 
-> **版本**：v2.0-rc1
-> **作者**：产品
+> **版本**：v2.0-draft
 > **状态**：需求确认中
-> **发布日期**：待定（继承 v1.5.14）
+> **范围**：全量重构（业务模型 / UI 布局 / 数据模型 / 锁定规则）
 
 ---
 
-## 目录
+## 1. 核心设计理念
 
-1. [产品概述](#1-产品概述)
-2. [问题陈述](#2-问题陈述)
-3. [三层架构模型](#3-三层架构模型)
-4. [功能需求详述](#4-功能需求详述)
-5. [锁定规则详细定义](#5-锁定规则详细定义)
-6. [可行性分析](#6-可行性分析)
-7. [边界条件与异常处理](#7-边界条件与异常处理)
-8. [UI 与交互规范](#8-ui-与交互规范)
-9. [数据存储模型](#9-数据存储模型)
-10. [迁移路径与兼容性](#10-迁移路径与兼容性)
-11. [非功能性需求](#11-非功能性需求)
-12. [附录：元素锁定矩阵全表](#12-附录元素锁定矩阵全表)
+### 1.1 以站点为中心
+
+v1.x 是按**功能组织**的架构：
+
+```
+🍪 Cookie  |  💓 保活  |  🔗 同步  |  🛡️ 拦截
+  独立Tab      独立Tab       独立Tab      独立Tab
+```
+
+v2.0 改为按**站点组织**的架构：
+
+```
+🌐 业务架构抽象
+│
+├── 会话管理 (每个站点独立)
+│   ├── 站点1 → { 🍪 Cookie · 💓 保活 · 🛡️ 拦截 }
+│   ├── 站点2 → { 🍪 Cookie · 💓 保活 · 🛡️ 拦截 }
+│   └── 站点n → ...
+│
+└── 同步管理 (每个站点独立)
+    ├── 站点1 → { 📡 主从设备 → [🔗 P2P | ☁️ 服务器] }
+    ├── 站点2 → { 📡 主从设备 → [🔗 P2P | ☁️ 服务器] }
+    └── 站点n → ...
+```
+
+**核心理念转换**：
+
+| 旧理念 | 新理念 |
+|--------|--------|
+| 用户来操作"功能" | 用户来操作"站点" |
+| 同步是全局开关 | 同步是每个站点独立配置 |
+| 主从设备和传输方式分立 | 先定角色→再选传输方式(P2P/服务器) |
+| 全局配置散落在功能卡片中 | 全局配置统一入口 |
+| 拦截是独立模块 | 拦截是站点会话管理一部分 |
+
+### 1.2 三个概念层次
+
+```
+第一层：全局设备          ⚙️ 全局设置 Tab（一次配置，所有站点共享）
+  ├── 信令服务器地址
+  ├── 服务器地址
+  ├── 设备名称
+  ├── 同步间隔
+  ├── 设备身份
+  └── 导出日志
+
+第二层：站点配置          🌐 会话管理 + 🔄 同步管理（每个站点独立存储）
+  ├── 会话管理
+  │   ├── Cookie 导出/导入/清除
+  │   ├── 会话保活
+  │   └── 踢人拦截（当前站点推荐规则）
+  └── 同步管理
+      ├── 主从设备模式（主/从）
+      ├── 传输方式选择（P2P / 服务器）
+      └── 配对/同步控制
+
+第三层：运行时操作        操作时根据上下文动态判定
+  ├── 空白页锁定规则
+  └── 填写当前 URL 等
+```
 
 ---
 
-## 1. 产品概述
+## 2. Tab 结构定义
 
-### 1.1 产品定位
+### 2.1 三 Tab 布局
 
-SessionMaster（会话大师）是一款突破网站单设备登录限制的浏览器扩展，支持跨浏览器 Cookie 同步（P2P/服务器模式）+ 踢人拦截 + 会话保活。
+```
+┌─────────────────────────────────────────────────────┐
+│ 🔐 SessionMaster 会话大师                   v2.0.0 │
+│─────────────────────────────────────────────────────│
+│  📍 当前站点：oa.company.com  [▼ 下拉切换]         │
+│─────────────────────────────────────────────────────│
+│ [🌐 会话管理]  [🔄 同步管理]  [⚙️ 全局设置]       │
+│─────────────────────────────────────────────────────│
+│                                                     │
+│  (当前 Tab 内容)                                    │
+│                                                     │
+├─────────────────────────────────────────────────────┤
+│ 📖 使用说明  📋 导出日志               本插件仅供.. │
+└─────────────────────────────────────────────────────┘
+```
 
-### 1.2 v2.0 目标
+### 2.2 Tab 1：🌐 会话管理
 
-在**不改变任何功能逻辑**的前提下，重新定义 UI 锁定规则，建立清晰的三层数据抽象模型，提升空白页下的用户体验。
+**站点选择器**：
+- 位于 Tab 顶部或站点信息区域
+- 下拉列表展示所有已配置站点（含域名字段显示）
+- 底部选项「添加新站点」
+- 首次打开时自动识别当前浏览器 URL 的域名
 
-### 1.3 范围
+**功能分区**（按当前选中站点）：
 
-| 包含 | 不包含 |
-|------|--------|
-| ✅ 锁定规则重新分层 | ❌ 新增同步功能（如 WebSocket） |
-| ✅ 空白页用户体验优化 | ❌ UI 布局重组（如 Tab 顺序调整） |
-| ✅ 少数元素补全验证 | ❌ 后台数据模型重构 |
-| ✅ 存储键分层梳理 | ❌ 服务器端变更 |
+```
+🌐 会话管理 — [oa.company.com ▼]
+─────────────────────────────────
+🍪 Cookie 管理
+  [📤 导出] [📥 导入] [🗑️ 清除]
+  结果面板 ── 复制 / 下载文件
+  导入面板 ── 粘贴 / 从文件导入
+
+💓 会话保活
+  [保活 URL 输入框] [📌] [间隔选择器]
+  [💓 添加保活]
+  保活列表（启用/暂停/删除/🍪查看Cookie）
+
+🛡️ 踢人拦截
+  [主开关 ON/OFF]
+  已激活规则（当前站点）
+  规则库（站点列表+开关）
+  自定义规则（输入/添加/删除）
+  规则库管理（导出/导入/远程更新）
+```
+
+### 2.3 Tab 2：🔄 同步管理
+
+```
+🔄 同步管理 — [oa.company.com ▼]
+─────────────────────────────────
+📡 主从设备模式
+  [主从开关 ON/OFF]
+  当前身份：[主设备 / 从设备]
+  状态提示：从设备时自动暂停保活
+
+🔗 P2P 直连
+  配对状态：未连接 / 已连接至 xxx
+  创建配对 / 加入配对 / 断开
+  自动同步 [ON/OFF]
+  [🔄 立即同步]
+
+☁️ 服务器模式
+  服务器状态：未注册 / 已注册
+  配对码：[生成 / 输入]
+  自动同步 [ON/OFF]
+  [🔄 立即同步]
+
+─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─
+
+📋 同步记录（最近 50 条）
+  ─ 09:32 P2P 同步了 5 个 Cookie
+  ─ 09:27 服务器同步完成，无更新
+  ─ ...
+
+🌐 本机网络地址
+  [🔄 获取本机网络地址]
+  网络地址列表
+```
+
+### 2.4 Tab 3：⚙️ 全局设置
+
+```
+⚙️ 全局设置
+─────────────────────────────────
+🔗 同步服务器
+  信令服务器地址：[http://______:5789]
+  服务器地址：    [http://______:5789]
+  设备名称(P2P)： [办公室电脑]
+  设备名称(服务器): [办公室电脑]
+  同步间隔：      [每 5 分钟 ▼]
+
+🖥️ 设备身份
+  设备 ID: dev-xxxx-xxxx
+  创建时间：2026-06-20
+  [🖥️ 查看完整设备详情]
+
+📋 可用工具
+  [📖 使用说明] [📋 导出日志]
+  版本更新检查
+```
 
 ---
 
-## 2. 问题陈述
+## 3. 站点数据模型
 
-### 2.1 当前锁定规则
+### 3.1 存储结构
 
-v1.x 的 `setDomainDependentState()` 混用两级判定：
+```json
+{
+  "sites": [
+    {
+      "domain": "oa.company.com",
+      "createdAt": "2026-06-21T00:00:00Z",
 
-```
-isBlank → 全锁（不管功能是否依赖域名）
-有域名 → 全解锁
-```
+      "heartbeats": [
+        {
+          "id": "hb_xxx",
+          "url": "/main.do?method=keepAlive",
+          "intervalMinutes": 10,
+          "enabled": true,
+          "createdAt": "...",
+          "lastHeartbeatTime": "...",
+          "lastStatus": "ok"
+        }
+      ],
 
-**问题**：第一层（全局配置）和第二层（同步连接）的功能并不依赖当前页面的域名，强行锁定导致：
+      "sync": {
+        "masterMode": true,
+        "isMaster": true,
+        "p2p": {
+          "enabled": false,
+          "roomId": null,
+          "connected": false,
+          "connectedPeerName": null
+        },
+        "server": {
+          "enabled": true,
+          "deviceId": "dev_xxx",
+          "pairKey": "X3K8PQ"
+        }
+      }
+    }
+  ],
 
-- 用户不能在空白页输入服务器地址
-- 用户不能在空白页输入设备名称
-- 用户不能在空白页生成配对码
-- 用户不能在空白页创建/加入 P2P 配对
-- 用户必须在导航到目标网站后才能做所有事情
+  "global": {
+    "signalUrl": "http://192.168.3.8:5789",
+    "serverUrl": "http://192.168.3.8:5789",
+    "p2pDeviceName": "办公室电脑",
+    "serverDeviceName": "办公室电脑",
+    "syncInterval": 5,
+    "deviceIdentity": {
+      "id": "dev-xxx",
+      "createdAt": "2026-06-20T..."
+    }
+  },
 
-### 2.2 用户反馈
+  "blockerConfig": {
+    "masterEnabled": true,
+    "siteEnabled": {},
+    "keywordOverrides": {}
+  },
 
-> 用户说"当前逻辑有些混乱"——用户在空白页下能更改主从模式（与域名无关），但不能改服务器地址（同样与域名无关）。
-
----
-
-## 3. 三层架构模型
-
-### 3.1 层级总览
-
-```
-层         依赖             空白页状态      典型功能
-─────────────────────────────────────────────────────────
-第一层     无                ✅ 解锁         服务器地址、设备名称、主从模式、拦截模块
-第二层     同步域名配置       ✅ 解锁         P2P 配对、同步开关、立即同步、配对码
-第三层     currentDomain     🔒 锁定         Cookie CRUD、保活、填入当前域名
-```
-
-### 3.2 第一层：全局设备配置
-
-**定义**：一次配置，所有站点通用的设备级设置。
-
-| ID | 功能 | 元素 | 当前状态 | v2.0 |
-|----|------|------|:--------:|:----:|
-| F1.1 | 信令服务器地址 | `p2pSignalUrl` | 🔒 | 🟢 |
-| F1.2 | 服务器地址 | `syncServerUrl` | 🔒 | 🟢 |
-| F1.3 | 配对码 | `syncPairKey` | 🔒 | 🟢 |
-| F1.4 | 设备名称(P2P) | `p2pDeviceName` | 🔒 | 🟢 |
-| F1.5 | 设备名称(服务器) | `syncDeviceName` | 🔒 | 🟢 |
-| F1.6 | 生成配对码 | `btnGenerateKey` | 🔒 | 🟢 |
-| F1.7 | 同步间隔 | `syncInterval` | 🔒 | 🟢 |
-| F1.8 | 保存配置(P2P) | `btnP2pSaveConfig` | 🔒 | 🟢 |
-| F1.9 | 保存配置(服务器) | `btnSaveSync` | 🔒 | 🟢 |
-| F1.10 | 主从模式开关(服务器) | `masterModeToggle` | 🟢 | 🟢 维持 |
-| F1.11 | 主/从身份(服务器) | `isMasterToggle` | 🟢 | 🟢 维持 |
-| F1.12 | 主从模式开关(P2P) | `p2pMasterModeToggle` | 🟢 | 🟢 维持 |
-| F1.13 | 主/从身份(P2P) | `p2pIsMasterToggle` | 🟢 | 🟢 维持 |
-| F1.14 | 拦截主开关 | `blockerMasterToggle` | 🟢 | 🟢 维持 |
-| F1.15 | 自定义规则输入 | `customRuleInput` | 🟢 | 🟢 维持 |
-| F1.16 | 添加自定义规则 | `btnAddRule` | 🟢 | 🟢 维持 |
-| F1.17 | 规则库导出 | `btnExportRules` | 🟢 | 🟢 维持 |
-| F1.18 | 规则库导入 | `btnImportRules` | 🟢 | 🟢 维持 |
-| F1.19 | 规则库远程更新 | `btnUpdateRules` | 🟢 | 🟢 维持 |
-
-### 3.3 第二层：同步连接
-
-**定义**：建立设备间通信通道，可指定同步哪个域名。**不依赖当前页面 URL**。
-
-| ID | 功能 | 元素 | 当前状态 | v2.0 |
-|----|------|------|:--------:|:----:|
-| F2.1 | 创建 P2P 配对 | `btnP2PCreate` | 🔒 | 🟢 |
-| F2.2 | 加入 P2P 配对 | `btnP2PJoin` | 🔒 | 🟢 |
-| F2.3 | 确认加入配对 | `btnP2PDoJoin` | 🔒 | 🟢 |
-| F2.4 | 断开 P2P 连接 | `btnP2PDisconnect` | 🔒 | 🟢 |
-| F2.5 | 取消 P2P 配对 | `btnP2PCancel` | 🔒 | 🟢 |
-| F2.6 | 配对码输入 | `p2pRoomCode` | 🔒 | 🟢 |
-| F2.7 | P2P 同步开关 | `p2pSyncToggle` | 🔒 | 🟢 |
-| F2.8 | P2P 同步域名输入 | `p2pSyncDomain` | 🔒 | 🟢 |
-| F2.9 | P2P 立即同步 | `btnP2PSyncNow` | 🔒 | 🟢 |
-| F2.10 | 服务器同步开关 | `syncToggle` | 🔒 | 🟢 |
-| F2.11 | 服务器同步域名输入 | `syncDomain` | 🔒 | 🟢 |
-| F2.12 | 服务器立即同步 | `btnSyncNow` | 🔒 | 🟢 |
-
-### 3.4 第三层：站点操作
-
-**定义**：所有需要知道「当前在哪个站点」才能操作的功能。
-
-| ID | 功能 | 元素 | 当前状态 | v2.0 |
-|----|------|------|:--------:|:----:|
-| F3.1 | 导出当前站点 Cookie | `btnExport` | 🔒 | 🔒 维持 |
-| F3.2 | 导入 Cookie | `btnImport` | 🔒 | 🔒 维持 |
-| F3.3 | 清除当前站点 Cookie | `btnClear` | 🔒 | 🔒 维持 |
-| F3.4 | 保活 URL 输入框 | `heartbeatUrl` | 🔒 | 🔒 维持 |
-| F3.5 | 填入当前 URL | `btnFillUrl` | 🔒 | 🔒 维持 |
-| F3.6 | 添加保活 | `btnAddHeartbeat` | 🔒 | 🔒 维持 |
-| F3.7 | 保活间隔选择器 | `heartbeatInterval` | 🔒 | 🔒 维持 |
-| F3.8 | 获取当前站点 Cookie 列表 | `btnLoadCookies` | 🔒 | 🔒 维持 |
-| F3.9 | 填入当前域名(P2P) | `btnP2pFillDomain` | 🔒 | 🔒 维持 |
-| F3.10 | 填入当前域名(服务器) | `btnFillSyncDomain` | 🔒 | 🔒 维持 |
-
-> **关于 F3.7 `heartbeatInterval` 的说明**：虽然间隔选择器本身不依赖域名（属于全局偏好），但它与 F3.4/F3.5/F3.6 在 UI 上排列在同一行。为了锁定状态的一致性，维持锁定。用户不会在空白页设置保活间隔——因为没有保活需要配置。
-
----
-
-## 4. 功能需求详述
-
-### 4.1 F1.8 btnP2pSaveConfig 验证补全（新增需求）
-
-当前代码只验证了 `signalUrl`（空）：
-
-```javascript
-const signalUrl = document.getElementById('p2pSignalUrl').value.trim();
-if (!signalUrl) return showToast('⚠️ 请输入信令服务器地址');
-```
-
-**需求**：增加对 `p2pDeviceName` 的空值校验：
-
-```javascript
-const p2pDeviceName = document.getElementById('p2pDeviceName').value.trim();
-if (!p2pDeviceName) return showToast('⚠️ 请输入设备名称');
-```
-
-**背景**：在 v1.x 中 `p2pDeviceName` 输入框被锁定，用户无法修改，所以 save 时不需要校验。v2.0 解锁后，用户可能保留空值保存，导致后台 `Object.assign` 用空字符串覆盖已有配置。
-
-### 4.2 空白页横幅优化（新增需求）
-
-**现状**：当前横幅只显示一行「请导航到目标网站」。
-
-**v2.0 目标**：分两段展示，让用户知道空白页下也能做不少事。
-
-**文案**：
-
-```
-📄 当前为空白/新标签页
-
-🟢 你可以在此页面配置：
-   服务器地址、设备名称、配对码、主从模式
-   P2P 配对连接、同步开关、拦截规则
-
-➡️ 导航到目标网站后可进行：
-   Cookie 导出/导入/清除、添加保活
-```
-
-**实现方式**：纯文案修改，无需 JS 逻辑变更。
-
----
-
-## 5. 锁定规则详细定义
-
-### 5.1 代码逻辑
-
-```javascript
-function setDomainDependentState(hasDomain, tabInfo) {
-    var isBlank = isBlankTab(tabInfo);
-    // ... 横幅显示逻辑同现有 ...
-    
-    // 第一层 + 第二层：无论空白还是正常页面，全部解锁
-    // 这两层的功能不依赖 currentDomain
-    
-    // 第三层：只有有域名时才解锁
-    var locked = !hasDomain;
-    
-    // 锁定第三层元素
-    var lockedEls = [
-        'btnExport', 'btnImport', 'btnClear',       // Cookie
-        'btnAddHeartbeat',                           // 保活
-        'btnLoadCookies',                            // Cookie 列表
-        'btnP2pFillDomain', 'btnFillSyncDomain',     // 填入域名
-    ];
-    
-    var inputIds = [
-        'heartbeatUrl',                              // 保活 URL
-    ];
-    
-    // 额外
-    ['btnFillUrl', 'heartbeatInterval'].forEach(...);
-    
-    // 所有第一层 + 第二层元素不再在 lockedEls/inputIds 中
+  "blockingRulesDB": {
+    "version": 1,
+    "sites": [],
+    "generic": []
+  }
 }
 ```
 
-### 5.2 正反例对照
+### 3.2 与 v1.x 的对应关系
 
-| 场景 | 用户行为 | v1.x | v2.0 |
-|------|---------|:----:|:----:|
-| 空白页 | 输入信令服务器地址 | 🔒 不可 | 🟢 可 |
-| 空白页 | 生成配对码 | 🔒 不可 | 🟢 可 |
-| 空白页 | 创建 P2P 配对 | 🔒 不可 | 🟢 可（会报错） |
-| 空白页 | 开启服务器同步 | 🔒 不可 | 🟢 可（域名空不运行） |
-| 空白页 | 导出 Cookie | 🔒 不可 | 🔒 不可 |
-| 空白页 | 添加保活 | 🔒 不可 | 🔒 不可 |
-| OA 页面 | 导出 Cookie | 🟢 可 | 🟢 可 |
-| OA 页面 | 创建 P2P | 🟢 可 | 🟢 可（不变） |
+| v1.x | v2.0 | 说明 |
+|------|------|------|
+| `sync_config.signalUrl` | `global.signalUrl` | 全局第一层 |
+| `sync_config.p2pDeviceName` | `global.p2pDeviceName` | 全局第一层 |
+| `sync_config.p2pRoomId, enabled, p2pConnected` | `sites[].sync.p2p.*` | 按站点存储 |
+| `server_sync_config.serverUrl` | `global.serverUrl` | 全局第一层 |
+| `server_sync_config.deviceName` | `global.serverDeviceName` | 全局第一层 |
+| `server_sync_config.enabled, deviceId, pairKey` | `sites[].sync.server.*` | 按站点存储 |
+| `heartbeat_configs[]` | `sites[].heartbeats[]` | 按站点归并 |
+| `blocker_config` | `blockerConfig` | 不变 |
+| `blocking_rules_db` | `blockingRulesDB` | 不变 |
+| `device_identity` | `global.deviceIdentity` | 不变 |
 
-> **关于「创建 P2P 配对会报错」**：在空白页下，如果用户没配信令地址，点击创建会走 `p2pCreateRoom` → `fetch(`${signalUrl}/api/signal/room`)` → `signalUrl` 为空/占位符 → fetch 向 `http://你的服务器:5789/api/signal/room` 请求 → 连接拒绝 → try/catch → 前台 toast `⚠️ 创建配对失败`。这是正常错误提示，不会崩溃。
+### 3.3 迁移方案
 
----
+v2.0 首次启动时自动执行：
 
-## 6. 可行性分析
-
-### 6.1 分析范围
-
-对每一层中**从锁定变为解锁**的元素，逐条验证：
-
-1. 操作是否依赖 `currentDomain`
-2. 操作失败是否有错误处理
-3. 空值/默认值输入是否会导致数据损坏
-4. 是否存在竞态条件
-
-### 6.2 第一层解锁元素验证
-
-| 元素 | 可行性验证 | 结论 |
-|------|-----------|:----:|
-| `p2pSignalUrl` | 纯输入框，无 side effect；后台 `saveSyncConfig` 用 `Object.assign` 合并 | ✅ |
-| `syncServerUrl` | 纯输入框，后台同样合并存储 | ✅ |
-| `syncPairKey` | 纯输入框（初始 `readonly`，生成后可编辑） | ✅ |
-| `p2pDeviceName` | 纯输入框 | ✅ |
-| `syncDeviceName` | 纯输入框 | ✅ |
-| `btnGenerateKey` | 仅修改 `syncPairKey` 输入框的 value，无后台调用 | ✅ |
-| `syncInterval` | 纯 `select`，无 side effect | ✅ |
-| `btnP2pSaveConfig` | ⚠️ **缺少 deviceName 验证**（需补） | ⚠️ 见 6.4 |
-| `btnSaveSync` | 已有完整 4 字段验证（serverUrl/pairKey/deviceName/syncedDomains）| ✅ |
-
-### 6.3 第二层解锁元素验证
-
-| 元素 | 可行性验证 | 结论 |
-|------|-----------|:----:|
-| `btnP2PCreate` | 需 `deviceName` + `signalUrl` → popup.js 已有校验 → background 有 try/catch | ✅ |
-| `btnP2PJoin` | 展开 `p2pJoinInput` block，不执行后台调用 | ✅ |
-| `btnP2PDoJoin` | 需 `roomId` + `deviceName` + `signalUrl` → popup.js 已有校验 | ✅ |
-| `btnP2PDisconnect` | 断开 WebRTC 连接，清除轮询，不依赖域名 | ✅ |
-| `btnP2PCancel` | 同 `btnP2PDisconnect` | ✅ |
-| `p2pRoomCode` | 纯输入框 | ✅ |
-| `p2pSyncToggle` | Popup 校验域名 → `p2pToggleSync` 后台写入配置 + alarm | ✅ |
-| `p2pSyncDomain` | 纯输入框 | ✅ |
-| `btnP2PSyncNow` | `p2pManualSync` → 遍历已连接对端 → 无对端时不执行 | ✅ |
-| `syncToggle` | Popup 校验 serverUrl/pairKey → `serverToggleSync` 后台注册设备+alarm | ✅ |
-| `syncDomain` | 纯输入框 | ✅ |
-| `btnSyncNow` | `serverManualSync` → 域名空时跳过上传，只下载 | ✅ |
-
-### 6.4 阻礙项：btnP2pSaveConfig 缺少 deviceName 校验
-
-**当前代码**（popup.js L915-926）：
+1. 读取 v1.x 的所有存储键
+2. 从 `heartbeat_configs` 提取所有站点域名，建立 `sites` 数组
+3. 将每个保活记录归入对应站点
+4. 将 `sync_config` 和 `server_sync_config` 拆分为 `global` + 按站点
+5. 将 `device_identity` 移入 `global`
+6. 写入新的存储结构
+7. **保留 v1.x 的旧键做回滚备份**
 
 ```javascript
-const signalUrl = document.getElementById('p2pSignalUrl').value.trim();
-if (!signalUrl) return showToast('⚠️ 请输入信令服务器地址');  // ✅ signalUrl 有校验
-const syncDomain = document.getElementById('p2pSyncDomain').value.trim();
-const p2pDeviceName = document.getElementById('p2pDeviceName').value.trim();  // ❌ 未校验空值
-// ... 直接保存
-await chrome.runtime.sendMessage({ action: 'saveSyncConfig', config: { 
-    signalUrl, p2pDeviceName, syncedDomains: syncDomain ? [syncDomain] : [], masterMode, isMaster 
-}});
+async function migrateV1toV2() {
+  const v1data = {
+    beats: await getStorage('heartbeat_configs', []),
+    p2p: await getStorage('sync_config', {}),
+    server: await getStorage('server_sync_config', {}),
+    identity: await getStorage('device_identity', {}),
+    blocker: await getStorage('blocker_config', {}),
+  };
+  
+  // 合并站点
+  const sites = [];
+  const domains = new Set();
+  
+  v1data.beats.forEach(b => domains.add(b.domain));
+  if (v1data.p2p.syncedDomains) domains.add(v1data.p2p.syncedDomains[0]);
+  
+  domains.forEach(domain => {
+    sites.push({
+      domain,
+      heartbeats: v1data.beats.filter(b => b.domain === domain),
+      sync: {
+        masterMode: v1data.p2p.masterMode || v1data.server.masterMode || false,
+        isMaster: v1data.p2p.isMaster !== false,
+        p2p: {
+          enabled: v1data.p2p.enabled && v1data.p2p.mode === 'p2p',
+          roomId: v1data.p2p.p2pRoomId || null,
+          connected: false,
+        },
+        server: {
+          enabled: v1data.server.enabled || false,
+          deviceId: v1data.server.deviceId || null,
+          pairKey: v1data.server.pairKey || null,
+        },
+      },
+    });
+  });
+  
+  // 保存新结构
+  await setStorage('v2_sites', sites);
+  await setStorage('v2_global', {
+    signalUrl: v1data.p2p.signalUrl || '',
+    serverUrl: v1data.server.serverUrl || '',
+    p2pDeviceName: v1data.p2p.p2pDeviceName || '',
+    serverDeviceName: v1data.server.deviceName || '',
+    syncInterval: v1data.p2p.intervalMinutes || v1data.server.intervalMinutes || 5,
+    deviceIdentity: v1data.identity,
+  });
+}
 ```
-
-**影响**：用户清空设备名称后保存 → `Object.assign` 用 `p2pDeviceName: ''` 覆盖已有值 → 后续 P2P 配对此字段为空。
-
-**优化方案**：增加一行校验：
-
-```javascript
-if (!p2pDeviceName) return showToast('⚠️ 请输入设备名称');
-```
-
-**风险等级**：低（一行代码修复）
-
-### 6.5 可行性结论
-
-| 维度 | 状态 | 说明 |
-|------|:----:|------|
-| 运行风险 | 🟢 无 | 所有操作有 try/catch 或校验保护 |
-| 数据安全 | 🟢 安全 | 已确认所有写入操作有校验或 null-safety |
-| UI 一致性 | 🟢 良好 | 第三层元素统一锁定，第一/二层统一解锁 |
-| 阻礙项 | 🟡 1 处 | `btnP2pSaveConfig` 缺 deviceName 校验，一行代码修复 |
-| 回滚方案 | 🟢 简单 | 只需改回 `lockedEls` 和 `inputIds` 数组 |
-
-**结论：可行性评估通过，1 处阻礙项已确定优化方案，无架构层面障碍。**
 
 ---
 
-## 7. 边界条件与异常处理
+## 4. UI 规范
 
-### 7.1 同步域名未配置时
+### 4.1 站点选择器
 
-| 操作 | 行为 | 用户感知 |
-|------|------|---------|
-| 开启 P2P 自动同步 | 后台 `p2pToggleSync` 保存 `enabled: true`，创建 alarm。alarm 触发 `p2pSync` → `if (!domain) return` 静默跳过 | 同步状态显示"已启用"，但实际不会执行任何操作 |
-| 点击「立即同步」P2P | `p2pManualSync` → 遍历 P2P 连接 → `p2pSync(peerId)` → 同上跳过 | Toast "🔄 同步已触发"，但实际无数据发送 |
-| 开启服务器同步 | `serverToggleSync` 先 `serverRegisterDevice`（需 serverUrl/pairKey，有校验）→ 创建 alarm → alarm 触发 `serverPerformSync` → 域名空时跳过 upload，执行 download | 同步状态显示"已启用" |
-| 点击「立即同步」服务器 | 同上 | 显示"同步完成 \| 无更新" |
+```
+📍 当前站点：oa.company.com              [▼]
+            ├─ oa.company.com
+            ├─ music.163.com
+            ├─ work.weixin.qq.com
+            └─ + 添加新站点
+```
 
-**结论**：域名未配置时不会产生错误，只是静默跳过。用户可在同步状态中查看到"尚未同步"或"最后同步: —"的提示。
+- 置于 Tab 上方，跨 Tab 共享选中状态
+- 下拉列出所有已配置站点
+- 底部「+ 添加新站点」入口
+- 自动识别当前浏览器 URL：当前域名不在列表中时，下拉显示「📄 当前页面 (example.com)」临时选项
 
-### 7.2 P2P 信令地址未配置时
+### 4.2 锁定规则（空白页）
 
-| 操作 | 行为 |
+基于站点架构重新定义锁定：
+
+| 场景 | 操作 | 状态 |
+|:----:|------|:----:|
+| 无站点且空白页 | 站点选择器 | 🟢 可用（可新建站点） |
+| 无站点且空白页 | Cookie/保活/拦截 | 🔒 锁定 |
+| 无站点且空白页 | 同步管理（需先有站点） | 🔒 锁定 |
+| 无站点且空白页 | 全局设置 | 🟢 全部可用 |
+| 有站点但空白页 | 切换站点 | 🟢 可用 |
+| 有站点但空白页 | 查看/编辑已有站点的保活/同步 | 🟢 可用 |
+| 有站点但空白页 | 导出/导入/清除 Cookie | 🔒 锁定（需当前站点与选中站点一致） |
+| 正常页面 | 所有 | 🟢 可用 |
+
+切换到选中站点后，即使空白页，也能查看和修改该站点的同步/保活配置（因为数据已存储）。
+
+### 4.3 主从 → P2P/服务器 的 UI 关系
+
+```
+📡 主从设备模式                  ← 先定角色
+  [🔛 主从开关]  当前身份：[主设备 ▼]
+  主设备：上传+下载 Cookie
+  从设备：仅接收（暂停保活）
+
+传输方式                        ← 再选方式
+  ○ P2P 直连（推荐）            ← radio button 二选一
+    [创建配对 / 加入配对]
+    自动同步 [ON/OFF]
+    [🔄 立即同步]
+
+  ○ 服务器模式
+    配对码：[X3K8PQ] [生成]
+    自动同步 [ON/OFF]
+    [🔄 立即同步]
+```
+
+### 4.4 同步按站点隔离
+
+同一台设备上，不同站点的同步是独立的：
+
+| 站点 | 主从模式 | 传输方式 | 同步状态 |
+|:----:|:--------:|:--------:|:--------:|
+| oa.company.com | 🟢 主设备 | 🔗 P2P | ✅ 已连接 |
+| music.163.com | 🔵 从设备 | ☁️ 服务器 | ✅ 已启用 |
+| work.weixin.qq.com | 🔵 未配置 | — | ⏸️ 未启用 |
+
+---
+
+## 5. 数据迁移
+
+### 5.1 迁移时机
+
+- `chrome.runtime.onInstalled` 中检测旧版存储
+- 检测条件：`storage` 中存在 `heartbeat_configs` 或 `sync_config` 但不存在 `v2_sites`
+- 迁移后写入标志 `v2_migrated: true` 防止重复迁移
+
+### 5.2 回滚保障
+
+- 迁移是**只读+写入新键**，不删除旧键
+- 旧版存储键保留，作为紧急回滚备份
+- 用户可手动调用 `chrome.storage.local.clear()` 回退
+
+### 5.3 版本标记
+
+- 迁移完成后，popup 顶部版本号显示 v2.0.0
+- 首次迁移 toast："🔄 已升级到 v2.0，您的数据已安全迁移"
+
+---
+
+## 6. 功能变更汇总
+
+### 6.1 新增
+
+| 功能 | 说明 |
 |------|------|
-| 点击「创建配对」 | Popup 校验 `signalUrl` → 空 → Toast "⚠️ 请输入信令服务器地址" |
-| 点击「确认加入」 | 校验设备名称 → 校验 signalUrl → 空 → 同上 |
-| 点击「断开连接」 | `p2pDisconnect` → `getSignalUrl()` 返回空 → fetch 失败 → catch 静默 → 继续清理内存中的连接对象 |
+| 站点选择器 | 跨 Tab 共享的下拉切换，支持多站点 |
+| 全局设置 Tab | 统一管理所有设备级配置 |
+| 按站点同步配置 | 每个站点独立配置主从+传输方式 |
+| 自动数据迁移 | v1.x → v2.0 存储结构升级 |
+| 同步记录按站过滤 | 在同步管理 Tab 中按当前站点筛选 |
 
-**结论**：所有创建/加入操作有前段校验，断开操作有 try/catch 兜底。
+### 6.2 移除
 
-### 7.3 空白页 `currentDomain` 为空
-
-`setDomainDependentState` 中的 `hasDomain = !!currentDomain` → 空白页下为 `false` → `locked = true`。第三层元素正常禁用。✅
-
-### 7.4 首次安装 + 空白页
-
-用户安装后第一次打开插件，所有第一/二层输入框显示默认占位符（如 `http://你的服务器:5789`），按钮可用但点击会因校验提示错误。
-
-这是理想行为——用户看到输入框和按钮都是可用的，知道需要配置什么，而不是看到一个灰色不可交互的界面。
-
----
-
-## 8. UI 与交互规范
-
-### 8.1 锁定视觉状态
-
-第三层被锁定的元素已有 CSS 样式（`button:disabled` 灰色 + `input:disabled` 灰色），无需额外修改。
-
-### 8.2 空白页横幅文案
-
-**当前**：
-
-```
-📄 当前为空白/新标签页
-请导航到目标网站后重新打开插件，或在已打开的网页上使用此插件。
-```
-
-**v2.0**：
-
-```
-📄 当前为空白/新标签页
-
-▸ 你可以在此页面配置：
-  服务器地址、设备名称、配对码、主从模式
-  P2P 配对连接、同步开关、拦截规则
-
-▸ 导航到目标网站后进行：
-  Cookie 导出/导入/清除、添加保活
-```
-
-**实现方式**：修改 `popup.html` 中 `<div id="blankPageBanner">` 内的文案。
-
-### 8.3 保活间隔选择器锁定说明
-
-`heartbeatInterval` 虽然本身不依赖域名，但与保活输入框在同一行 UI 上：
-
-```
-[保活 URL 输入框 🔒] [📌 🔒] [↓ 间隔选择器 🔒]
-```
-
-不同锁状态会导致用户困惑。因此保持第三层锁定。
-
----
-
-## 9. 数据存储模型
-
-### 9.1 按层划分
-
-| 存储键 | 归属层 | 说明 |
-|--------|:------:|------|
-| `device_identity` | 第一层 | 设备 ID、创建时间 |
-| `blocker_config` | 第一层 | 拦截主开关/站点开关/关键词覆盖 |
-| `blocking_rules_db` | 第一层 | 规则库数据 |
-| `app_logs` | 第一层 | 操作日志 |
-| `user_blocking_rules` | 第一层 | 自定义 URL 拦截规则 |
-| `sync_config.*` (signalUrl/p2pDeviceName) | 第一层 | 全局配置字段 |
-| `server_sync_config.*` (serverUrl/deviceName/pairKey/interval) | 第一层 | 全局配置字段 |
-| `sync_config.*` (enabled/mode/p2pConnected/syncedDomains) | 第二层 | 连接配置字段 |
-| `server_sync_config.*` (enabled/deviceId/syncedDomains) | 第二层 | 连接配置字段 |
-| `sync_history` | 第二层 | 同步历史记录 |
-| `cloud_sync_config` (masterMode/isMaster) | 第一/二层 | 主从配置（跨层） |
-| `heartbeat_configs` | 第三层 | 保活规则 |
-| `sync_cookie_meta` | 第三层 | Cookie 来源追踪 |
-
-### 9.2 存储变更
-
-**本次重构不涉及任何存储结构变更**。存储键的归属分层仅用于文档分类，实际代码中的读写逻辑不变。
-
----
-
-## 10. 迁移路径与兼容性
-
-### 10.1 向前兼容
-
-v2.0 锁定规则的变更方向是**解锁更多元素**（从锁定变为可用）。
-
-- 已保存的配置值不受影响
-- 旧用户升级后，之前保存的信令地址、设备名称等仍然存在
-- 只在空白页下行为改变——有域名时行为与 v1.x 完全一致
-
-### 10.2 向后兼容
-
-不支持降级。如果用户从 v2.0 回退到 v1.x，锁定规则回到旧逻辑，不影响功能。
-
-### 10.3 版本号
-
-- v1.5.14 → **v2.0.0**
-- 符合语义化版本规范：底层锁定规则架构重构，属于 BREAKING CHANGE（虽然只是行为变更，不影响数据）
-
----
-
-## 11. 非功能性需求
-
-| 类型 | 需求 |
+| 功能 | 说明 |
 |------|------|
-| 性能 | 锁定函数 `setDomainDependentState` 执行时间 < 1ms |
-| 兼容性 | Chrome 84+ / Edge 84+ |
-| 可维护性 | 锁定元素列表按层分组 + 注释说明归属层 |
-| 可测试性 | 每个层级的锁定行为可通过模拟 `isBlankTab` 测试 |
+| 原⚙️P2P 配置折叠卡 | 一分为二：全局地址→全局设置，同步配置→同步管理 |
+| 原⚙️服务器配置折叠卡 | 同上 |
+| 原🛡️拦截 Tab | 合并入会话管理 Tab，作为当前站点的一个功能块 |
+| 同步模式切换按钮 | 改为站点内 radio 二选一 |
+
+### 6.3 保留不变（逻辑层）
+
+- Cookie CRUD 逻辑
+- WebRTC P2P 引擎
+- 加密（PBKDF2 + AES-256-GCM）
+- 保活执行逻辑
+- 拦截 content.js
+- 规则库管理
+- 信令服务器
+- 同步服务器 API
+- 主从冲突检测
 
 ---
 
-## 12. 附录：元素锁定矩阵全表
+## 7. 可行性预评估
 
-> ✅ = 解锁（可操作） 🔒 = 锁定（禁用） — = 不适用
+| 维度 | 评估 | 风险 |
+|:----:|------|:----:|
+| **数据迁移** | 纯 `chrome.storage` 操作，无网络依赖，可离线执行 | 🟡 需充分测试边界：全空状态、部分配置状态、完整配置状态 |
+| **存储键变更** | 旧键保留，新增 `v2_sites` + `v2_global`，无破坏性变更 | 🟢 低风险 |
+| **UI 重构** | popup.html + popup.js 重写，但所有逻辑函数保持 | 🟡 工作量大（约 200 行 popup.js 重写 + HTML 重排） |
+| **锁定规则** | 从 `setDomainDependentState` 改为 `hasSite` + `isCurrentTab` 双重判定 | 🟢 代码量小 |
+| **后向兼容** | 旧存储键保留 | 🟢 可回滚 |
+| **用户迁移** | 自动迁移无感知 | 🟢 已在 onInstalled 中处理 |
 
-| 元素 ID | 类型 | 当前 | v2.0 | 归属层 |
-|---------|------|:----:|:----:|:------:|
-| `btnExport` | 按钮 | 🔒 | 🔒 | 第三层 |
-| `btnImport` | 按钮 | 🔒 | 🔒 | 第三层 |
-| `btnClear` | 按钮 | 🔒 | 🔒 | 第三层 |
-| `btnAddHeartbeat` | 按钮 | 🔒 | 🔒 | 第三层 |
-| `btnFillUrl` | 按钮 | 🔒 | 🔒 | 第三层 |
-| `btnLoadCookies` | 按钮 | 🔒 | 🔒 | 第三层 |
-| `btnP2pFillDomain` | 按钮 | 🔒 | 🔒 | 第三层 |
-| `btnFillSyncDomain` | 按钮 | 🔒 | 🔒 | 第三层 |
-| `heartbeatUrl` | 输入 | 🔒 | 🔒 | 第三层 |
-| `heartbeatInterval` | 选择器 | 🔒 | 🔒 | 第三层 |
-| `btnP2PCreate` | 按钮 | 🔒 | ✅ | 第二层 |
-| `btnP2PJoin` | 按钮 | 🔒 | ✅ | 第二层 |
-| `btnP2PDoJoin` | 按钮 | 🔒 | ✅ | 第二层 |
-| `btnP2PDisconnect` | 按钮 | 🔒 | ✅ | 第二层 |
-| `btnP2PCancel` | 按钮 | 🔒 | ✅ | 第二层 |
-| `btnP2PSyncNow` | 按钮 | 🔒 | ✅ | 第二层 |
-| `btnSyncNow` | 按钮 | 🔒 | ✅ | 第二层 |
-| `p2pSyncToggle` | 开关 | 🔒 | ✅ | 第二层 |
-| `syncToggle` | 开关 | 🔒 | ✅ | 第二层 |
-| `p2pRoomCode` | 输入 | 🔒 | ✅ | 第二层 |
-| `p2pSyncDomain` | 输入 | 🔒 | ✅ | 第二层 |
-| `syncDomain` | 输入 | 🔒 | ✅ | 第二层 |
-| `p2pSignalUrl` | 输入 | 🔒 | ✅ | 第一层 |
-| `syncServerUrl` | 输入 | 🔒 | ✅ | 第一层 |
-| `syncPairKey` | 输入 | 🔒 | ✅ | 第一层 |
-| `p2pDeviceName` | 输入 | 🔒 | ✅ | 第一层 |
-| `syncDeviceName` | 输入 | 🔒 | ✅ | 第一层 |
-| `syncInterval` | 选择器 | 🔒 | ✅ | 第一层 |
-| `btnGenerateKey` | 按钮 | 🔒 | ✅ | 第一层 |
-| `btnP2pSaveConfig` | 按钮 | 🔒 | ✅ | 第一层 |
-| `btnSaveSync` | 按钮 | 🔒 | ✅ | 第一层 |
-| `masterModeToggle` | 开关 | ✅ | ✅ | 第一层 |
-| `isMasterToggle` | 开关 | ✅ | ✅ | 第一层 |
-| `p2pMasterModeToggle` | 开关 | ✅ | ✅ | 第一层 |
-| `p2pIsMasterToggle` | 开关 | ✅ | ✅ | 第一层 |
-| `blockerMasterToggle` | 开关 | ✅ | ✅ | 第一层 |
-| `customRuleInput` | 输入 | ✅ | ✅ | 第一层 |
-| `btnAddRule` | 按钮 | ✅ | ✅ | 第一层 |
-| `btnExportRules` | 按钮 | ✅ | ✅ | 第一层 |
-| `btnImportRules` | 按钮 | ✅ | ✅ | 第一层 |
-| `btnUpdateRules` | 按钮 | ✅ | ✅ | 第一层 |
-| `btnGetNetInfo` | 按钮 | ✅ | ✅ | 第一层 |
-| `btnHelp` | 按钮 | ✅ | ✅ | 第一层 |
-| `btnExportLog` | 按钮 | ✅ | ✅ | 第一层 |
-| `btnDeviceInfo` | 按钮 | ✅ | ✅ | 第一层 |
+---
 
-**总计**：22 个元素从 🔒 变为 ✅，属于纯解锁操作。
+## 8. 迭代建议
+
+| 版本 | 范围 | 优先级 |
+|:----:|------|:------:|
+| v2.0 | 完整的 Tab 重构 + 数据迁移 + 站点选择器 + 锁定规则 | P0 |
+| v2.1 | 站点选择器新增"从当前页面添加"快捷按钮 | P1 |
+| v2.2 | 全局设置 Tab 中新增同步记录全局视图 | P2 |
+| v2.3 | 同步记录按站点过滤 + 统计分析 | P3 |
