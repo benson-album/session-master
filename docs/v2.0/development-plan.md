@@ -1,244 +1,231 @@
 # SessionMaster v2.0 — 开发计划
 
-> **版本**：v2.0-rc1
-> **关联文档**：`PRD.md` · `test-plan.md` · `standard-development-process.md`
-> **估算工时**：约 60 分钟（含验证和发布）
+> **版本**：v2.0-draft
+> **关联文档**：`PRD.md` · `test-plan.md`
+> **估算工时**：约 6-8 小时（分 3 个开发批次）
 
 ---
 
-## 1. 任务依赖关系图
+## 1. 任务依赖关系
 
 ```
-T1 阻礙项修复（btnP2pSaveConfig 校验）
- │
- T2 锁定规则重写（lockedEls + inputIds）
- │
- ├──→ T3 空白页横幅文案优化
- │
- T4 自检（9 项强制）
- │
- T5 构建 + 安装到浏览器测试
- │
- T6 文档更新（CHANGELOG + changelog.json）
- │
- T7 版本号更新 + 推送发布
+批次1：基础设施
+  T1 数据迁移逻辑（background.js）
+  T2 全局设置存储（v2_global）
+  T3 站点管理存储（v2_sites）
+  │
+批次2：UI 重构
+  T4 站点选择器（popup.html + popup.js）
+  T5 会话管理 Tab 重构
+  T6 同步管理 Tab 重构
+  T7 全局设置 Tab（新建）
+  │
+批次3：收尾
+  T8 锁定规则适配新架构
+  T9 自检（9 项）
+  T10 构建 + 浏览器测试
+  T11 文档更新 + 版本发布
 ```
 
 ---
 
 ## 2. 任务分解
 
-### T1：修复 btnP2pSaveConfig 校验缺失（阻礙项）
+### 批次1：基础设施（约 2 小时）
+
+#### T1：background.js — 数据迁移逻辑
 
 | 属性 | 值 |
 |------|-----|
-| 文件 | `src/popup/popup.js` |
-| 位置 | 第 915-926 行 |
-| 类型 | 新增代码 |
-| 估算 | 5 分钟 |
-| 依赖 | 无 |
-
-**变更**：在 `signalUrl` 校验之后增加 `p2pDeviceName` 校验：
-
-```javascript
-const p2pDeviceName = document.getElementById('p2pDeviceName').value.trim();
-if (!p2pDeviceName) return showToast('⚠️ 请输入设备名称');
-```
-
-**验收标准**：
-- `btnP2pSaveConfig` 在 `p2pDeviceName` 为空时阻止保存并 toast 提示
-- 设备名称有值时正常保存
-
----
-
-### T2：锁定规则重写
-
-| 属性 | 值 |
-|------|-----|
-| 文件 | `src/popup/popup.js` |
-| 位置 | 第 1828-1875 行（`setDomainDependentState` 函数） |
-| 类型 | 删除 + 注释更新 |
-| 估算 | 10 分钟 |
-| 依赖 | 无 |
+| 文件 | `src/background.js` |
+| 类型 | 新增函数 |
+| 估算 | 1 小时 |
 
 **变更**：
+- `onInstalled` 中检测旧版存储键
+- 新增 `migrateV1toV2()` 函数
+- 读取 `heartbeat_configs`、`sync_config`、`server_sync_config`、`device_identity`
+- 合并为 `v2_sites` 数组 + `v2_global` 对象
+- 写入 `v2_migrated` 标记防重复
+- **不删除旧键**
 
-```
-lockedEls 从 18 项 → 8 项（删除第一层+第二层，仅保留第三层）
-inputIds 从 9 项 → 1 项（仅保留 heartbeatUrl）
-```
+**验收**：MIG-1 ~ MIG-8 全部通过
 
-**lockedEls 保留项**：
-```javascript
-var lockedEls = [
-    // 第三层：站点操作（依赖 currentDomain）
-    'btnExport', 'btnImport', 'btnClear',
-    'btnAddHeartbeat',
-    'btnLoadCookies',
-    'btnP2pFillDomain', 'btnFillSyncDomain',
-];
-```
-
-**inputIds 保留项**：
-```javascript
-var inputIds = [
-    'heartbeatUrl',
-];
-```
-
-**额外保留锁定**：
-```javascript
-// btnFillUrl — 填入当前 URL（需 URL）
-// heartbeatInterval — 随保活同行锁定
-```
-
-**验收标准**：
-- 空白页下：第一/二层全部解锁，第三层全部锁定
-- 正常页面下：全部解锁（与 v1.x 一致）
-- 元素矩阵全表对照无遗漏（PRD 附录 12）
-
----
-
-### T3：空白页横幅文案优化
+#### T2：background.js — 全局设置读写
 
 | 属性 | 值 |
 |------|-----|
-| 文件 | `src/popup/popup.html` |
-| 位置 | 第 25-31 行（`blankPageBanner`） |
-| 类型 | 文案修改 |
-| 估算 | 5 分钟 |
-| 依赖 | T2（确认锁定分层后再定文案措辞） |
+| 文件 | `src/background.js` |
+| 类型 | 新增/改造 message handler |
+| 估算 | 30 分钟 |
 
-**变更**：将现有单行文案改为两段式。
+**变更**：
+- 新增 `getGlobalConfig` / `saveGlobalConfig` handler
+- 存储键 `v2_global`
+- 内容：signalUrl, serverUrl, p2pDeviceName, serverDeviceName, syncInterval, deviceIdentity
 
-**验收标准**：
-- 空白页下显示分两段的引导文案
-- 正常页面下横幅隐藏（不受影响）
+**验收**：GLB-2 ~ GLB-3 通过
+
+#### T3：background.js — 站点管理
+
+| 属性 | 值 |
+|------|-----|
+| 文件 | `src/background.js` |
+| 类型 | 新增 message handler |
+| 估算 | 30 分钟 |
+
+**变更**：
+- 新增 `getSites` / `addSite` / `removeSite` / `updateSite` handler
+- 存储键 `v2_sites`
+- 每个站点独立存储 heartbeats 和 sync 配置
+
+**验收**：SEL-1 ~ SEL-5 通过
 
 ---
 
-### T4：自检（9 项强制）
+### 批次2：UI 重构（约 4 小时）
+
+#### T4：站点选择器组件
+
+| 属性 | 值 |
+|------|-----|
+| 文件 | `src/popup/popup.html` + `src/popup/popup.js` |
+| 类型 | 新增 |
+| 估算 | 1 小时 |
+
+**变更**：
+- HTML：新增 `.site-selector` 下拉组件，位于 Tab 上方
+- JS：加载站点列表、切换事件、添加新站点弹窗
+- 跨 Tab 共享选中状态（全局变量 `activeSite`）
+
+**验收**：SEL-1 ~ SEL-6 通过
+
+#### T5：会话管理 Tab 重构
+
+| 属性 | 值 |
+|------|-----|
+| 文件 | `src/popup/popup.html` + `src/popup/popup.js` + `src/popup/popup.css` |
+| 类型 | 重写 |
+| 估算 | 1.5 小时 |
+
+**变更**：
+- 从 v1.x 的 `#tab-session` 合并 `#tab-blocker` 内容
+- Cookie 区域：导出/导入/清除（保活作为子区域展示）
+- 保活区域：视觉上从属于 Cookie
+- 拦截区域：主开关 + 推荐规则 + 规则库 + 自定义规则
+- 所有数据按 `activeSite` 过滤
+
+**验收**：SES-1 ~ SES-11 通过
+
+#### T6：同步管理 Tab 重构
+
+| 属性 | 值 |
+|------|-----|
+| 文件 | `src/popup/popup.html` + `src/popup/popup.js` |
+| 类型 | 重写 |
+| 估算 | 1 小时 |
+
+**变更**：
+- 主从设备开关 + 身份切换
+- P2P / 服务器 radio 二选一
+- P2P 配置区（创建/加入/断开/同步开关）
+- 服务器配置区（配对码/注册/同步开关）
+- 立即同步按钮
+- 同步记录（按 activeSite 过滤）
+- 本机网络地址（保持不变）
+
+**验收**：SYN-1 ~ SYN-12 通过
+
+#### T7：全局设置 Tab（新建）
+
+| 属性 | 值 |
+|------|-----|
+| 文件 | `src/popup/popup.html` + `src/popup/popup.js` |
+| 类型 | 新建 |
+| 估算 | 30 分钟 |
+
+**变更**：
+- HTML 新增 `#tab-global` 内容区
+- 同步服务器配置（信令地址/服务器地址/设备名称/同步间隔）
+- 设备身份展示
+- 使用说明 + 导出日志 + 更新检查（从 footer 移入或保留）
+
+**验收**：GLB-1 ~ GLB-7 通过
+
+---
+
+### 批次3：收尾（约 2 小时）
+
+#### T8：锁定规则适配新架构
+
+| 属性 | 值 |
+|------|-----|
+| 文件 | `src/popup/popup.js` |
+| 类型 | 修改 `setDomainDependentState` |
+| 估算 | 30 分钟 |
+
+**变更**：
+- 判定逻辑：`hasSites`（有站点数据）+ `isBlankTab` + `isActiveSite`
+- 无站点时：会话管理 + 同步管理 Tab 全部锁定，全局设置解锁
+- 有站点但空白页：可查看/配置已有站点的同步和保活
+- 正常页面：全部解锁
+
+**验收**：LCK-1 ~ LCK-7 通过
+
+#### T9：9 项强制自检
 
 | 属性 | 值 |
 |------|-----|
 | 类型 | 检查 |
-| 估算 | 10 分钟 |
-| 依赖 | T1 + T2 + T3 完成 |
+| 估算 | 30 分钟 |
 
-**检查项**：
-1. `node --check src/popup/popup.js`
-2. CSS 花括号平衡（如涉及 CSS 修改）
-3. HTML 标签平衡
-4. manifest 权限+引用文件检查
-5. 版本一致性
-6. `getCookies` 域解析 9 用例
-7. 更新日志同步
-8. 选择器一致性（CSS rename 同步 JS 引用）— **特别注意 lockedEls/inputIds 的 id 与 HTML 一致**
-9. 元素类型一致性
+**验收**：9 项全部通过
 
-**验收标准**：9 项全部通过。
-
----
-
-### T5：构建 + 浏览器测试
+#### T10：构建 + 浏览器测试
 
 | 属性 | 值 |
 |------|-----|
 | 类型 | 测试 |
-| 估算 | 15 分钟 |
-| 依赖 | T4 通过 |
+| 估算 | 45 分钟 |
 
-**操作步骤**：
-1. `bash scripts/build.sh`
-2. 加载 `src/` 目录到浏览器（Chrome/Edge）
-3. 执行 test-plan.md 中的：
-   - 所有 TC-L1 ~ TC-L3（空白页锁定测试）
-   - 所有 TC-N（回归测试）
-   - TC-S（阻礙項修复验证）
-4. 记录测试结果
+**验收**：test-plan.md 全部用例通过
 
-**验收标准**：
-- 构建脚本返回 0
-- 测试通过率 100%
-
----
-
-### T6：文档更新
-
-| 属性 | 值 |
-|------|-----|
-| 文件 | `CHANGELOG.md` + `src/changelog.json` |
-| 类型 | 追加 |
-| 估算 | 5 分钟 |
-| 依赖 | T5 验证通过 |
-
-**CHANGELOG.md 新增**：
-```markdown
-## v2.0.0 (2026-06-21)
-- 🏗️ **架构重构：三层锁定模型** — 将锁定规则分为全局设备层、同步连接层、站点操作层
-- 🟢 **空白页体验大幅提升**：服务器地址、设备名称、配对码、P2P配对、同步开关等 22 个元素不再锁定
-- 🔒 **新增 btnP2pSaveConfig 设备名称校验**：防止空白页下空值覆盖已有配置
-- 📄 **空白页横幅增强**：分两段展示可配置项和需导航后操作项
-```
-
-**验收标准**：构建后 help 页更新日志正确渲染 v2.0.0 条目。
-
----
-
-### T7：版本号更新 + 发布
+#### T11：文档 + 版本号 + 发布
 
 | 属性 | 值 |
 |------|-----|
 | 类型 | 发布 |
-| 估算 | 10 分钟 |
-| 依赖 | T6 完成 |
+| 估算 | 15 分钟 |
 
-**版本号变更**：v1.5.14 → **v2.0.0**
-
-**更新文件**（6 处）：
-```
-VERSION                  → 2.0.0
-src/manifest.json        → "version": "2.0.0"
-src/config.js            → VERSION: '2.0.0'
-src/popup/popup.html     → v2.0.0
-src/help/help.html ×2    → hero + footer 版本号
-```
-
-**发布流程**：
-1. Git add + commit — `"v2.0.0: 架构重构——三层锁定模型"`
-2. Git tag — `v2.0.0`
-3. Push to GitHub
-4. Create Release + 上传 zip
-5. 标记为 Latest
-
-**验收标准**：GitHub Release v2.0.0 可下载，构建 zip 版本显示 2.0.0。
+**变更**：
+- CHANGELOG.md + changelog.json 新增 v2.0.0
+- VERSION + 6 处版本号 → 2.0.0
+- Git commit + tag + push + Release
 
 ---
 
 ## 3. 变更文件汇总
 
-| 文件 | 变更类型 | 任务 |
+| 文件 | 变更类型 | 估算 |
 |------|:--------:|:----:|
-| `src/popup/popup.js` | 改（+3行） | T1：btnP2pSaveConfig 校验 |
-| `src/popup/popup.js` | 改（-15行） | T2：锁定列表重写 |
-| `src/popup/popup.html` | 改（文案） | T3：空白页横幅 |
-| `CHANGELOG.md` | 追加 | T6：更新日志 |
-| `src/changelog.json` | 追加 | T6：更新日志数据 |
-| `VERSION` | 改 | T7：版本号 |
-| `src/manifest.json` | 改 | T7：版本号 |
-| `src/config.js` | 改 | T7：版本号 |
-| `src/popup/popup.html` | 改 | T7：版本号 |
-| `src/help/help.html` | 改×2 | T7：版本号 |
+| `src/background.js` | 改（+迁移逻辑 + handler） | 2h |
+| `src/popup/popup.html` | 重写（三 Tab 重构 + 站点选择器 + 全局设置 Tab） | 2.5h |
+| `src/popup/popup.js` | 重写（状态管理 + 事件绑定 + 锁定规则） | 3h |
+| `src/popup/popup.css` | 改（新增样式） | 0.5h |
+| `CHANGELOG.md` | 追加 | 5min |
+| `src/changelog.json` | 追加 | 5min |
+| 版本号文件 × 6 | 改 | 5min |
 
-**净变更**：6 个文件（含版本号），核心逻辑变更仅 3 个文件。
+**核心变更**：4 个源文件，净新增约 500-800 行代码。
 
 ---
 
-## 4. 风险评估
+## 4. 风险与缓解
 
-| 风险 | 概率 | 影响 | 缓解措施 |
-|:----:|:----:|:----:|---------|
-| 锁定列表有遗漏/多余元素 | 中 | 中 | test-plan.md L1/L2/L3 测试全覆盖 + 对照 PRD 附录矩阵逐条检查 |
-| 空白页下 P2P 创建导致误报错 | 低 | 低 | 已有 try/catch + 前端校验，不影响功能 |
-| 版本号更新漏文件 | 低 | 低 | 构建脚本自带版本一致性检查，不一致会报错 |
-| 用户习惯变化不适应 | 中 | 低 | 功能完全不变，只是解锁更多元素；更新日志说明清楚 |
+| 风险 | 概率 | 影响 | 缓解 |
+|:----:|:----:|:----:|------|
+| 数据迁移 bug 导致用户配置丢失 | 低 | 🔴 高 | 旧键保留，`onInstalled` 可回滚 |
+| popup.html 重构导致 div 嵌套错误 | 中 | 🟡 中 | 自检第3项强制检查 |
+| 锁定规则遗漏/过度 | 中 | 🟡 中 | test-plan TC-LCK 全覆盖 |
+| 浏览器兼容性（ES Module import） | 低 | 🟡 中 | 已有 Chrome/Edge 验证 |
+| 迁移后保活定时器未恢复 | 低 | 🟡 中 | `onInstalled` 中恢复 alarm |
