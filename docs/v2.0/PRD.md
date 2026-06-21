@@ -3,7 +3,7 @@
 > **版本**：v2.0-draft
 > **状态**：需求确认中
 > **范围**：全量重构（业务模型 / UI 布局 / 数据模型 / 锁定规则）
-> **关联文档**：[`agent-roles.md`](agent-roles.md)（角色定义）· [`agent-document-matrix.md`](agent-document-matrix.md)（文档关联）· [`methodology.md`](methodology.md)（开发方法论）· [`test-plan.md`](test-plan.md)（测试计划）· [`development-plan.md`](development-plan.md)（开发计划）
+> **关联文档**：[`agent-roles.md`](agent-roles.md)（角色定义）· [`agent-document-matrix.md`](agent-document-matrix.md)（文档关联）· [`methodology.md`](methodology.md)（开发方法论）· [`test-plan.md`](test-plan.md)（测试计划）· [`development-plan.md`](development-plan.md)（开发计划）· [`maintainability-analysis.md`](maintainability-analysis.md)（可升级性分析）· [`feasibility-report.md`](feasibility-report.md)（可行性分析）
 
 ---
 

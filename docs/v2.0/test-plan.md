@@ -6,7 +6,7 @@
 > **测试环境**：Chrome / Edge Manifest V3
 > **执行角色**：QA Agent（功能测试代理）
 > **质量门禁**：⛔ 所有 `[ ]` 测试项须由 QA Agent 逐条验证并标记后，PM 方可签署里程碑
-> **关联文档**：[`agent-roles.md`](agent-roles.md)（角色定义）· [`agent-document-matrix.md`](agent-document-matrix.md)（文档关联）· [`methodology.md`](methodology.md)（开发方法论）· [`PRD.md`](PRD.md)（需求）· [`development-plan.md`](development-plan.md)（开发计划）
+> **关联文档**：[`agent-roles.md`](agent-roles.md)（角色定义）· [`agent-document-matrix.md`](agent-document-matrix.md)（文档关联）· [`methodology.md`](methodology.md)（开发方法论）· [`PRD.md`](PRD.md)（需求）· [`development-plan.md`](development-plan.md)（开发计划）· [`feasibility-report.md`](feasibility-report.md)（可行性分析）· [`maintainability-analysis.md`](maintainability-analysis.md)（可升级性分析）
 
 ---
 

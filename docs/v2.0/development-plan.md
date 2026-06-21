@@ -9,11 +9,12 @@
 
 ## Agent 架构总览
 
-本项目采用 **4 代理并行协作** 模式，每个 Agent 有明确职责和产入产出的契约。各角色的完整定义见独立文档：
+本项目采用 **5 角色三层协作**（我 → PM → PD/DE/QA）模式，每个 Agent 有明确职责和产入产出的契约。各角色的完整定义见独立文档：
 
 - **角色定义** → [`agent-roles.md`](agent-roles.md)（职责/签字权/通信规则）
 - **文档关联** → [`agent-document-matrix.md`](agent-document-matrix.md)（每个 Agent 读什么、写什么）
 - **方法论** → [`methodology.md`](methodology.md)（可复用于其他项目的 5 阶段方法论）
+- **可升级性分析** → [`maintainability-analysis.md`](maintainability-analysis.md)（架构债务与升级路径）
 
 ```
 ┌─────────────────────────────────────────┐
@@ -1824,7 +1825,7 @@ export function renderSessionTab(container, site) {
 
 **签字确认**（PM 发起 → QA 签质量 → PM 汇总 → **我终签**）：
 - [ ] QA：消息路由行为一致，渲染函数可独立调用（T8-V ~ T9-V）
-- [ ] PM：□ 已完成（进入 P3） □ 延后至 v2.1
+- [ ] PM：已完成（进入 P3） 或 延后至 v2.1
 - [ ] ME：审查通过
 
 ---
