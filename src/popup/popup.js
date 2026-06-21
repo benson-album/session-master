@@ -1772,34 +1772,32 @@
   function showUpdateAvailable(latest, current) {
     var banner = document.getElementById('updateBanner');
     var textEl = document.getElementById('updateBannerText');
-    var badge = document.getElementById('updateBadge');
+    var status = document.getElementById('deviceStatus');
     if (!banner || !textEl) return;
     textEl.textContent = '🆕 v' + latest + ' 可用（当前 v' + current + '）';
     banner.style.display = 'flex';
     // 绑定横幅按钮事件（只绑一次）
     bindUpdateBannerEvents(latest);
-    // 小角标也显示（冗余但不冲突）
-    if (badge) {
-      badge.textContent = '⬆ ' + latest;
-      badge.className = 'update-badge has-update';
-      badge.style.display = 'inline-flex';
-      badge.title = '新版本 v' + latest + ' 可用';
+    // 🖥️ 旁边显示 ⬆ 有新版本，可点击跳转下载
+    if (status) {
+      status.textContent = '⬆ ' + latest;
+      status.className = 'device-status status-update';
+      status.style.display = 'inline-flex';
+      status.title = '新版本 v' + latest + ' 可用，点击下载';
+      status.onclick = function() {
+        chrome.tabs.create({ url: 'https://github.com/benson-album/session-master/releases/latest' });
+      };
     }
   }
 
   function showUpToDate() {
-    var badge = document.getElementById('updateBadge');
-    if (!badge) return;
-    badge.textContent = '✓';
-    badge.className = 'update-badge';
-    badge.style.display = 'inline-flex';
-    badge.title = '已是最新版本';
-    // 2 秒后淡出
-    setTimeout(function() {
-      badge.style.transition = 'opacity 0.6s';
-      badge.style.opacity = '0';
-      setTimeout(function() { badge.style.display = 'none'; }, 600);
-    }, 2000);
+    var status = document.getElementById('deviceStatus');
+    if (!status) return;
+    status.textContent = '✓';
+    status.className = 'device-status status-ok';
+    status.style.display = 'inline-flex';
+    status.title = '已是最新版本';
+    status.onclick = null;
   }
 
   // 版本更新横幅事件绑定
