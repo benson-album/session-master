@@ -8,7 +8,7 @@
 export const APP_CONFIG = {
 
   // ===== 版本 =====
-  VERSION: '1.5.14',
+  VERSION: '2.0.0-dev',
 
   // ===== 默认端口 =====
   DEFAULT_PORT: 5789,
@@ -26,8 +26,10 @@ export const APP_CONFIG = {
 
   // ===== 升级检测 =====
   UPDATE: {
-    DEFAULT_URL: 'https://raw.githubusercontent.com/benson-album/session-master/master/VERSION',
-    ENABLED: true
+    DEFAULT_URL: 'https://raw.githubusercontent.com/benson-album/session-master/develop/VERSION',
+    BETA_URL: 'https://raw.githubusercontent.com/benson-album/session-master/develop/VERSION',
+    ENABLED: true,
+    CHECK_INTERVAL_MINUTES: 360  // 每 6 小时检查一次
   },
 
   // ===== GitHub 地址（安装脚本、文件清单中的下载链接） =====
