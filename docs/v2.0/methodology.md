@@ -3,7 +3,7 @@
 > **版本**：v1.0
 > **用途**：沉淀多 Agent 协作开发的可复用方法论，不限项目、不限技术栈
 > **关联**：`agent-roles.md` · `agent-document-matrix.md` · `development-plan.md`
-> **沉淀来源**：SessionMaster v2.0 项目开发实践
+> **沉淀来源**：多项目开发实践总结
 
 ---
 

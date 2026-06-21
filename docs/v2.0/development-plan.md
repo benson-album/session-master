@@ -3,7 +3,7 @@
 > **版本**：v2.0-exec
 > **粒度**：逐文件、逐函数、逐行操作
 > **工时**：12-15h（P0 3.5h / P1 4.5h / P2 2h / P3 2.5h）
-> **工作模式**：4 代理并行协作（项目管理 / 产品设计 / 功能测试 / 功能开发）
+> **工作模式**：5 角色三层协作（我 → PM → PD/DE/QA）
 
 ---
 
@@ -40,9 +40,9 @@
 | 层级 | 角色 | 代号 | 核心职责 | 产出物 | 输入文档 | 签字权 |
 |:----:|:----:|:----:|:---------|:-------|:---------|:------:|
 | 总负责 | **Hermes 主代理** | `ME` | 方向设定、里程碑审查、PM 管理、用户决策升级 | 方法论、决策记录、里程碑终签 | development-plan（审查）、communication/coordination（决策） | ✅ 终签 |
-| 执行层 | **项目管理** | `PM` | 任务调度、进度跟踪、日常决策、风险上报 | task-cards（分配单）、sign-offs（里程碑）、coordination（协调） | development-plan.md（调度依据）、feasibility-report.md（约束参考）、src/（项目代码） | ✅ 批次内 |
+| 执行层 | **项目管理** | `PM` | 任务调度、进度跟踪、日常决策、风险上报、版本发布 | task-cards（分配单）、sign-offs（里程碑）、coordination（协调） | development-plan.md（调度依据）、feasibility-report.md（约束参考）、src/（项目代码） | ✅ 批次内 |
 | 执行层 | **产品设计** | `PD` | PRD 维护、UI/UX 决策、方案评审、帮助文档 | design-reviews（审查报告）、PRD.md 更新 | PRD.md（设计依据）、test-plan.md（测试覆盖参考）、development-plan.md（任务上下文）| — |
-| 执行层 | **功能开发** | `DE` | 代码实现、模块拆分、bug 修复 | impl-reports（实施报告）、src/*（代码变更） | PRD.md（需求）、development-plan.md（任务细节+验证标准）、feasibility-report.md（技术约束）、**test-plan.md（测试用例——知道怎么验证）、test-reports/（测试结果——了解缺陷和失败原因）**| — |
+| 执行层 | **功能开发** | `DE` | 代码实现、模块拆分、bug 修复 | impl-reports（实施报告）、src/*（代码变更） | PRD.md（需求）、development-plan.md（任务细节+验证标准）、feasibility-report.md（技术约束）、test-plan.md（测试用例）、test-reports/（测试结果）、defects/（缺陷记录）| — |
 | 执行层 | **功能测试** | `QA` | 测试执行、回归测试、缺陷报告 | test-reports（测试报告）、defects（缺陷记录） | test-plan.md（用例）、PRD.md（预期行为）、development-plan.md（T?-V 验证步骤）、src/（实测代码）| ✅ 质量门禁 |
 
 > **输入文档**是指该 Agent 在执行任务前必须读取/参考的文档，在每次 delegate_task 的 context 参数中携带。
@@ -1445,10 +1445,11 @@ import './core/sites.js';
 
 **回滚条件**：M0-4 迁移失败 → 删除 `v2_sites`/`v2_global`，保留旧键，扩展回退 v1.x 行为。
 
-**签字确认**（PM 发起 → QA 签质量 → PD 签设计 → PM 终签）：
+**签字确认**（PM 发起 → QA 签质量 → PD 签设计 → PM 汇总 → **我终签**）：
 - [ ] QA：功能测试通过（T1-V ~ T4-V 全部通过）
 - [ ] PD：数据模型设计审查通过
 - [ ] PM：可进入 P1
+- [ ] ME：审查通过
 
 ---
 
@@ -1692,10 +1693,11 @@ function setDomainDependentState(hasDomain, tabInfo) {
 | M1-3 | 锁定规则 | 三态判定（无站点/有站点/正常页）| LCK-1 ~ LCK-8 |
 | M1-4 | `src/popup/site-selector.js` + 各 Tab 组件文件 | 模块化 UI 文件 | 文件存在，import 正确 |
 
-**签字确认**（PM 发起 → QA 签质量 → PD 签设计 → PM 终签）：
+**签字确认**（PM 发起 → QA 签质量 → PD 签设计 → PM 汇总 → **我终签**）：
 - [ ] QA：UI 测试通过（SEL/SES/SYN/GLB 全部通过）
 - [ ] PD：UI 布局和锁定规则审查通过
 - [ ] PM：可进入 P2
+- [ ] ME：审查通过
 
 ---
 
@@ -1820,9 +1822,10 @@ export function renderSessionTab(container, site) {
 | M2-2 | 各模块 handler 注册 | 每个 `core/*.js` 末尾自注册 handler |
 | M2-3 | 渲染函数组件 | `renderSiteSelector()`、`renderHeartbeatList()` 等独立函数 |
 
-**签字确认**（PM 发起 → QA 签质量 → PM 终签）：
+**签字确认**（PM 发起 → QA 签质量 → PM 汇总 → **我终签**）：
 - [ ] QA：消息路由行为一致，渲染函数可独立调用（T8-V ~ T9-V）
 - [ ] PM：□ 已完成（进入 P3） □ 延后至 v2.1
+- [ ] ME：审查通过
 
 ---
 
@@ -1909,11 +1912,12 @@ git push origin master --tags
 | M3-7 | **模块化代码** | `src/core/` 7 模块 + `src/popup/` Tab 组件 |
 | M3-8 | **回滚方案** | 旧键保留，删除 `v2_` 键即可降级 |
 
-**最终签字确认**（PM 发起 → QA 签质量 → PD 签文档 → PM 终签）：
+**最终签字确认**（QA 签质量 → PD 签文档 → PM 汇总 → **我终签**）：
 
 - [ ] QA：全部用例执行通过，P0~P3 测试覆盖 100%
 - [ ] PD：帮助文档 + README + PRD 同步审查通过
-- [ ] PM：v2.0.0 Release 已发布为 Latest
+- [ ] PM：v2.0.0 Release 已就绪
+- [ ] ME：批准发布
 
 ---
 
