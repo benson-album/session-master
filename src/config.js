@@ -8,7 +8,10 @@
 export const APP_CONFIG = {
 
   // ===== 版本 =====
-  VERSION: '2.0.0-dev',
+  // 单一数据源：manifest.json，运行时通过 chrome.runtime.getManifest().version 读取
+  VERSION: (() => {
+    try { return chrome.runtime.getManifest().version; } catch(e) { return 'unknown'; }
+  })(),
 
   // ===== 默认端口 =====
   DEFAULT_PORT: 5789,
