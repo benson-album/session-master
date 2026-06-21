@@ -1793,13 +1793,15 @@
   function showUpdateAvailable(latest, current) {
     var banner = document.getElementById('updateBanner');
     var textEl = document.getElementById('updateBannerText');
+    var verEl = document.getElementById('popupVersion');
     var status = document.getElementById('deviceStatus');
     if (!banner || !textEl) return;
     textEl.textContent = '🆕 v' + latest + ' 可用（当前 v' + current + '）';
     banner.style.display = 'flex';
-    // 绑定横幅按钮事件（只绑一次）
     bindUpdateBannerEvents(latest);
-    // 🖥️ 旁边显示 ⬆ 有新版本，可点击跳转下载
+    // 版本号 title 保持 "点击查看更新日志"
+    if (verEl) verEl.title = '点击查看更新日志';
+    // 🖥️ 旁边显示 ⬆ 有新版本（可点击跳转下载）
     if (status) {
       status.textContent = '⬆ ' + latest;
       status.className = 'device-status status-update';
@@ -1812,13 +1814,15 @@
   }
 
   function showUpToDate() {
+    var verEl = document.getElementById('popupVersion');
     var status = document.getElementById('deviceStatus');
-    if (!status) return;
-    status.textContent = '✓';
-    status.className = 'device-status status-ok';
-    status.style.display = 'inline-flex';
-    status.title = '已是最新版本';
-    status.onclick = null;
+    // 版本号 hover 提示：已是最新版本
+    if (verEl) verEl.title = 'v' + chrome.runtime.getManifest().version + ' · 已是最新版本';
+    // 隐藏 🖥️ 旁边的状态指示器
+    if (status) {
+      status.style.display = 'none';
+      status.onclick = null;
+    }
   }
 
   // 版本更新横幅事件绑定
