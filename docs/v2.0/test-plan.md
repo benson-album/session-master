@@ -158,6 +158,30 @@
 | RBK-2 | 回滚操作 | 手动删除 `v2_sites` + `v2_global` + `v2_migrated` | ✅ 扩展退回到无站点状态 |
 | RBK-3 | 重新迁移 | 删除 `v2_migrated` 后重载 | ✅ 迁移重新执行 |
 
+### 2.8 TC-ALM：Alarm 按站点隔离
+
+| ID | 场景 | 操作 | 预期 |
+|:--:|:----:|------|------|
+| ALM-1 | 站点A启用服务器同步 | 启用后检查 alarm | ✅ `serverSync_oa.company.com` alarm 已创建 |
+| ALM-2 | 站点B启用P2P同步 | 启用后检查 alarm | ✅ `p2pSync_music.163.com` alarm 已创建 |
+| ALM-3 | 双站点同时运行 | 检查 alarm 列表 | ✅ 两个 alarm 共存，互不干扰 |
+| ALM-4 | 站点A禁用同步 | 关闭同步 | ✅ 仅站点A的 alarm 被清除，站点B不受影响 |
+| ALM-5 | alarm 触发 | 等待自动同步触发 | ✅ onAlarm 解析域名后只同步对应站点 |
+| ALM-6 | 迁移后 alarm 恢复 | v1.x→v2.0 升级 | ✅ 已启用同步的站点 alarm 自动重建 |
+| ALM-7 | 保活 alarm 不受影响 | 与同步 alarm 并存 | ✅ `heartbeat_hb_xxx` alarm 正常运行 |
+
+### 2.9 TC-P2P-SITE：P2P 连接按站点隔离
+
+| ID | 场景 | 操作 | 预期 |
+|:--:|:----:|------|------|
+| P2P-1 | 站点A建立P2P | 创建配对 | ✅ `p2pConnections` 中键为 `oa.company.com` |
+| P2P-2 | 站点B独立建立P2P | 在同一台设备上创建第二个配对 | ✅ 不与站点A的P2P连接冲突 |
+| P2P-3 | 双站点P2P共存 | 检查 `p2pConnections` | ✅ 两个连接各自独立 |
+| P2P-4 | 断开站点A的P2P | 在同步管理Tab点击断开 | ✅ 仅断开站点A，站点B保持连接 |
+| P2P-5 | 全部断开 | 调用 `p2pDisconnect()` 无参数 | ✅ 全部 P2P 连接关闭 |
+| P2P-6 | 站点A→P2P，站点B→服务器 | 两个站点独立运行 | ✅ 互不干扰 |
+| P2P-7 | P2P同步只发送当前站点Cookie | 站点A同步触发 | ✅ 仅同步站点A配置的域名 |
+
 ---
 
 ## 3. 文档验证（新增章节）

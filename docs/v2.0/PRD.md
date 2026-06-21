@@ -325,6 +325,62 @@ async function migrateV1toV2() {
     deviceIdentity: v1data.identity,
   });
 }
+
+### 3.4 Alarm 命名约定（按站点隔离）
+
+**硬规则**：所有自动同步 alarm 的名称必须包含站点域名。
+
+| 类型 | 命名格式 | 示例 |
+|:----:|:---------|:------|
+| P2P 自动同步 | `p2pSync_{domain}` | `p2pSync_oa.company.com` |
+| 服务器自动同步 | `serverSync_{domain}` | `serverSync_music.163.com` |
+| 保活心跳 | `heartbeat_{id}` | `heartbeat_hb_xxx`（通过 beat.domain 关联站点）|
+
+**onAlarm 伪代码**：
+
+```javascript
+chrome.alarms.onAlarm.addListener(async (alarm) => {
+  if (alarm.name.startsWith('p2pSync_')) {
+    const domain = alarm.name.replace('p2pSync_', '');
+    const site = getSite(domain);
+    if (site?.sync?.p2p?.enabled) await p2pSync(site);
+  } else if (alarm.name.startsWith('serverSync_')) {
+    const domain = alarm.name.replace('serverSync_', '');
+    await serverPerformSync(site);
+  } else if (alarm.name.startsWith('heartbeat_')) {
+    const id = alarm.name.replace('heartbeat_', '');
+    const beat = findHeartbeatById(id);
+    if (beat?.enabled) await performHeartbeat(beat);
+  }
+});
+```
+
+### 3.5 P2P 连接按站点隔离
+
+**v1.x 现状**：全局单例，一次只能建立一个 P2P 连接。
+
+**v2.0 改造**：
+
+```javascript
+// 从 peerId 索引改为 siteDomain 索引
+let p2pConnections = {};  // { siteDomain: { roomId, peerId, connection, channel } }
+
+async function p2pCreateRoom(deviceName, signalUrl, siteDomain) {
+  const peerId = generateP2PPeerId();
+  // ... 现有创建逻辑 ...
+  p2pConnections[siteDomain] = { roomId: data.roomId, peerId, connection: null, channel: null };
+  startP2PPolling(signalUrl, data.roomId, peerId, siteDomain);
+}
+
+async function p2pDisconnect(siteDomain) {
+  if (siteDomain) {
+    const conn = p2pConnections[siteDomain];
+    if (conn) { closeConnection(conn); delete p2pConnections[siteDomain]; }
+  } else {
+    Object.values(p2pConnections).forEach(closeConnection);
+    p2pConnections = {};
+  }
+}
 ```
 
 ---
