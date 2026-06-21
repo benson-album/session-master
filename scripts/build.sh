@@ -65,11 +65,15 @@ fi
 # 3. 构建 zip
 echo ""
 echo "[3/3] 构建 $OUTPUT_ZIP ..."
+
+# 先复制 VERSION 到 src 目录下，打包进 zip
+cp "$PROJECT_ROOT/VERSION" "$SRC_DIR/VERSION"
 cd "$SRC_DIR"
 zip -r "$OUTPUT_ZIP" . \
   -x ".*" -x "*/.*" \
   -x "node_modules/*" \
   > /dev/null
+rm "$SRC_DIR/VERSION"
 
 # 检查
 ZIP_SIZE=$(stat -c%s "$OUTPUT_ZIP" 2>/dev/null || stat -f%z "$OUTPUT_ZIP" 2>/dev/null)
