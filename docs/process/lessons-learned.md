@@ -162,3 +162,29 @@ cd /opt/projects/session-master && python3 scripts/doc-health-check.py
 | `master` | `v1.x.y`（语义版本） | `1.5.14` → `1.6.0` → `1.7.0` |
 | `develop` | `v2.0.0-dev`（开发中） | `2.0.0-dev` → 发布时改为 `2.0.0` |
 | 发布后 | develop 合并替换 master | master 替为 `2.0.0`，旧 master 存档为 `v1.x` 分支 |
+
+### 版本升级检测
+
+> **设计原则**：扩展内置自动检测新版本，用户无需手动检查。
+
+**检测机制**：
+
+1. **首次启动**：onInstalled 后 10 秒执行首次检测
+2. **定时检测**：每 6 小时通过 `chrome.alarms` 自动检查
+3. **用户手动**：popup 可调用 `checkUpdate` 消息强制检测
+4. **缓存策略**：1 小时内不重复请求（节省流量）
+
+**版本比较**：
+
+- 从 GitHub 读取 `VERSION` 文件（`master` 分支 = 稳定版）
+- 语义版本比较（`compareVersions` 函数）：`1.5.14` → `1.6.0` ≥ `1.5.15`
+- `-dev` / `-beta` 后缀视为开发版，不触发升级通知
+
+**通知方式**：
+
+| 场景 | 行为 |
+|:-----|:-----|
+| 发现新版本 | 浏览器角标显示 `NEW` + 系统通知 |
+| `develop` 测试版 | 可通过设置面板切换更新源到 `BETA_URL` |
+| 更新源切换 | 用户设置 `update_url` 指向 develop 分支 VERSION |
+| 升级后 | 角标清除，下次检测到更高版本再提示 |

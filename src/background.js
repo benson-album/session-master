@@ -1109,7 +1109,72 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
       await saveHeartbeats(beats);
     }
   }
+  if (alarm.name === 'versionCheck') {
+    checkForUpdate();
+  }
 });
+
+// ========== 升级检测 ==========
+
+/** 语义版本比较：a > b 返回 1，a < b 返回 -1，相等返回 0 */
+function compareVersions(a, b) {
+  const pa = String(a).split('.').map(Number);
+  const pb = String(b).split('.').map(Number);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const va = pa[i] || 0;
+    const vb = pb[i] || 0;
+    if (va > vb) return 1;
+    if (va < vb) return -1;
+  }
+  return 0;
+}
+
+/** 从 GitHub 检查新版本 */
+async function checkForUpdate() {
+  const updateConfig = await getStorage(STORAGE_KEYS.UPDATE_CONFIG, { url: UPDATE.DEFAULT_URL, enabled: UPDATE.ENABLED });
+  if (!updateConfig.enabled) return;
+
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), TIMEOUT.VERSION_CHECK_MS);
+    const resp = await fetch(updateConfig.url, { signal: controller.signal });
+    clearTimeout(timeoutId);
+
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const remoteVersion = (await resp.text()).trim();
+
+    const currentVersion = chrome.runtime.getManifest().version;
+    const updateAvailable = compareVersions(remoteVersion, currentVersion) > 0;
+
+    // 通过 devel 后缀检测是否需要切换更新源
+    const devBuild = currentVersion.includes('-dev') || currentVersion.includes('-beta');
+
+    const result = {
+      remoteVersion,
+      currentVersion,
+      devBuild,
+      updateAvailable,
+      checkedAt: Date.now(),
+      message: updateAvailable
+        ? `新版本 ${remoteVersion} 可用（当前 ${currentVersion}）`
+        : `已是最新版本 ${currentVersion}`
+    };
+
+    await setStorage('update_last_check', result);
+    logger.info('update', result.message);
+
+    if (updateAvailable) {
+      chrome.action.setBadgeText({ text: 'NEW' });
+      chrome.action.setBadgeBackgroundColor({ color: '#e74c3c' });
+      notifyUser('SessionMaster 有更新', `版本 ${remoteVersion} 已发布，当前 ${currentVersion}，请前往 GitHub 获取`);
+    } else {
+      // 清除角标
+      chrome.action.setBadgeText({ text: '' });
+    }
+  } catch (e) {
+    console.warn('[SessionMaster] 版本检查失败:', e.message);
+  }
+}
 
 // ========== 保活管理 ==========
 
@@ -1493,6 +1558,20 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         await setStorage(STORAGE_KEYS.UPDATE_CONFIG, request.config);
         sendResponse({ success: true });
         break;
+      case 'checkUpdate':
+        try {
+          const lastCheck = await getStorage('update_last_check', null);
+          const stale = !lastCheck || (Date.now() - lastCheck.checkedAt) > (UPDATE.CHECK_INTERVAL_MINUTES * 60 * 1000 / 2);
+          if (stale || request.force) {
+            await checkForUpdate();
+            sendResponse({ ...(await getStorage('update_last_check', null)), rechecked: true });
+          } else {
+            sendResponse({ ...lastCheck, rechecked: false });
+          }
+        } catch (e) {
+          sendResponse({ error: e.message });
+        }
+        break;
       case 'getAppConfig':
         sendResponse(APP_CONFIG);
         break;
@@ -1646,4 +1725,10 @@ chrome.runtime.onInstalled.addListener(async () => {
       }
     }
   });
+
+  // ===== 升级检测初始化 =====
+  // 每 6 小时检查一次新版本
+  chrome.alarms.create('versionCheck', { periodInMinutes: UPDATE.CHECK_INTERVAL_MINUTES });
+  // 首次启动立即检查（延迟 10 秒，避免启动时网络拥塞）
+  setTimeout(checkForUpdate, 10000);
 });

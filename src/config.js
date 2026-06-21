@@ -27,7 +27,9 @@ export const APP_CONFIG = {
   // ===== 升级检测 =====
   UPDATE: {
     DEFAULT_URL: 'https://raw.githubusercontent.com/benson-album/session-master/master/VERSION',
-    ENABLED: true
+    BETA_URL: 'https://raw.githubusercontent.com/benson-album/session-master/develop/VERSION',
+    ENABLED: true,
+    CHECK_INTERVAL_MINUTES: 360  // 每 6 小时检查一次
   },
 
   // ===== GitHub 地址（安装脚本、文件清单中的下载链接） =====
