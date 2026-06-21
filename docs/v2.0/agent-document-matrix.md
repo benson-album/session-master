@@ -2,7 +2,7 @@
 
 > **版本**：v1.0
 > **用途**：定义每个 Agent 在项目开发中负责的输入文档和产出文档
-> **关联**：`development-plan.md` · `PRD.md` · `test-plan.md` · `feasibility-report.md`
+> **关联**：`development-plan.md` · `PRD.md` · `test-plan.md` · `feasibility-report.md` · [`agent-roles.md`](agent-roles.md) · [`methodology.md`](methodology.md)
 
 ---
 

@@ -3,6 +3,7 @@
 > **版本**：v2.0-draft
 > **评估基准**：`docs/v2.0/PRD.md`
 > **评估日期**：2026-06-21
+> **关联文档**：[`agent-roles.md`](agent-roles.md) · [`agent-document-matrix.md`](agent-document-matrix.md) · [`development-plan.md`](development-plan.md) · [`test-plan.md`](test-plan.md) · [`methodology.md`](methodology.md) · [`maintainability-analysis.md`](maintainability-analysis.md)
 > **状态**：有条件通过（2 项设计调整）
 
 ---

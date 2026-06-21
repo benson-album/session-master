@@ -9,7 +9,11 @@
 
 ## Agent 架构总览
 
-本项目采用 **4 代理并行协作** 模式，每个 Agent 有明确职责和产入产出的契约。
+本项目采用 **4 代理并行协作** 模式，每个 Agent 有明确职责和产入产出的契约。各角色的完整定义见独立文档：
+
+- **角色定义** → [`agent-roles.md`](agent-roles.md)（职责/签字权/通信规则）
+- **文档关联** → [`agent-document-matrix.md`](agent-document-matrix.md)（每个 Agent 读什么、写什么）
+- **方法论** → [`methodology.md`](methodology.md)（可复用于其他项目的 5 阶段方法论）
 
 ```
 ┌─────────────────────────────────────────┐

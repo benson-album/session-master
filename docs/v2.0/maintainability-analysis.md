@@ -1,6 +1,6 @@
 # SessionMaster v2.0 — 架构债务与可升级性分析
 
-> **关联文档**：`feasibility-report.md` · `PRD.md`
+> **关联文档**：`feasibility-report.md` · `PRD.md` · [`agent-roles.md`](agent-roles.md) · [`agent-document-matrix.md`](agent-document-matrix.md) · [`development-plan.md`](development-plan.md) · [`test-plan.md`](test-plan.md) · [`methodology.md`](methodology.md)
 > **评估内容**：现有架构遗留债务 + v3.0+ 可升级性设计
 
 ---
