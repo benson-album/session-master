@@ -1,5 +1,23 @@
 [
   {
+    "version": "1.5.24",
+    "date": "2026-06-22",
+    "items": {
+      "🐛 修复": [
+        "隐身模式→普通模式 Cookie 导入失效（Phase 1）：导出时补全 expirationDate 字段，恢复 Cookie 持久化",
+        "隐身模式→普通模式 Cookie 导入失效（Phase 2）：新增 localStorage 同步机制，自动迁移腾讯视频等双存储站点的认证数据"
+      ],
+      "✨ 新增": [
+        "localStorage 同步架构：content script 端读取 localStorage 关键数据（ams_cookies、qimei 等），随 Cookie 一并导出/导入",
+        "PopUp 导出时自动检测 localStorage 数据，导入时自动回写至当前页面",
+        "预置腾讯系站点 localStorage Key 列表（ams_cookies、qimei、qimei36、q36cookiekey、qmuuk 等），支持按需扩展"
+      ],
+      "📘 文档": [
+        "添加 docs/analysis/ 目录：腾讯视频 Cookie 跨模式迁移分析报告 + 实施总结"
+      ]
+    }
+  },
+  {
     "version": "1.5.23",
     "date": "2026-06-22",
     "items": {
