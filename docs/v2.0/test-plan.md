@@ -89,7 +89,7 @@ PM Agent 收到 VERIFIED 状态 → 进入下一个任务
 | `src/server/server.js` | ❌ 不变 | 无变更 |
 | `src/deploy/*` | ❌ 不变 | 无变更 |
 | `src/scripts/*` | ❌ 不变 | 无变更 |
-| `src/blocking_rules*` | ❌ 不变 | 无变更 |
+|| `src/blocking_rules*` | ✅ **已扩展** | 新增泛微/蓝凌/ShowDoc 等站点，更新维护方式为脚本驱动（`scripts/update-blocking-rules.py`），v2.0 可复用 |
 | `src/content.js` | ❌ 不变 | 无变更 |
 
 ---
