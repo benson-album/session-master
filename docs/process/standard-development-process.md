@@ -86,7 +86,7 @@ PRD → 可行性分析 → 测试文档 → 开发计划 → 实施 → 自检 
 
 **产出**：自检报告（README 或随提交）
 
-**9 项强制自检**：
+**13 项强制自检**：
 1. JS 语法检查：`node --check <file>.js`
 2. CSS 花括号平衡（如涉及 CSS 修改）
 3. HTML 标签平衡（`<div>`/`<details>` 计数）
@@ -96,6 +96,10 @@ PRD → 可行性分析 → 测试文档 → 开发计划 → 实施 → 自检 
 7. 更新日志同步（CHANGELOG.md + changelog.json）
 8. 选择器一致性（CSS class rename 必须同步 JS 引用）
 9. 元素类型一致性（更新日志区统一使用 `<div>` 结构）
+10. README 同步：版本号 / 新增文件清单 / 功能说明 / storage_presets 状态表
+11. ZIP 目录结构验证：解压后为 `session-master-v{ver}/` 目录
+12. 帮助内容同步（`help_content.json` 与 HTML 标签结构对应）
+13. 禁用词扫描：无 IP、域名、密码、路径等隐私泄漏
 
 ---
 
@@ -119,11 +123,12 @@ PRD → 可行性分析 → 测试文档 → 开发计划 → 实施 → 自检 
 2. 更新所有版本号引用（manifest.json / config.js / popup.html / help.html ×2）
 3. 更新 CHANGELOG.md
 4. 更新 changelog.json
-5. 运行 `bash scripts/build.sh`
-6. Git commit + tag
-7. 推送至 GitHub
-8. 创建 Release + 上传附件
-9. 标记 Latest
+5. **同步 README.md**：版本号 / 新增文件 / 功能说明 / storage_presets 状态表
+6. 运行 `bash scripts/build.sh`
+7. Git commit + tag
+8. 推送至 GitHub
+9. 创建 Release + 上传附件
+10. 标记 Latest
 
 ---
 
