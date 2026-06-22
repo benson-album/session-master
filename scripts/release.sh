@@ -103,6 +103,7 @@ items = v.get('items', {})
 if isinstance(items, dict):
     for cat, item_list in items.items():
         lines.append(cat)
+        lines.append('-' * 30)
         for item in item_list:
             lines.append('- ' + item)
         lines.append('')
