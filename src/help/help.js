@@ -1,7 +1,144 @@
-// SessionMaster 帮助页 · 文件清单 + 版本号 + 侧边栏高亮 + 查看更多版本
+// SessionMaster 帮助页 · 动态内容加载 + 云端同步 + 侧边栏高亮 + 更新日志
 
 (function() {
   'use strict';
+
+  // ===== 帮助内容加载与渲染 =====
+  var HELP_CONTENT_KEY = 'help_cached_content';
+  var HELP_VERSION_KEY = 'help_content_version';
+
+  function initHelpContent() {
+    var container = document.getElementById('helpContent');
+    if (!container) return;
+
+    // 尝试从缓存读取（chrome.storage）
+    tryLoadFromStorage(container);
+  }
+
+  function tryLoadFromStorage(container) {
+    if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+      chrome.storage.local.get([HELP_CONTENT_KEY, HELP_VERSION_KEY], function(items) {
+        if (items[HELP_CONTENT_KEY]) {
+          renderSections(container, items[HELP_CONTENT_KEY].sections || []);
+          updateSyncStatus(items[HELP_VERSION_KEY] || null);
+        } else {
+          loadFromBundled(container);
+        }
+        // 无论缓存命中与否，都在后台检查更新
+        checkContentUpdate(container);
+      });
+    } else {
+      loadFromBundled(container);
+    }
+  }
+
+  function loadFromBundled(container) {
+    var jsonUrl;
+    if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.getURL) {
+      jsonUrl = chrome.runtime.getURL('help/help_content.json');
+    } else {
+      var base = window.location.href.replace(/\/[^/]*$/, '/');
+      jsonUrl = base + 'help_content.json';
+    }
+
+    fetch(jsonUrl)
+      .then(function(resp) { return resp.json(); })
+      .then(function(data) {
+        renderSections(container, data.sections || []);
+        // 缓存到 storage
+        if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+          chrome.storage.local.set({
+            HELP_CONTENT_KEY: 'help_cached_content',
+            HELP_VERSION_KEY: 'help_content_version',
+            // Store separately to avoid confusion
+            help_cache: { sections: data.sections },
+            help_version: data.version || 1
+          });
+        }
+      })
+      .catch(function() {
+        fallbackContent(container);
+      });
+  }
+
+  function renderSections(container, sections) {
+    if (!container || !sections || sections.length === 0) {
+      fallbackContent(container);
+      return;
+    }
+    var html = '';
+    for (var i = 0; i < sections.length; i++) {
+      var s = sections[i];
+      html += '<div class="card" id="' + s.id + '">' + s.html + '</div>';
+    }
+    container.innerHTML = html;
+  }
+
+  function fallbackContent(container) {
+    if (!container) return;
+    container.innerHTML = '<div class="card" style="text-align:center;padding:40px">' +
+      '<p style="color:#999">⚠️ 帮助内容加载失败</p>' +
+      '<p style="font-size:12px;color:#bbb;margin-top:8px">请检查网络连接或重新打开页面</p>' +
+      '</div>';
+  }
+
+  function updateSyncStatus(version) {
+    var el = document.getElementById('helpSyncStatus');
+    if (!el) return;
+    if (version) {
+      el.textContent = '帮助内容 v' + version + ' · 来自云端';
+      el.style.color = '#888';
+    } else {
+      el.textContent = '';
+    }
+  }
+
+  // ===== 云端同步检查 =====
+  var REMOTE_JSON_URL = 'https://raw.githubusercontent.com/benson-album/session-master/master/src/help/help_content.json';
+  var SYNC_CHECK_KEY = 'help_sync_last_check';
+
+  function checkContentUpdate(container) {
+    // 读取本地版本号（从 meta 标签）
+    var meta = document.querySelector('meta[name="help-content-version"]');
+    var localVer = meta ? parseInt(meta.getAttribute('content'), 10) : 1;
+
+    // 24h 节流
+    var lastCheck = 0;
+    try {
+      if (typeof localStorage !== 'undefined') {
+        lastCheck = parseInt(localStorage.getItem(SYNC_CHECK_KEY) || '0', 10);
+      }
+    } catch(e) {}
+    var now = Date.now();
+    if (now - lastCheck < 24 * 60 * 60 * 1000) return;
+    try {
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem(SYNC_CHECK_KEY, String(now));
+      }
+    } catch(e) {}
+
+    // 获取远程版本
+    fetch(REMOTE_JSON_URL, { method: 'GET', signal: AbortSignal.timeout(10000) })
+      .then(function(resp) { return resp.json(); })
+      .then(function(remote) {
+        var remoteVer = remote.version || 0;
+        if (remoteVer > localVer && remote.sections) {
+          // 有更新版本
+          renderSections(container, remote.sections);
+          updateSyncStatus(remoteVer);
+          // 缓存到 storage
+          if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+            chrome.storage.local.set({
+              help_cache: { sections: remote.sections },
+              help_version: remoteVer
+            });
+          }
+        }
+      })
+      .catch(function() {
+        // 静默失败，不影响页面显示
+      });
+  }
 
   // ===== 更新日志：从 changelog.json 动态加载 =====
   function initChangelogPagination() {
@@ -31,20 +168,16 @@
 
   function renderChangelog(root, container, btnLoadMore, versions) {
     var PAGE_SIZE = 20;
-
-    // 最新版（始终展开）
     var latest = versions[0];
     root.innerHTML = buildChangelogEntry(latest, true);
 
-    // 旧版本列表（初始折叠）
     var oldHtml = '';
     for (var i = 1; i < versions.length; i++) {
       oldHtml += buildChangelogEntry(versions[i], false);
     }
     container.innerHTML = oldHtml;
 
-    var total = versions.length - 1; // 除最新版外的旧版本数
-
+    var total = versions.length - 1;
     if (total > 0) {
       var firstBatch = Math.min(PAGE_SIZE, total);
       btnLoadMore.style.display = 'block';
@@ -63,7 +196,6 @@
       }
     });
 
-    // 事件代理：点击旧版本标题切换展开/收起
     container.addEventListener('click', function(e) {
       var summary = e.target.closest('.changelog-summary');
       if (!summary) return;
@@ -82,33 +214,27 @@
     var categories = ver.items;
 
     if (typeof categories === 'object' && !Array.isArray(categories)) {
-      // 新版：分类分组结构 { "🐛 修复": [...], "🎨 优化": [...] }
       var catKeys = Object.keys(categories);
       for (var ci = 0; ci < catKeys.length; ci++) {
-      var catName = catKeys[ci];
-      var catItems = categories[catName];
-
-      bodyHtml += '<div class="category-heading">' + escapeHtml2(catName) + '</div>';
-      bodyHtml += '<div class="category-divider"></div>';
-      if (catItems && catItems.length > 0) {
-        bodyHtml += '<ul>';
-        for (var ji = 0; ji < catItems.length; ji++) {
-          bodyHtml += '<li>' + catItems[ji] + '</li>';
+        var catName = catKeys[ci];
+        var catItems = categories[catName];
+        bodyHtml += '<div class="category-heading">' + escapeHtml2(catName) + '</div>';
+        bodyHtml += '<div class="category-divider"></div>';
+        if (catItems && catItems.length > 0) {
+          bodyHtml += '<ul>';
+          for (var ji = 0; ji < catItems.length; ji++) {
+            bodyHtml += '<li>' + catItems[ji] + '</li>';
+          }
+          bodyHtml += '</ul>';
         }
-        bodyHtml += '</ul>';
-      }
       }
     } else if (Array.isArray(categories)) {
-      // 旧版兼容：平铺数组
       var inList = false;
       for (var i = 0; i < categories.length; i++) {
         var item = categories[i];
         if (item.match(/^[✨🎨🐛]\s*(新增|优化|修复|首版发布)/)) {
           if (inList) { bodyHtml += '</ul>'; inList = false; }
-          var oldTagClass = 'tag-new';
-          if (item.indexOf('🎨') !== -1) oldTagClass = 'tag-update';
-          else if (item.indexOf('🐛') !== -1 || item.indexOf('🔧') !== -1) oldTagClass = 'tag-fix';
-          bodyHtml += '<p><span class="tag ' + oldTagClass + '">' + escapeHtml2(item) + '</span></p>';
+          bodyHtml += '<p><span class="tag ' + getOldTagClass(item) + '">' + escapeHtml2(item) + '</span></p>';
           continue;
         }
         if (!inList) { bodyHtml += '<ul>'; inList = true; }
@@ -122,12 +248,14 @@
       '<div class="version-body">' + bodyHtml + '</div></div>';
   }
 
+  function getOldTagClass(item) {
+    if (item.indexOf('🎨') !== -1) return 'tag-update';
+    if (item.indexOf('🐛') !== -1 || item.indexOf('🔧') !== -1) return 'tag-fix';
+    return 'tag-new';
+  }
+
   function escapeHtml2(str) {
-    return String(str)
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;');
+    return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   }
 
   // ===== 动态版本号 =====
@@ -139,15 +267,12 @@
       if (heroEl) heroEl.textContent = ver;
       if (footerEl) footerEl.textContent = ver;
       document.title = 'SessionMaster ' + ver + ' · 使用说明';
-    } catch(e) {
-      // 非扩展环境，保留硬编码值
-    }
+    } catch(e) {}
   }
   updateVersion();
 
   // ===== 版本更新检查 =====
   function checkHelpUpdate() {
-    // 从后台获取升级检测配置
     chrome.runtime.sendMessage({ action: 'getUpdateConfig' }, function(ucfg) {
       if (!ucfg || !ucfg.url || ucfg.enabled === false) return;
       var updateUrl = ucfg.url;
@@ -200,7 +325,6 @@
     var sidebarInner = document.querySelector('.sidebar-inner');
     if (!sidebarInner) return;
 
-    // 收集所有导航链接对应的 section
     links.forEach(function(link) {
       var href = link.getAttribute('href');
       if (!href || !href.startsWith('#')) return;
@@ -212,11 +336,9 @@
 
     if (sections.length === 0) return;
 
-    // 创建 IntersectionObserver——高亮当前可见章节
     var currentActive = null;
 
     function updateActive(visibleIds) {
-      // 优先取第一个在视口中的
       var activeId = null;
       for (var i = 0; i < sections.length; i++) {
         if (visibleIds.indexOf(sections[i].id) !== -1) {
@@ -224,26 +346,20 @@
           break;
         }
       }
-      // 如果都不在视口，取最后离开的那个
       if (!activeId) return;
-
       if (currentActive === activeId) return;
       currentActive = activeId;
 
       links.forEach(function(l) { l.classList.remove('active'); });
       sections.forEach(function(s) {
-        if (s.id === activeId) {
-          s.link.classList.add('active');
-        }
+        if (s.id === activeId) s.link.classList.add('active');
       });
     }
 
-    // 延迟检查：等 IntersectionObserver 稳定后再首次标记
     var visibleSet = {};
 
-    // 兜底：手动检查哪个 section 最靠近顶部
     function getClosestSection() {
-      var scrollY = window.scrollY + 80; // 加偏移（固定头部高度）
+      var scrollY = window.scrollY + 80;
       var best = null;
       var bestDist = Infinity;
       for (var i = 0; i < sections.length; i++) {
@@ -258,7 +374,6 @@
       return best;
     }
 
-    // 同时使用 IntersectionObserver 和 scroll 事件
     var observer = new IntersectionObserver(function(entries) {
       entries.forEach(function(entry) {
         visibleSet[entry.target.id] = entry.isIntersecting;
@@ -267,14 +382,11 @@
       for (var id in visibleSet) {
         if (visibleSet[id]) visible.push(id);
       }
-      if (visible.length > 0) {
-        updateActive(visible);
-      }
+      if (visible.length > 0) updateActive(visible);
     }, { rootMargin: '-60px 0px -60% 0px', threshold: 0 });
 
     sections.forEach(function(s) { observer.observe(s.el); });
 
-    // scroll 兜底：以防 observer 不够灵敏
     var scrollTimer = null;
     window.addEventListener('scroll', function() {
       if (scrollTimer) clearTimeout(scrollTimer);
@@ -287,20 +399,17 @@
           updateActive(visible);
         } else {
           var closest = getClosestSection();
-          if (closest) {
-            if (currentActive !== closest) {
-              currentActive = closest;
-              links.forEach(function(l) { l.classList.remove('active'); });
-              sections.forEach(function(s) {
-                if (s.id === closest) s.link.classList.add('active');
-              });
-            }
+          if (closest && currentActive !== closest) {
+            currentActive = closest;
+            links.forEach(function(l) { l.classList.remove('active'); });
+            sections.forEach(function(s) {
+              if (s.id === closest) s.link.classList.add('active');
+            });
           }
         }
       }, 100);
     }, { passive: true });
 
-    // 初始标记
     setTimeout(function() {
       var first = getClosestSection();
       if (first) {
@@ -321,9 +430,8 @@
     { name: 'deploy.sh', subdir: 'deploy', desc: '一键部署脚本（SCP + Docker）' }
   ];
 
-  var container = document.getElementById('fileList');
-  if (container) {
-    // 获取文件在扩展中的 URL
+  var fileContainer = document.getElementById('fileList');
+  if (fileContainer) {
     function getFilePath(f) {
       if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.getURL) {
         return chrome.runtime.getURL(f.subdir + '/' + f.name);
@@ -344,7 +452,7 @@
           '<span style="padding:4px 10px;background:#f1f3f4;color:#999;border-radius:4px;font-size:12px">⏳</span>' +
         '</div>';
       }
-      container.innerHTML = html;
+      fileContainer.innerHTML = html;
 
       var loaded = 0;
       var hasError = false;
@@ -352,35 +460,22 @@
         (function(idx) {
           var f = files[idx];
           var url = getFilePath(f);
-
           var xhr = new XMLHttpRequest();
           xhr.open('GET', url, true);
-
           xhr.onload = function() {
             if (xhr.status >= 200 && xhr.status < 300) {
               var content = xhr.responseText;
               var blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
               var blobUrl = URL.createObjectURL(blob);
-              updateItem(idx, f.name, f.desc, blobUrl);
+              updateFileItem(idx, f.name, f.desc, blobUrl);
             } else {
-              updateItem(idx, f.name, f.desc, null);
+              updateFileItem(idx, f.name, f.desc, null);
               hasError = true;
             }
             checkDone();
           };
-
-          xhr.onerror = function() {
-            updateItem(idx, f.name, f.desc, null);
-            hasError = true;
-            checkDone();
-          };
-
-          xhr.ontimeout = function() {
-            updateItem(idx, f.name, f.desc, null);
-            hasError = true;
-            checkDone();
-          };
-
+          xhr.onerror = function() { updateFileItem(idx, f.name, f.desc, null); hasError = true; checkDone(); };
+          xhr.ontimeout = function() { updateFileItem(idx, f.name, f.desc, null); hasError = true; checkDone(); };
           xhr.timeout = 10000;
           xhr.send();
         })(i);
@@ -392,51 +487,44 @@
           var note = document.createElement('p');
           note.style.cssText = 'font-size:11px;color:#c5221f;margin-top:6px';
           note.textContent = '⚠️ 部分文件加载失败，请直接从源码目录获取';
-          container.parentNode.appendChild(note);
+          fileContainer.parentNode.appendChild(note);
         }
       }
     }
 
-    function updateItem(idx, name, desc, blobUrl) {
-      var items = container.querySelectorAll('div[style*="border-bottom"]');
+    function updateFileItem(idx, name, desc, blobUrl) {
+      var items = fileContainer.querySelectorAll('div[style*="border-bottom"]');
       if (idx >= items.length) return;
       var item = items[idx];
-
       var safeName = escapeHtml(name);
       var safeDesc = escapeHtml(desc);
-
       var linkHtml = blobUrl
         ? '<a href="' + blobUrl + '" download="' + safeName + '" style="font-family:monospace;font-size:13px;color:#1a73e8;text-decoration:none">📄 ' + safeName + '</a>'
         : '<span style="font-family:monospace;font-size:13px;color:#555">📄 ' + safeName + '</span>';
       var btnHtml = blobUrl
         ? '<a href="' + blobUrl + '" download="' + safeName + '" style="padding:4px 10px;background:#1a73e8;color:white;border-radius:4px;font-size:12px;text-decoration:none;white-space:nowrap">⬇ 下载</a>'
         : '<span style="color:#888;font-size:11px">🔗 请从源码目录获取</span>';
-
-      item.innerHTML =
-        '<div style="flex:1;min-width:0">' + linkHtml +
-          '<br><span style="font-size:11px;color:var(--text-muted)">' + safeDesc + '</span>' +
-        '</div>' + btnHtml;
+      item.innerHTML = '<div style="flex:1;min-width:0">' + linkHtml +
+        '<br><span style="font-size:11px;color:var(--text-muted)">' + safeDesc + '</span></div>' + btnHtml;
     }
 
     function escapeHtml(str) {
-      return String(str)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/\"/g, '&quot;');
+      return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
     }
 
     loadAllFiles();
   }
 
-  // 侧边栏初始化（需 DOM 加载后执行）
+  // ===== 初始化入口 =====
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', function() {
+      initHelpContent();
       initSidebar();
       initChangelogPagination();
       checkHelpUpdate();
     });
   } else {
+    initHelpContent();
     initSidebar();
     initChangelogPagination();
     checkHelpUpdate();
