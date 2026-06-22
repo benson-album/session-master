@@ -506,6 +506,8 @@ textarea {
   width: 44px;
   height: 24px;
 }
+/* 全局抑制焦点黑框，使用自定义 focus 样式 */
+input:focus, select:focus, textarea:focus, button:focus { outline: none; }
 .switch input { opacity: 0; width: 0; height: 0; }
 .slider {
   position: absolute;
