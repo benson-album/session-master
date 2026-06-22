@@ -215,6 +215,7 @@ cd /opt/projects/session-master && python3 scripts/doc-health-check.py
 | 11 | **帮助页同步** | 检查帮助页是否需要更新（FAQ/说明/版本号） |
 | 12 | **zip 包重建** | `bash scripts/build.sh` 重建并清理旧包 |
 | 13 | **经验教训记录** | 本次是否发现了可以沉淀的经验？ |
+| 14 | **弹窗滚动检查** | 内容超长时 footer 是否可见、有无滚动条、overflow-y:auto 是否生效 |
 
 ---
 
@@ -325,3 +326,22 @@ cd /opt/projects/session-master && python3 scripts/doc-health-check.py
 - ✅ changelog.json 统一为分类分组结构（字典 key = 分类名）
 - ✅ help.js 渲染同时支持新版（分类对象）和旧版（数组）两种 changelog 格式
 - 📌 **待完成**：发布前应在用户面前预览 Release body，确认后再执行（release.sh 已有预览功能）
+
+---
+
+### #2️⃣1️⃣ 弹窗底部内容被裁切（footer 不可见）
+
+**时间**：2026-06-27
+
+**现象**：弹窗底部的「📖 使用说明 / 📋 导出日志 / 本插件仅供学习研究使用」在 popup 中不可见，被弹窗视口底部裁切，无滚动条可拖动到底部。
+
+**根因**：
+1. `popup.css` 中 `body` 没有设置 `overflow-y` 属性（默认 `visible`）
+2. Chrome 扩展弹窗使用 `default_popup` 时，弹窗窗口有最大高度限制（约 600px），内容超出的部分直接裁切，不会出现滚动条
+3. 之前只关注了去掉 `min-height: 400px` 让弹窗自适应高度，但忽略了「超长内容如何滚动」的 scroll 场景
+
+**改正措施**：
+- ✅ `body` 添加 `overflow-y: auto; overflow-x: hidden;` — 内容超出弹窗时自动出现滚动条
+- ✅ `html` 也添加相同规则（Chrome 扩展需要双重保障）
+- ✅ 自检清单 #7（UI视觉一致性）验证范围拓展：不能只看「不溢出」，还要检查「溢出后能否滚动」
+- ✅ 恢复执行构建脚本重新打包 ZIP
