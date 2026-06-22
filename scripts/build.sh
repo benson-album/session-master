@@ -58,6 +58,7 @@ REQUIRED_FILES=(
   "$SRC_DIR/popup/popup.css"
   "$SRC_DIR/help/help.html"
   "$SRC_DIR/help/help.js"
+  "$SRC_DIR/help/help_content.json"
   "$SRC_DIR/server/server.js"
   "$SRC_DIR/scripts/sessionmaster-install.sh"
   "$SRC_DIR/scripts/sessionmaster-install.ps1"
