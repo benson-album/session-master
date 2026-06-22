@@ -546,6 +546,26 @@
     </div>
   </div>
 
+  <!-- 清除 Cookie 确认弹窗 -->
+  <div id="clearConfirmOverlay" class="modal-overlay" style="display:none">
+    <div class="modal-content" style="max-width:380px;width:auto">
+      <div class="modal-header">
+        <span>⚠️ 确认清除 Cookie</span>
+      </div>
+      <div class="confirm-body">
+        <p id="clearConfirmText" style="font-size:14px;color:#333;line-height:1.6;margin-bottom:8px"></p>
+        <p style="font-size:12px;color:#c5221f;line-height:1.5">
+          ⚠️ 清除后当前网站的所有会话将失效，<strong>需要重新登录</strong>。
+          <br>页面将自动刷新以应用清除结果。
+        </p>
+      </div>
+      <div class="confirm-footer">
+        <button id="btnClearCancel" class="btn" style="background:#f1f3f4;color:#333;flex:1">取消</button>
+        <button id="btnClearConfirm" class="btn btn-danger" style="flex:1">🗑️ 确认清除</button>
+      </div>
+    </div>
+  </div>
+
   <script src="popup.js"></script>
 </body>
 </html>
