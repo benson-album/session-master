@@ -340,10 +340,15 @@
 
     function updateActive(visibleIds) {
       var activeId = null;
+      var bestTop = Infinity;
       for (var i = 0; i < sections.length; i++) {
         if (visibleIds.indexOf(sections[i].id) !== -1) {
-          activeId = sections[i].id;
-          break;
+          // 取最靠近视口顶部的章节（不按数组顺序）
+          var top = sections[i].el.getBoundingClientRect().top;
+          if (top < bestTop) {
+            bestTop = top;
+            activeId = sections[i].id;
+          }
         }
       }
       if (!activeId) return;
