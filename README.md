@@ -1,11 +1,11 @@
 # 🔐 SessionMaster · 会话大师
 
-**一款通用浏览器扩展，轻松突破网站「单设备登录」限制。**
+**一款通用浏览器扩展，轻松突破网站「单设备登录」限制。支持 Cookie 同步、会话保活、踢人拦截，以及 localStorage 跨设备迁移。**
 
 > 适用于 Matrix 致远 OA V9.0SP1 及其他使用前端踢人机制的企业系统。
-**经验证：大部分 OA 系统的限制是纯前端实现的——服务端其实允许多会话共存。**
+> **经验证：大部分 OA 系统的限制是纯前端实现的——服务端其实允许多会话共存。**
 
-> 当前版本：**v1.5.13**
+> 当前版本：**v1.6.1**
 
 ---
 
@@ -13,30 +13,44 @@
 
 ```
 session-master/
-├── VERSION               # 当前版本号
-├── README.md             # 本文件
-├── CHANGELOG.md          # 更新日志
-├── src/                  # 插件源代码
-│   ├── manifest.json     # 插件清单（Manifest V3）
-│   ├── background.js     # Service Worker — Cookie管理、P2P引擎、云同步
-│   ├── content.js        # 页面注入脚本 — 拦截JS踢人检测
-│   ├── blocking_rules.json  # declarativeNetRequest 内置拦截规则
-│   ├── icons/            # 图标
+├── VERSION                     # 版本号（单数据源：src/manifest.json）
+├── README.md                   # 本文件
+├── CHANGELOG.md                # 更新日志（Markdown 格式）
+├── build.sh                    # 构建脚本
+├── src/                        # 插件源代码
+│   ├── manifest.json           # 插件清单（Manifest V3）— 版本数据源
+│   ├── background.js           # Service Worker — Cookie管理、P2P引擎、云同步、localStorage路由
+│   ├── content.js              # 页面注入脚本 — localStorage 读写接口
+│   ├── config.js               # 统一配置中心（版本/端口/存储键/升级配置）
+│   ├── blocking_rules.json     # declarativeNetRequest 拦截规则
+│   ├── blocking_rules_db.json  # 拦截规则库（9站点，GitHub 自动同步）
+│   ├── storage_presets.json    # 站点 localStorage 预设（9站点，可扩展）
+│   ├── help_content.json       # 帮助文档数据源（GitHub 自动同步）
+│   ├── changelog.json          # 结构化更新日志（Release body 数据源）
+│   ├── icons/
 │   │   └── icon128.svg
-│   ├── popup/            # 弹出窗口
-│   │   ├── popup.html
-│   │   ├── popup.js
-│   │   └── popup.css
-│   ├── help/             # 帮助文档
-│   │   └── help.html
-│   ├── server/           # 同步服务器（零依赖）
-│   │   └── server.js
-│   └── deploy/           # Docker 部署文件
+│   ├── popup.html              # 弹窗 UI
+│   ├── popup.js                # 弹窗逻辑
+│   ├── popup.css               # 弹窗样式
+│   ├── help.html               # 帮助页（外壳，内容由 help_content.json 驱动）
+│   ├── help.js                 # 帮助页逻辑
+│   ├── server.js               # 同步+P2P信令服务器（零依赖）
+│   └── deploy/                 # Docker 部署
 │       ├── Dockerfile
 │       ├── docker-compose.yaml
 │       ├── deploy.sh
 │       └── server.js
-└── session-master-v*.zip    # 最新发布包（每次构建生成）
+├── scripts/
+│   ├── build.sh                # 构建脚本（含13项自检）
+│   ├── release.sh              # 一键发版（构建+Release+附件）
+│   ├── update-blocking-rules.py # 规则库维护脚本
+│   └── validate-rules.py       # 规则库校验脚本
+└── docs/
+    └── analysis/               # 站点存储体系分析报告
+        ├── 腾讯视频分析报告.md
+        ├── 哔哩哔哩分析报告.md
+        ├── 爱奇艺分析报告.md
+        └── 优酷分析报告.md
 ```
 
 ---
@@ -50,6 +64,9 @@ session-master/
 | ☁️ **云端自动同步** | 通过中继服务器双向同步 | AES-256-GCM 加密 |
 | 🛡️ **踢人拦截** | 阻止前端踢人检测 | declarativeNetRequest + JS 注入 |
 | 💓 **会话保活** | 定时心跳请求 | chrome.alarms API |
+| 📦 **localStorage 迁移** | 同步 localStorage 中的认证凭据 | Content Script + 后台路由 |
+| 🗂️ **站点预设库** | 内置 9 站点 localStorage Key/Cookie 前缀配置 | `storage_presets.json` |
+| ⬆️ **自动升级检测** | 自动检测 GitHub 新版本，角标+通知提示 | 版本对比 + 横幅 |
 
 ---
 
@@ -76,17 +93,49 @@ session-master/
 └─────────────────────────────────────────────────────┘
 ```
 
-### 文件职责
+### 数据流程（v1.6+）
 
-| 文件 | 行数 | 职责 |
-|------|------|------|
-| `background.js` | ~1100 | Service Worker — Cookie CRUD、版本控制+来源追踪、P2P 引擎（WebRTC）、服务器模式同步、图标角标动画、消息路由 |
-| `content.js` | ~133 | 页面注入 — 拦截 `setTimeout`/`setInterval`/`addEventListener` 中的踢人检测 |
-| `popup/popup.js` | ~1330 | 弹出窗口逻辑 — 3 Tab 切换、Cookie 导出/导入/文件、保活管理、P2P 配对、服务器模式、主从设备、网络地址检测 |
-| `popup/popup.html` | ~390 | 弹出窗口 UI — 3 个 Tab（会话管理/同步/拦截），可折叠卡片布局 |
-| `popup/popup.css` | ~460 | 弹出窗口样式（含可折叠卡片、同步模式切换、保活列表等） |
-| `server/server.js` | ~382 | 同步服务器 + P2P 信令端点 + 主从冲突检测（零依赖 Node.js） |
-| `help/help.html` | ~700 | 帮助文档（含下载区、版权声明） |
+```
+用户操作 → PopUp
+  ├── Cookie 导出/导入 → background.js → chrome.cookies API
+  ├── localStorage 同步 → background.js → content.js → window.localStorage
+  ├── 保活管理 → background.js → chrome.alarms API
+  └── 存储管理面板 → PopUp 展示 → 预设库 storage_presets.json
+```
+
+---
+
+## 💡 站点存储分析
+
+为持续扩展站点兼容性，项目内置了完整的存储体系分析方法论（抽象为可复用技能）。
+
+### 分析工具
+
+| 工具 | 用途 |
+|:-----|:------|
+| `whatweb` | 快速识别 Web 技术栈 |
+| `curl -v` / `curl -sIL` | HTTP 头分析、重定向链追踪 |
+| 浏览器 DevTools → Application | 登录态 Cookie/localStorage 采集 |
+| Kali Linux + vendor bundle 反编译 | API 签名、设备指纹、反爬机制分析 |
+
+### 分析流程
+
+1. **结构测绘** — 端点发现、重定向链、安全头部
+2. **Cookie 体系** — 采集、分类（核心认证/CSRF/设备标识）、HttpOnly 判断
+3. **localStorage** — 全量 Key 采集、三级分级（⭐⭐⭐/⭐⭐/⭐）、JSON 嵌套检测
+4. **认证体系** — SSO 归属识别、签名机制（Wbi/Mtop/ApiTicket）、设备指纹
+5. **文档产出** — 结构化分析报告
+6. **预设产出** — 生成 `storage_presets.json` 条目并验证
+
+### 已分析站点
+
+| 站点 | SSO 体系 | 分析报告 | 预设状态 |
+|:-----|:---------|:---------|:---------|
+| 腾讯视频 v.qq.com | 微信/QQ | ✅ `docs/analysis/` | ✅ `storage_presets.json` |
+| 哔哩哔哩 bilibili.com | 自有 SSO | ✅ `docs/analysis/` | ✅ `storage_presets.json` |
+| 爱奇艺 iqiyi.com | 百度账号 | ✅ `docs/analysis/` | ✅ `storage_presets.json` |
+| 优酷 youku.com | 阿里系 (淘宝) | ✅ `docs/analysis/` | ✅ `storage_presets.json` |
+| 飞书 feishu.cn, 钉钉, 百度, 微博, Notion | 各体系 | — | ✅ `storage_presets.json` |
 
 ---
 
@@ -96,7 +145,8 @@ session-master/
 
 ```bash
 cd session-master/
-bash scripts/build.sh
+bash scripts/build.sh          # 构建（含13项自检）
+bash scripts/release.sh        # 构建 + 创建 Release + 上传附件
 ```
 
 构建产物：`session-master-v*.zip`（位于项目根目录）
@@ -108,13 +158,24 @@ bash scripts/build.sh
 3. 点击「加载已解压的扩展程序」→ 选择 `src/` 目录
 4. 如加载 `.zip`：直接拖入 `chrome://extensions` 页面
 
+### 扩展新站点预设
+
+1. 浏览器登录目标站点 → DevTools → Application 采集 Cookie 和 localStorage
+2. 按 `docs/analysis/` 下报告模板编写分析文档
+3. 编辑 `src/storage_presets.json` 添加条目
+4. 运行 `bash scripts/build.sh` 验证 JSON 格式
+
+---
+
 ### 关键技术决策
 
 - **Manifest V3**：使用 Service Worker 替代 Background Page
 - **P2P 默认**：普通用户无 NAS/域名，P2P 直连零门槛
 - **双保险网络地址**：优先 `chrome.system.network`，备用 WebRTC ICE
-- **配对码字符集**：`ABCDEFGHJKLMNPQRSTUVWXYZ23456789`（排除 0/O、1/I/L 等易混淆字符）
+- **配对码字符集**：`ABCDEFGHJKLMNPQRSTUVWXYZ23456789`（排除易混淆字符）
 - **零依赖服务器**：纯 Node.js 内置模块（http、crypto、fs），无需 npm install
+- **本地 JSON + 远程同步**：规则库/帮助文档采用本地数据 + GitHub 自动同步
+- **存储预设**：标准化站点配置体系，统一 Cookie / localStorage / 关联域信息
 
 ### 自定义端口
 
@@ -130,7 +191,7 @@ PORT=5790 docker compose -f src/deploy/docker-compose.yaml up -d
 
 ## 🐳 Docker 部署（NAS/服务器）
 
-详细步骤见帮助文档 `src/help/help.html` 3.1-3.2 节。
+详细步骤见帮助文档 `src/help.html` 3.1-3.2 节。
 
 ```bash
 # 快速部署
@@ -155,6 +216,7 @@ curl http://localhost:5789/api/health
 - **服务器**：Node.js 零依赖（http / crypto / fs）
 - **部署**：Docker (node:22-alpine)
 - **拦截**：declarativeNetRequest + JS 注入
+- **数据源**：JSON 配置文件 + GitHub Raw 远程同步
 
 ---
 
