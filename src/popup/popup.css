@@ -24,7 +24,7 @@ body {
 }
 .header-left {
   display: flex;
-  align-items: baseline;
+  align-items: center;
 }
 .header-left h1 {
   font-size: 20px;
