@@ -2161,6 +2161,16 @@
     if (serverConfig.enabled && serverConfig.lastSyncTime) {
       startServerConnectionTimer(serverConfig.lastSyncTime);
     }
+    
+    // 根据首页内容自动调整弹窗最大高度
+    requestAnimationFrame(() => {
+      setTimeout(() => {
+        const scrollH = document.documentElement.scrollHeight;
+        if (scrollH > 0) {
+          document.documentElement.style.maxHeight = scrollH + 'px';
+        }
+      }, 50);
+    });
   })();
 
 })();
