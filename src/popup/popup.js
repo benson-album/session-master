@@ -91,6 +91,22 @@
     document.getElementById('cookieResult').style.display = 'block';
     document.getElementById('importBox').style.display = 'none';
     lastExportData = result.data;
+    
+    // 尝试读取页面的 localStorage（腾讯视频等双存储站点）
+    try {
+      const lsResult = await chrome.runtime.sendMessage({ action: 'readLocalStorage' });
+      if (lsResult && lsResult.success) {
+        const keys = Object.keys(lsResult.data);
+        if (keys.length > 0) {
+          lastExportData.localStorage = lsResult.data;
+          document.getElementById('resultCount').textContent = `${result.data.cookies.length} 个 Cookie + ${keys.length} 项本地存储`;
+          showToast(`✅ 已导出 ${result.data.cookies.length} 个 Cookie + ${keys.length} 项本地存储`);
+          return;
+        }
+      }
+    } catch(e) {
+      // content script 未注入或多步操作页面，跳过
+    }
     showToast(`✅ 已导出 ${result.data.cookies.length} 个 Cookie`);
   });
 
@@ -118,6 +134,10 @@
         hostOnly: c.hostOnly
       }))
     };
+    // 如果有 localStorage 数据，一并包含
+    if (lastExportData.localStorage) {
+      fileData.localStorage = lastExportData.localStorage;
+    }
     const blob = new Blob([JSON.stringify(fileData, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -173,6 +193,15 @@
     document.getElementById('importBox').style.display = 'none';
     if (compositeResult.imported > 0) showToast(`✅ 成功导入 ${compositeResult.imported} 个 Cookie！刷新页面生效`);
     if (compositeResult.failed > 0) console.warn('导入失败:', compositeResult.errors);
+    
+    // 如果导入数据包含 localStorage，尝试写入页面
+    if (importData.localStorage && typeof importData.localStorage === 'object' && Object.keys(importData.localStorage).length > 0) {
+      try {
+        await chrome.runtime.sendMessage({ action: 'writeLocalStorage', data: importData.localStorage });
+      } catch(e) {
+        console.log('[SessionMaster] ⚠️ 写入 localStorage 失败（页面可能需要刷新后重试）:', e.message);
+      }
+    }
   });
 
   // 从 JSON 文件导入 Cookie
@@ -196,6 +225,15 @@
       document.getElementById('importBox').style.display = 'none';
       if (compositeResult.imported > 0) showToast(`✅ 从文件成功导入 ${compositeResult.imported} 个 Cookie！刷新页面生效`);
       if (compositeResult.failed > 0) console.warn('导入失败:', compositeResult.errors);
+      
+      // 如果导入数据包含 localStorage，尝试写入页面
+      if (parsed.localStorage && typeof parsed.localStorage === 'object' && Object.keys(parsed.localStorage).length > 0) {
+        try {
+          await chrome.runtime.sendMessage({ action: 'writeLocalStorage', data: parsed.localStorage });
+        } catch(e) {
+          console.log('[SessionMaster] ⚠️ 写入 localStorage 失败（页面可能需要刷新后重试）:', e.message);
+        }
+      }
     } catch (err) {
       showToast('⚠️ 文件读取或解析失败: ' + err.message);
     }
