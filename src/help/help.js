@@ -3,6 +3,9 @@
 (function() {
   'use strict';
 
+  var _sidebarObserver = null; // 侧边栏 IntersectionObserver 实例，供重入时 disconnect
+  var _sidebarScrollHandler = null; // 侧边栏 scroll 事件处理函数，供重入时移除
+
   // ===== 帮助内容加载与渲染 =====
   var HELP_CONTENT_KEY = 'help_cached_content';
   var HELP_VERSION_KEY = 'help_content_version';
@@ -20,6 +23,7 @@
       chrome.storage.local.get([HELP_CONTENT_KEY, HELP_VERSION_KEY], function(items) {
         if (items[HELP_CONTENT_KEY]) {
           renderSections(container, items[HELP_CONTENT_KEY].sections || []);
+          initSidebar(); // 内容已渲染，初始化侧边栏高亮
           updateSyncStatus(items[HELP_VERSION_KEY] || null);
         } else {
           loadFromBundled(container);
@@ -45,6 +49,7 @@
       .then(function(resp) { return resp.json(); })
       .then(function(data) {
         renderSections(container, data.sections || []);
+        initSidebar(); // 内容已渲染，初始化侧边栏高亮
         // 缓存到 storage
         if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
           chrome.storage.local.set({
@@ -64,6 +69,7 @@
   function renderSections(container, sections) {
     if (!container || !sections || sections.length === 0) {
       fallbackContent(container);
+      initSidebar(); // 即便回退，也重新初始化（保持 clean state）
       return;
     }
     var html = '';
@@ -125,6 +131,7 @@
         if (remoteVer > localVer && remote.sections) {
           // 有更新版本
           renderSections(container, remote.sections);
+          initSidebar(); // 内容已更新，重新初始化侧边栏高亮
           updateSyncStatus(remoteVer);
           // 缓存到 storage
           if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
@@ -320,6 +327,12 @@
 
   // ===== 侧边栏当前章节高亮 =====
   function initSidebar() {
+    // 重入时先清理旧 observer
+    if (_sidebarObserver) {
+      _sidebarObserver.disconnect();
+      _sidebarObserver = null;
+    }
+
     var links = document.querySelectorAll('.sidebar-link');
     var sections = [];
     var sidebarInner = document.querySelector('.sidebar-inner');
@@ -381,7 +394,7 @@
       return best;
     }
 
-    var observer = new IntersectionObserver(function(entries) {
+    _sidebarObserver = new IntersectionObserver(function(entries) {
       entries.forEach(function(entry) {
         visibleSet[entry.target.id] = entry.isIntersecting;
       });
@@ -392,10 +405,16 @@
       if (visible.length > 0) updateActive(visible);
     }, { rootMargin: '-60px 0px -60% 0px', threshold: 0 });
 
-    sections.forEach(function(s) { observer.observe(s.el); });
+    sections.forEach(function(s) { _sidebarObserver.observe(s.el); });
+
+    // 移除上一次的 scroll 处理器（重入时避免重复绑定）
+    if (_sidebarScrollHandler) {
+      window.removeEventListener('scroll', _sidebarScrollHandler, { passive: true });
+      _sidebarScrollHandler = null;
+    }
 
     var scrollTimer = null;
-    window.addEventListener('scroll', function() {
+    _sidebarScrollHandler = function() {
       if (scrollTimer) clearTimeout(scrollTimer);
       scrollTimer = setTimeout(function() {
         var visible = [];
@@ -415,7 +434,8 @@
           }
         }
       }, 100);
-    }, { passive: true });
+    };
+    window.addEventListener('scroll', _sidebarScrollHandler, { passive: true });
 
     setTimeout(function() {
       var first = getClosestSection();
