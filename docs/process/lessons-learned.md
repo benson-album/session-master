@@ -300,3 +300,28 @@ cd /opt/projects/session-master && python3 scripts/doc-health-check.py
 **改正措施**：
 - ✅ build.sh 改用临时目录 + 版本号子目录方式打包：`mkdir -p _tmp/session-master-vX.X.X/ && cp -r src/* _tmp/session-master-vX.X.X/ && zip -r output.zip session-master-vX.X.X/`
 - ✅ 新增自检条款：每次发版前必须执行 `unzip -l *.zip | head -5` 检查第一条目录名是否含版本号
+
+---
+
+### #20️⃣ 发版流程反复不一致（格式/标题/重复发布）
+
+**时间**：2026-06-23
+**现象**：v1.5.17 发布过程中出现系列问题：
+1. GitHub Release 标题格式反复修改（纯版本号 → 带描述 → 纯版本号）
+2. Release body `# v1.5.17` 标题与 GitHub 顶栏版本号重复
+3. 草稿 Release 残留未清理（双 v1.5.16 问题）
+4. Release body 格式跟用户期望的不一致（平铺列表 vs 分类分组 vs 分隔线）
+5. changelog.json 结构反复重构（数组 → 分类对象 → 加 title → 去 title）
+
+**根因**：
+1. 没有「先确认再执行」的流程 — 对 Release 格式的改动全凭猜测后立刻执行，用户看了不满意又改回来
+2. 手动拼 curl 参数发布，缺少完整发版脚本 — 每步容易遗漏或拼错
+3. changelog 结构变更时没同步更新 help.js 渲染函数，导致多轮适配
+
+**改正措施**：
+- ✅ 创建 `scripts/release.sh` 一键发版脚本（构建→创建 Release→上传附件，一次完成）
+- ✅ 确定 Release 命名规范：`name = 'vX.X.X'`，body 不重复版本号
+- ✅ 确定 Release body 结构：`分类名称 + ----分隔线 + 条目列表`
+- ✅ changelog.json 统一为分类分组结构（字典 key = 分类名）
+- ✅ help.js 渲染同时支持新版（分类对象）和旧版（数组）两种 changelog 格式
+- 📌 **待完成**：发布前应在用户面前预览 Release body，确认后再执行（release.sh 已有预览功能）
