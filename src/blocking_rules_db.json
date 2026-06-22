@@ -1,7 +1,7 @@
 {
-  "version": 1,
+  "version": 2,
   "lastUpdated": "2026-06-26",
-  "updateUrl": "",
+  "updateUrl": "https://raw.githubusercontent.com/benson-album/session-master/master/src/blocking_rules_db.json",
   "keywordLabels": {
     "loginCheck": "登录检测",
     "sessionTimeout": "会话超时",

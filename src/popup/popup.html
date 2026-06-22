@@ -455,7 +455,10 @@
       <div class="section" style="padding:10px 12px">
         <div id="ruleDBToggle" style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;user-select:none;font-size:13px">
           <span>📂 拦截规则库 <span id="ruleDBCount" class="badge badge-green" style="font-size:11px">加载中</span></span>
-          <span id="ruleDBArrow" style="color:#555;font-size:14px">▶</span>
+          <span style="display:flex;align-items:center;gap:6px">
+            <span id="ruleDBSyncInfo" style="font-size:9px;color:#999;display:none"></span>
+            <span id="ruleDBArrow" style="color:#555;font-size:14px">▶</span>
+          </span>
         </div>
         <div id="ruleDBList" style="margin-top:4px;max-height:200px;overflow-y:auto;display:none">
           <p class="hint">加载中...</p>
@@ -496,6 +499,10 @@
       <!-- → ⑤ 规则库管理 -->
       <div class="section">
         <div class="section-title"><span>⚙️ 规则库管理</span></div>
+        <div style="font-size:10px;color:#888;margin:0 0 8px 0;line-height:1.5">
+          <span id="syncInfoVersion">v1</span> · <span id="syncInfoUpdated">本地</span>
+          · 每日自动同步 <span id="syncInfoAutoBadge" style="color:#137333">✅</span>
+        </div>
         <div class="btn-group" style="margin-bottom:6px">
           <button id="btnExportRules" class="btn btn-secondary" style="flex:1;font-size:12px;padding:6px">📤 导出</button>
           <button id="btnImportRules" class="btn btn-primary" style="flex:1;font-size:12px;padding:6px">📥 导入</button>

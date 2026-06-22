@@ -1112,6 +1112,9 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
   if (alarm.name === 'versionCheck') {
     checkForUpdate();
   }
+  if (alarm.name === 'rulesDBSync') {
+    checkRulesDBAutoSync();
+  }
 });
 
 // ========== 升级检测 ==========
@@ -1274,6 +1277,7 @@ async function clearSyncHistory() {
 
 const USER_RULES_KEY = 'user_blocking_rules';
 const RULES_DB_KEY = 'blocking_rules_db';
+const RULES_DB_SYNC_KEY = 'rules_db_last_sync_check';
 
 async function getUserBlockingRules() { return await getStorage(USER_RULES_KEY, []); }
 
@@ -1306,14 +1310,25 @@ async function updateDynamicRules(rules) {
 // 规则库管理
 async function getRulesDB() {
   let db = await getStorage(RULES_DB_KEY, null);
-  if (!db) {
-    // 首次加载：从内置文件读取
+  // 首次加载或本地版本落后于内置版本时，从内置文件重新加载
+  if (!db || !db.version || db.version < 2) {
     try {
       const resp = await fetch(chrome.runtime.getURL('blocking_rules_db.json'));
-      db = await resp.json();
-      await setStorage(RULES_DB_KEY, db);
+      const bundled = await resp.json();
+      if (!db) {
+        // 全新安装：直接用内置数据
+        db = bundled;
+        await setStorage(RULES_DB_KEY, db);
+      } else if (bundled.version > (db.version || 0)) {
+        // 升级：保留用户的自定义规则（sites），但用内置的 updateUrl/版本号
+        db.version = bundled.version;
+        db.updateUrl = bundled.updateUrl;
+        db.lastUpdated = bundled.lastUpdated;
+        await setStorage(RULES_DB_KEY, db);
+        logger.info('blocker', '规则库已从内置文件升级到 v' + bundled.version);
+      }
     } catch (e) {
-      db = { version: 1, lastUpdated: '', updateUrl: '', sites: [], generic: [] };
+      if (!db) db = { version: 1, lastUpdated: '', updateUrl: '', sites: [], generic: [] };
     }
   }
   return db;
@@ -1363,7 +1378,7 @@ async function getRecommendedRules(domain) {
   return { sites: matched, keywords, generic: db.generic || [], keywordLabels: db.keywordLabels || {} };
 }
 
-// 远程更新规则库
+// 远程更新规则库（带版本检查：仅远程版本>本地时才更新）
 async function updateRulesDBFromServer() {
   const db = await getRulesDB();
   if (!db.updateUrl) return { success: false, error: '未配置更新地址' };
@@ -1371,11 +1386,47 @@ async function updateRulesDBFromServer() {
     const resp = await fetch(db.updateUrl, { signal: AbortSignal.timeout(15000) });
     const remote = await resp.json();
     if (!remote.sites || !Array.isArray(remote.sites)) return { success: false, error: '远程数据格式无效' };
+    // 版本检查：远程版本号 ≤ 本地时跳过
+    const localVer = db.version || 0;
+    const remoteVer = remote.version || 0;
+    if (remoteVer <= localVer) {
+      return { success: true, message: '规则库已是最新', skipped: true, localVersion: localVer };
+    }
     await saveRulesDB(remote);
-    return { success: true, message: `已更新 ${remote.sites.length} 个站点规则` };
+    logger.info('blocker', '规则库已远程更新: v' + localVer + ' → v' + remoteVer + '（' + remote.sites.length + ' 个站点）');
+    return { success: true, message: '已更新到 v' + remoteVer + '，共 ' + remote.sites.length + ' 个站点', localVersion: localVer, remoteVersion: remoteVer };
   } catch (e) {
     return { success: false, error: e.message };
   }
+}
+
+// 启动时自动同步规则库（24 小时内不重复检查）
+async function checkRulesDBAutoSync() {
+  const db = await getRulesDB();
+  if (!db.updateUrl) return;
+  const lastCheck = await getStorage(RULES_DB_SYNC_KEY, 0);
+  const now = Date.now();
+  if (now - lastCheck < 24 * 60 * 60 * 1000) return;
+  await setStorage(RULES_DB_SYNC_KEY, now);
+  const result = await updateRulesDBFromServer();
+  if (result.success) {
+    logger.info('blocker', '规则库自动同步: ' + result.message);
+  } else {
+    logger.warn('blocker', '规则库自动同步失败: ' + (result.error || '未知错误'));
+  }
+}
+
+// 获取规则库同步状态信息（供弹窗展示）
+async function getRulesDBSyncInfo() {
+  const db = await getRulesDB();
+  const lastCheck = await getStorage(RULES_DB_SYNC_KEY, 0);
+  return {
+    version: db.version || 1,
+    lastUpdated: db.lastUpdated || '',
+    updateUrl: db.updateUrl || '',
+    lastCheckTime: lastCheck ? new Date(lastCheck).toLocaleString('zh-CN') : '从未检查',
+    siteCount: (db.sites || []).length
+  };
 }
 
 // 导出规则库为 JSON 字符串
@@ -1476,6 +1527,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
       // ---- 规则库（按站归类）----
       case 'getRulesDB': sendResponse(await getRulesDB()); break;
+      case 'getRulesDBSyncInfo': sendResponse(await getRulesDBSyncInfo()); break;
       case 'getRecommendedRules': sendResponse(await getRecommendedRules(request.domain)); break;
       case 'updateRulesDBFromServer': sendResponse(await updateRulesDBFromServer()); break;
       case 'exportRulesDB': sendResponse({ data: await exportRulesDB() }); break;
@@ -1731,4 +1783,10 @@ chrome.runtime.onInstalled.addListener(async () => {
   chrome.alarms.create('versionCheck', { periodInMinutes: UPDATE.CHECK_INTERVAL_MINUTES });
   // 首次启动立即检查（延迟 10 秒，避免启动时网络拥塞）
   setTimeout(checkForUpdate, 10000);
+
+  // ===== 规则库自动同步（延迟 15 秒，24h 节流）=====
+  setTimeout(checkRulesDBAutoSync, 15000);
+
+  // 创建每日规则库同步定时器（每 24 小时检查一次）
+  chrome.alarms.create('rulesDBSync', { periodInMinutes: 1440 });
 });
