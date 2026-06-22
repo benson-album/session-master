@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "SessionMaster · 会话大师",
-  "version": "1.5.24",
+  "version": "1.6.0",
   "author": "BenSon.Album (chinasir@qq.com)",
   "description": "突破网站单设备登录限制 —— 跨浏览器 Cookie 同步 + 拦截踢人请求",
   "content_security_policy": {
@@ -54,9 +54,9 @@
     ]
   },
   "web_accessible_resources": [
-    {
-      "resources": ["help/*", "server/*", "deploy/*", "changelog.json", "blocking_rules.json", "blocking_rules_db.json"],
-      "matches": ["<all_urls>"]
-    }
+  {
+    "resources": ["help/*", "server/*", "deploy/*", "changelog.json", "blocking_rules.json", "blocking_rules_db.json", "storage_presets.json"],
+    "matches": ["<all_urls>"]
+  }
   ]
 }

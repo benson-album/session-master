@@ -1,5 +1,30 @@
 [
   {
+    "version": "1.6.0",
+    "date": "2026-06-22",
+    "items": {
+      "✨ 新增": [
+        "Phase 3-1：导出文件格式升级 v2.0，增加 _version、_storageTypes、_stats 元数据字段",
+        "Phase 3-2：增强域名发现，两轮查询自动探测所有关联 Cookie 域（如 v.qq.com 自动捕获 .video.qq.com）",
+        "Phase 3-3：站点预设数据库 storage_presets.json，内置腾讯视频/飞书/钉钉/Notion/百度/微博 6 个站点配置",
+        "Phase 3-4：存储管理面板，导出结果展示 localStorage 详情，支持自定义 Key 添加/删除",
+        "Phase 3-5：导入统计增强，按域名分组显示导入成功率（进度条 + 百分比）"
+      ],
+      "🐛 修复": [
+        "隐身模式→普通模式 Cookie 导入失效（Phase 1）：导出时补全 expirationDate 字段，恢复 Cookie 持久化",
+        "隐身模式→普通模式 Cookie 导入失效（Phase 2）：新增 localStorage 同步机制，自动迁移腾讯视频等双存储站点的认证数据"
+      ],
+      "💄 界面优化": [
+        "导出结果展示关联域名数",
+        "导入完成展示域名级成功率（█████░░░░░ 格式进度条）",
+        "本地存储管理面板（添加/删除自定义 localStorage Key）"
+      ],
+      "📘 文档": [
+        "docs/analysis/ 目录：腾讯视频 Cookie 跨模式迁移分析报告 + 实施总结"
+      ]
+    }
+  },
+  {
     "version": "1.5.24",
     "date": "2026-06-22",
     "items": {

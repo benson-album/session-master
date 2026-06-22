@@ -1,0 +1,92 @@
+[
+  {
+    "domain": "v.qq.com",
+    "name": "腾讯视频",
+    "nameZh": "腾讯视频 (Tencent Video)",
+    "localStorageKeys": [
+      "ams_cookies",
+      "qimei",
+      "qimei36",
+      "q36cookiekey",
+      "qmuuk",
+      "g_utdata",
+      "vqq_user_info",
+      "vqq_access_token",
+      "vqq_refresh_token"
+    ],
+    "knownCookiePrefixes": [
+      "_video_qq_", "vqq_", "v_t_", "_qimei_", "QIMEI"
+    ],
+    "cookieDomains": [
+      ".qq.com", ".v.qq.com", ".video.qq.com", ".film.qq.com"
+    ],
+    "notes": "微信登录（wxuin）或QQ登录。认证Cookie: access_token, openid, refresh_token, vuserid, vusession"
+  },
+  {
+    "domain": "feishu.cn",
+    "name": "飞书",
+    "nameZh": "飞书 (Lark)",
+    "localStorageKeys": [
+      "session",
+      "user_info",
+      "access_token",
+      "refresh_token",
+      "device_id"
+    ],
+    "knownCookiePrefixes": ["session", "user_", "token_", "device_"],
+    "cookieDomains": [".feishu.cn", ".larksuite.com"],
+    "notes": "企业通讯/协作平台"
+  },
+  {
+    "domain": "dingtalk.com",
+    "name": "钉钉",
+    "nameZh": "钉钉 (DingTalk)",
+    "localStorageKeys": [
+      "dtSession",
+      "dtUserInfo",
+      "dtToken",
+      "dtDeviceId"
+    ],
+    "knownCookiePrefixes": ["dt", "dingtalk"],
+    "cookieDomains": [".dingtalk.com"],
+    "notes": "阿里旗下企业通讯平台"
+  },
+  {
+    "domain": "notion.so",
+    "name": "Notion",
+    "nameZh": "Notion",
+    "localStorageKeys": [
+      "notion_user",
+      "notion_token",
+      "notion_session"
+    ],
+    "knownCookiePrefixes": ["notion_", "nv"],
+    "cookieDomains": [".notion.so", ".notion.com"],
+    "notes": "笔记协作平台"
+  },
+  {
+    "domain": "baidu.com",
+    "name": "百度",
+    "nameZh": "百度 (Baidu)",
+    "localStorageKeys": [
+      "baidu_token",
+      "bdstoken",
+      "loginData"
+    ],
+    "knownCookiePrefixes": ["BD", "BAIDUID", "STOKEN"],
+    "cookieDomains": [".baidu.com", ".pan.baidu.com"],
+    "notes": "百度系产品统一登录"
+  },
+  {
+    "domain": "weibo.com",
+    "name": "微博",
+    "nameZh": "新浪微博 (Weibo)",
+    "localStorageKeys": [
+      "weibo_token",
+      "wbsso_session"
+    ],
+    "knownCookiePrefixes": ["WB", "SUB", "SUP"],
+    "cookieDomains": [".weibo.com", ".sina.com.cn"],
+    "notes": "社交媒体平台"
+  }
+]
