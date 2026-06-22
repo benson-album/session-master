@@ -827,8 +827,12 @@ node server.js 5789
         <ul>
           <li><strong>📤 导出：</strong>将当前规则库导出为 JSON 文件</li>
           <li><strong>📥 导入：</strong>从 JSON 文件导入规则库</li>
-          <li><strong>🔄 从服务器更新：</strong>从远程服务器更新规则库（需配置更新地址）</li>
+          <li><strong>🔄 从服务器更新：</strong>手动从 GitHub 拉取最新规则（自动同步每 24 小时执行一次）</li>
         </ul>
+        <p>当前内置规则库覆盖 <strong>9 个站点</strong>（致远OA、钉钉、企业微信、飞书、语雀、知识库、泛微OA、蓝凌OA、ShowDoc），
+        规则库以 <code>blocking_rules_db.json</code> 文件形式独立维护，无需随扩展版本更新即可从 GitHub 自动同步。</p>
+        <p>在弹窗中，<strong>规则库标题右侧</strong>显示当前版本号，<strong>管理区底部</strong>展示版本 + 上次同步时间 + 自动同步状态。
+        新增/修改规则后只需推送 GitHub 即可推送到所有用户。</p>
       </div>
 
       <!-- ===== 五、会话保活 ===== -->
