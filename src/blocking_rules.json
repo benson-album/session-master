@@ -6,8 +6,12 @@
       "type": "block"
     },
     "condition": {
-      "urlFilter": "method=checkSession",
-      "resourceTypes": ["xmlhttprequest", "script", "other"]
+      "urlFilter": "checkSession",
+      "resourceTypes": [
+        "xmlhttprequest",
+        "script",
+        "other"
+      ]
     }
   },
   {
@@ -17,8 +21,12 @@
       "type": "block"
     },
     "condition": {
-      "urlFilter": "method=secondLogin",
-      "resourceTypes": ["xmlhttprequest", "script", "other"]
+      "urlFilter": "conflictLogin",
+      "resourceTypes": [
+        "xmlhttprequest",
+        "script",
+        "other"
+      ]
     }
   },
   {
@@ -28,8 +36,12 @@
       "type": "block"
     },
     "condition": {
-      "urlFilter": "loginCheck",
-      "resourceTypes": ["xmlhttprequest", "script", "other"]
+      "urlFilter": "duplicateLogin",
+      "resourceTypes": [
+        "xmlhttprequest",
+        "script",
+        "other"
+      ]
     }
   },
   {
@@ -39,8 +51,12 @@
       "type": "block"
     },
     "condition": {
-      "urlFilter": "sessionTimeout",
-      "resourceTypes": ["xmlhttprequest", "script", "other"]
+      "urlFilter": "forcedOffline",
+      "resourceTypes": [
+        "xmlhttprequest",
+        "script",
+        "other"
+      ]
     }
   },
   {
@@ -50,8 +66,12 @@
       "type": "block"
     },
     "condition": {
-      "urlFilter": "forcedOffline",
-      "resourceTypes": ["xmlhttprequest", "script", "other"]
+      "urlFilter": "kickOut",
+      "resourceTypes": [
+        "xmlhttprequest",
+        "script",
+        "other"
+      ]
     }
   },
   {
@@ -61,8 +81,12 @@
       "type": "block"
     },
     "condition": {
-      "urlFilter": "kickOut",
-      "resourceTypes": ["xmlhttprequest", "script", "other"]
+      "urlFilter": "loginCheck",
+      "resourceTypes": [
+        "xmlhttprequest",
+        "script",
+        "other"
+      ]
     }
   },
   {
@@ -72,8 +96,12 @@
       "type": "block"
     },
     "condition": {
-      "urlFilter": "singleLogin",
-      "resourceTypes": ["xmlhttprequest", "script", "other"]
+      "urlFilter": "secondLogin",
+      "resourceTypes": [
+        "xmlhttprequest",
+        "script",
+        "other"
+      ]
     }
   },
   {
@@ -83,8 +111,12 @@
       "type": "block"
     },
     "condition": {
-      "urlFilter": "duplicateLogin",
-      "resourceTypes": ["xmlhttprequest", "script", "other"]
+      "urlFilter": "sessionTimeout",
+      "resourceTypes": [
+        "xmlhttprequest",
+        "script",
+        "other"
+      ]
     }
   },
   {
@@ -94,8 +126,12 @@
       "type": "block"
     },
     "condition": {
-      "urlFilter": "conflictLogin",
-      "resourceTypes": ["xmlhttprequest", "script", "other"]
+      "urlFilter": "singleLogin",
+      "resourceTypes": [
+        "xmlhttprequest",
+        "script",
+        "other"
+      ]
     }
   }
 ]
