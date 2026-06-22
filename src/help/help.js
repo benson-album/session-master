@@ -89,6 +89,7 @@
       var catItems = categories[catName];
 
       bodyHtml += '<div class="category-heading">' + escapeHtml2(catName) + '</div>';
+      bodyHtml += '<div class="category-divider"></div>';
       if (catItems && catItems.length > 0) {
         bodyHtml += '<ul>';
         for (var ji = 0; ji < catItems.length; ji++) {
