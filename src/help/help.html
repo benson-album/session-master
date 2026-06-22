@@ -386,17 +386,30 @@
       font-size: 11px;
       font-weight: 600;
     }
-    .tag-new { background: #e6f4ea; color: #137333; }
-    .tag-update { background: #e8f0fe; color: #1a73e8; }
-    .tag-fix { background: #fce4ec; color: #c5221f; }
+    .tag { background: var(--bg); color: var(--text-secondary); padding: 1px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; white-space: nowrap; }
+    .tag-new,
+    .tag-update,
+    .tag-fix {
+      background: transparent;
+      color: var(--text-secondary);
+      font-size: 12px;
+      font-weight: 600;
+      padding: 0;
+      border-radius: 0;
+    }
     .tag-latest {
-      background: #ffd54f;
-      color: #654321;
-      font-size: 9px;
-      padding: 1px 6px;
-      border-radius: 8px;
-      margin-left: 6px;
-      vertical-align: middle;
+      background: transparent;
+      color: var(--text-muted);
+      font-size: 11px;
+      padding: 0;
+      border-radius: 0;
+      font-weight: 400;
+    }
+    .category-heading {
+      font-weight: 600;
+      font-size: 13px;
+      color: var(--text);
+      margin: 6px 0 2px;
     }
 
     /* ===== 底部（在内容区内） ===== */
