@@ -1202,6 +1202,12 @@ async function saveHeartbeats(beats) {
 
 async function addHeartbeat(url, interval, domain, siteName) {
   const beats = await getHeartbeats();
+  // 检查是否已存在相同 URL
+  const trimmedUrl = url.trim();
+  const existing = beats.find(b => b.url === trimmedUrl);
+  if (existing) {
+    return { success: false, error: '该 URL 已添加保活，请勿重复添加' };
+  }
   const id = 'hb_' + Date.now().toString(36) + Math.random().toString(36).substring(2, 4);
   // 如果未传 domain，从 URL 自动提取
   let siteDomain = domain || '';
