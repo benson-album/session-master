@@ -462,6 +462,26 @@
     e.target.value = '';
   });
 
+  // 获取并展示规则库同步信息（页面加载时调用）
+  async function loadRulesDBSyncInfo() {
+    try {
+      const info = await chrome.runtime.sendMessage({ action: 'getRulesDBSyncInfo' });
+      if (!info) return;
+      document.getElementById('syncInfoVersion').textContent = 'v' + info.version;
+      const updatedEl = document.getElementById('syncInfoUpdated');
+      if (info.lastCheckTime && info.lastCheckTime !== '从未检查') {
+        updatedEl.textContent = '上次同步: ' + info.lastCheckTime;
+        document.getElementById('ruleDBSyncInfo').textContent = 'v' + info.version;
+        document.getElementById('ruleDBSyncInfo').style.display = 'inline';
+      } else {
+        updatedEl.textContent = '内置 v' + info.version;
+      }
+    } catch (e) {
+      console.warn('规则库同步信息加载失败:', e);
+    }
+  }
+  loadRulesDBSyncInfo();
+
   // 从服务器更新规则
   document.getElementById('btnUpdateRules').addEventListener('click', async () => {
     const btn = document.getElementById('btnUpdateRules');
@@ -473,9 +493,14 @@
     btn.textContent = '🔄 从服务器更新规则';
     statusEl.style.display = 'block';
     if (result.success) {
-      statusEl.textContent = '✅ ' + result.message;
+      if (result.skipped) {
+        statusEl.textContent = '✅ 规则库已是最新（v' + result.localVersion + '）';
+      } else {
+        statusEl.textContent = '✅ ' + result.message;
+      }
       statusEl.style.color = '#137333';
       await loadBlockerState();
+      await loadRulesDBSyncInfo();  // 刷新同步信息
     } else {
       statusEl.textContent = '⚠️ ' + (result.error || '更新失败');
       statusEl.style.color = '#c5221f';

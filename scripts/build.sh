@@ -77,9 +77,19 @@ for f in "${REQUIRED_FILES[@]}"; do
   fi
 done
 
-# 2. 检查 manifest version
+# 2. 规则库校验
 echo ""
-echo "[2/3] 检查版本号..."
+echo "  → 规则库校验..."
+if python3 "$SCRIPT_DIR/scripts/validate-rules.py" "$SRC_DIR/blocking_rules_db.json" 2>&1; then
+  echo "  ✅ 规则库通过"
+else
+  echo "  ❌ 规则库校验失败，终止构建"
+  exit 1
+fi
+
+# 3. 检查 manifest version
+echo ""
+echo "[3/3] 检查版本号..."
 MANIFEST_VER=$(grep '"version"' "$SRC_DIR/manifest.json" | sed 's/.*"version": *"\(.*\)".*/\1/')
 VERSION_FILE=$(cat "$PROJECT_ROOT/VERSION" 2>/dev/null || echo "unknown")
 echo "  manifest.json: v$MANIFEST_VER"
