@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.6.1 (2026-06-22)
+- 💄 **localStorage 管理面板 UI 修复**：长值溢出截断（text-overflow: ellipsis），管理按钮支持展开/收起切换，关闭面板自动重置
+- 📋 **预设列表完整展示**：所有本地存储 Key 和 Cookie 前缀不再被截断隐藏
+
 ## v1.5.14 (2026-06-21)
 - 🎨 **导入 Cookie 不再移除保活记录**：粘贴导入和文件导入改为复合操作 `importWithCookieClear`，清除旧 Cookie 后导入新 Cookie 时保活记录保留不变（ID/状态/alarm 全保留），普通「清除」按钮行为不变
 
