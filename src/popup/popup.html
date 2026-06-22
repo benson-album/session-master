@@ -451,13 +451,13 @@
         <p class="hint" style="font-size:10px;color:#aaa;margin-top:2px">可在下方手动开启站点的规则</p>
       </div>
 
-      <!-- → ③ 拦截规则库（带站点级开关） -->
+      <!-- → ③ 拦截规则库（带站点级开关，默认收起） -->
       <div class="section" style="padding:10px 12px">
-        <div class="section-title" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;font-size:13px">
-          <span>📂 拦截规则库</span>
+        <div id="ruleDBToggle" style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;user-select:none;font-size:13px">
+          <span><span id="ruleDBArrow">▶</span> 📂 拦截规则库</span>
           <span id="ruleDBCount" class="badge badge-green" style="font-size:11px">加载中</span>
         </div>
-        <div id="ruleDBList" style="margin-top:4px;max-height:200px;overflow-y:auto">
+        <div id="ruleDBList" style="margin-top:4px;max-height:200px;overflow-y:auto;display:none">
           <p class="hint">加载中...</p>
         </div>
       </div>
