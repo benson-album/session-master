@@ -1319,14 +1319,21 @@
       const lastStatus = beat.lastHeartbeatTime
         ? (beat.lastStatus === 'ok' ? '✅' : '❌') + ' ' + (beat.lastStatusDetail || '')
         : '⏳ 等待首次';
-      const nextRun = beat.lastHeartbeatTime
-        ? new Date(beat.lastHeartbeatTime).getTime() + beat.intervalMinutes * 60000
-        : Date.now();
-      const nextRunTime = Math.max(0, nextRun - Date.now());
+      const isFirstBeat = !beat.lastHeartbeatTime;
+      let nextRun, nextRunTime;
+      if (isFirstBeat) {
+        // 首次保活：从创建时间 + 间隔计算预计首次执行时间
+        const createdAt = beat.createdAt ? new Date(beat.createdAt).getTime() : Date.now();
+        nextRun = createdAt + beat.intervalMinutes * 60000;
+        nextRunTime = Math.max(0, nextRun - Date.now());
+      } else {
+        nextRun = new Date(beat.lastHeartbeatTime).getTime() + beat.intervalMinutes * 60000;
+        nextRunTime = Math.max(0, nextRun - Date.now());
+      }
       const countdownText = beat.enabled
-        ? formatCountdown(nextRunTime)
+        ? formatCountdown(nextRunTime, isFirstBeat)
         : '⏸️ 已暂停';
-      return '<div class="hb-item" data-id="' + beat.id + '" data-nextrun="' + nextRun + '" data-interval="' + (beat.intervalMinutes * 60000) + '" data-enabled="' + beat.enabled + '">' +
+      return '<div class="hb-item" data-id="' + beat.id + '" data-nextrun="' + nextRun + '" data-interval="' + (beat.intervalMinutes * 60000) + '" data-enabled="' + beat.enabled + '"' + (isFirstBeat ? ' data-first="true"' : '') + '>' +
         '<div class="hb-item-main" style="display:flex;align-items:flex-start;justify-content:space-between">' +
           '<div style="flex:1;min-width:0">' +
             '<span class="heartbeat-url">' + displayUrl + '</span>' +
@@ -1400,14 +1407,24 @@
         if (!item) return;
         if (item.dataset.enabled !== 'true') { el.textContent = '⏸️ 已暂停'; return; }
         const nextRun = parseInt(item.dataset.nextrun);
+        const isFirst = item.dataset.first === 'true';
         const remaining = Math.max(0, nextRun - now);
-        el.textContent = '⏱ ' + formatCountdown(remaining);
+        el.textContent = '⏱ ' + formatCountdown(remaining, isFirst);
       });
     }, 1000);
   }
 
-  function formatCountdown(ms) {
-    if (ms <= 0) return '即将保活...';
+  function formatCountdown(ms, isFirst) {
+    if (isFirst) {
+      if (ms <= 0) return '⏳ 即将首次保活...';
+      const totalSec = Math.floor(ms / 1000);
+      const min = Math.floor(totalSec / 60);
+      const sec = totalSec % 60;
+      if (min >= 60) return '⏳ 首次保活 ' + Math.floor(min / 60) + '时' + (min % 60) + '分';
+      if (min > 0) return '⏳ 首次保活 ' + min + '分' + sec + '秒';
+      return '⏳ 首次保活 ' + sec + '秒';
+    }
+    if (ms <= 0) return '⏳ 保活即将执行...';
     const totalSec = Math.floor(ms / 1000);
     const min = Math.floor(totalSec / 60);
     const sec = totalSec % 60;
