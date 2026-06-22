@@ -8,16 +8,17 @@
 </head>
 <body>
   <div class="container">
-    <!-- 头部 -->
-    <div class="header">
-      <div class="header-left">
-        <h1>🔐 SessionMaster</h1>
-        <span class="subtitle">会话大师</span>
-        <button id="btnDeviceInfo" class="btn-link" style="font-size:11px;padding:1px 4px" title="查看当前设备身份">🖥️</button>
-        <span id="deviceStatus" class="device-status" style="display:none"></span>
+    <div class="scroll-area">
+      <!-- 头部 -->
+      <div class="header">
+        <div class="header-left">
+          <h1>🔐 SessionMaster</h1>
+          <span class="subtitle">会话大师</span>
+          <button id="btnDeviceInfo" class="btn-link" style="font-size:11px;padding:1px 4px" title="查看当前设备身份">🖥️</button>
+          <span id="deviceStatus" class="device-status" style="display:none"></span>
+        </div>
+        <span class="header-version" id="popupVersion"></span>
       </div>
-      <span class="header-version" id="popupVersion"></span>
-    </div>
     
     <!-- 版本更新横幅（检测到新版本时显示） -->
     <div id="updateBanner" class="update-banner" style="display:none">
@@ -513,6 +514,7 @@
         <p id="rulesUpdateStatus" class="hint" style="margin-top:4px;display:none"></p>
         <input type="file" id="importRulesFile" accept=".json" style="display:none">
       </div>
+    </div>
     </div>
     
     <!-- 底部 -->
