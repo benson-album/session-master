@@ -367,9 +367,9 @@
           (site.description ? '<div style="font-size:9px;color:#bbb;margin-top:1px">' + site.description + '</div>' : '') +
         '</div>' +
         // 站点开关（右侧）
-        '<label class="switch" style="width:30px;height:17px;flex-shrink:0;margin-top:2px" title="' + (enabled ? '关闭' : '开启') + site.name + '">' +
+        '<label class="switch" style="flex-shrink:0" title="' + (enabled ? '关闭' : '开启') + site.name + '">' +
           '<input type="checkbox" class="site-toggle" data-site-id="' + site.id + '"' + (enabled ? ' checked' : '') + '>' +
-          '<span class="slider" style="height:17px"></span>' +
+          '<span class="slider"></span>' +
         '</label>' +
       '</div>';
     }).join('');
