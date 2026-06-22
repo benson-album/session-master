@@ -201,5 +201,100 @@
       ".sina.com.cn"
     ],
     "notes": "社交媒体平台"
+  },
+  {
+    "domain": "pan.baidu.com",
+    "name": "BaiduPan",
+    "nameZh": "百度网盘",
+    "localStorageKeys": [
+      "passLoginType",
+      "bdstoken",
+      "loginData",
+      "baidu_token"
+    ],
+    "knownCookiePrefixes": [
+      "BAIDUID",
+      "PANPSC",
+      "csrfToken",
+      "newlogin"
+    ],
+    "cookieDomains": [
+      ".baidu.com"
+    ],
+    "notes": "百度统一SSO认证。BAIDUID为全局认证种子，PANPSC为网盘专属。bdstoken为URL签名参数。需要登录态确认localStorage完整列表。"
+  },
+  {
+    "domain": "www.alipan.com",
+    "name": "AliDrive",
+    "nameZh": "阿里云盘",
+    "localStorageKeys": [
+      "access_token",
+      "refresh_token",
+      "token_type",
+      "user_info",
+      "device_id"
+    ],
+    "knownCookiePrefixes": [],
+    "cookieDomains": [
+      ".alipan.com",
+      ".aliyundrive.com",
+      ".taobao.com"
+    ],
+    "notes": "阿里系Mtop协议认证，SPA架构token存储在localStorage。原aliyundrive.com已301跳转至www.alipan.com。需登录态确认localStorage完整Key名。"
+  },
+  {
+    "domain": "pan.quark.cn",
+    "name": "QuarkDrive",
+    "nameZh": "夸克网盘",
+    "localStorageKeys": [
+      "quark_token",
+      "quark_user"
+    ],
+    "knownCookiePrefixes": [
+      "ctoken"
+    ],
+    "cookieDomains": [
+      ".quark.cn",
+      ".uc.cn",
+      ".sm.cn"
+    ],
+    "notes": "阿里体系，ctoken为会话令牌。移动端跳转h5.sm.cn。需登录态确认localStorage Key名。"
+  },
+  {
+    "domain": "www.weiyun.com",
+    "name": "TencentWeiyun",
+    "nameZh": "腾讯微云",
+    "localStorageKeys": [],
+    "knownCookiePrefixes": [
+      "TOK",
+      "fingerprint"
+    ],
+    "cookieDomains": [
+      ".weiyun.com",
+      ".qq.com"
+    ],
+    "notes": "腾讯SSO体系。TOK为会话认证Cookie，fingerprint为设备指纹。需登录态确认localStorage Key。"
+  },
+  {
+    "domain": "cloud.189.cn",
+    "name": "TianyiCloud",
+    "nameZh": "天翼云盘",
+    "localStorageKeys": [],
+    "knownCookiePrefixes": [],
+    "cookieDomains": [
+      ".cloud.189.cn"
+    ],
+    "notes": "openresty + WoTrus EV证书。X-Frame-Options值拼写错误SAMEORIGN。需登录后才能确认认证体系。"
+  },
+  {
+    "domain": "pan.xunlei.com",
+    "name": "XunleiDrive",
+    "nameZh": "迅雷云盘",
+    "localStorageKeys": [],
+    "knownCookiePrefixes": [],
+    "cookieDomains": [
+      ".xunlei.com"
+    ],
+    "notes": "无安全头部配置。需登录后才能确认认证体系。"
   }
 ]
