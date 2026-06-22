@@ -212,13 +212,38 @@
 
   document.getElementById('btnClear').addEventListener('click', async () => {
     if (!currentDomain) return showToast('⚠️ 无法获取当前站点域名');
-    if (!confirm(`确定清除 ${currentDomain} 的所有 Cookie？`)) return;
+    // 显示自定义确认弹窗
+    const overlay = document.getElementById('clearConfirmOverlay');
+    document.getElementById('clearConfirmText').textContent = `确定清除 ${currentDomain} 的所有 Cookie？`;
+    overlay.style.display = 'flex';
+  });
+
+  // 清除确认
+  document.getElementById('btnClearConfirm').addEventListener('click', async () => {
+    const overlay = document.getElementById('clearConfirmOverlay');
+    overlay.style.display = 'none';
     const result = await chrome.runtime.sendMessage({ action: 'clearCookies', domain: currentDomain });
     let msg = `✅ 已清除 ${result.removed} 个 Cookie`;
     if (result.heartbeatRemoved > 0) {
       msg += `，同时移除了 ${result.heartbeatRemoved} 条相关保活`;
     }
     showToast(msg);
+    // 重新载入当前网页
+    const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (tabs.length > 0) {
+      chrome.tabs.reload(tabs[0].id);
+    }
+  });
+
+  // 清除取消
+  document.getElementById('btnClearCancel').addEventListener('click', () => {
+    document.getElementById('clearConfirmOverlay').style.display = 'none';
+  });
+  // 点击弹窗外部区域关闭确认框
+  document.getElementById('clearConfirmOverlay').addEventListener('click', (e) => {
+    if (e.target === e.currentTarget) {
+      e.currentTarget.style.display = 'none';
+    }
   });
 
   // ========== 自定义拦截规则 ==========

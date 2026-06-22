@@ -458,6 +458,21 @@ textarea {
   background: rgba(0,0,0,0.06);
 }
 
+/* 确认弹窗 */
+.confirm-body {
+  padding: 16px 20px 8px;
+}
+.confirm-footer {
+  display: flex;
+  gap: 8px;
+  padding: 8px 20px 16px;
+}
+.confirm-footer .btn {
+  padding: 10px 16px;
+  font-size: 14px;
+  border-radius: 8px;
+}
+
 /* Toast 提示 */
 .toast {
   position: fixed;
