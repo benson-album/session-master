@@ -79,27 +79,50 @@
     if (isLatest) label += ' <span class="tag-latest">🔵 最新</span>';
 
     var bodyHtml = '';
-    var inList = false;
+    var categories = ver.items;
 
-    for (var i = 0; i < ver.items.length; i++) {
-      var item = ver.items[i];
-
-      // 检测标题标签行（如 "✨ 新增"、"🎨 优化"、"🐛 修复"）
-      if (item.match(/^[✨🎨🐛]\s*(新增|优化|修复|首版发布)/)) {
-        if (inList) { bodyHtml += '</ul>'; inList = false; }
+    if (typeof categories === 'object' && !Array.isArray(categories)) {
+      // 新版：分类分组结构 { "🐛 修复": [...], "🎨 优化": [...] }
+      var catKeys = Object.keys(categories);
+      for (var ci = 0; ci < catKeys.length; ci++) {
+        var catName = catKeys[ci];
+        var catItems = categories[catName];
 
         var tagClass = 'tag-new';
-        if (item.indexOf('🎨') !== -1) tagClass = 'tag-update';
-        else if (item.indexOf('🐛') !== -1 || item.indexOf('🔧') !== -1) tagClass = 'tag-fix';
+        if (catName.indexOf('🎨') !== -1 || catName.indexOf('优化') !== -1) tagClass = 'tag-update';
+        else if (catName.indexOf('🐛') !== -1 || catName.indexOf('修复') !== -1) tagClass = 'tag-fix';
+        else if (catName.indexOf('🛡️') !== -1 || catName.indexOf('拦截') !== -1) tagClass = 'tag-fix';
+        else if (catName.indexOf('🏗️') !== -1 || catName.indexOf('架构') !== -1) tagClass = 'tag-fix';
+        else if (catName.indexOf('🔧') !== -1) tagClass = 'tag-fix';
+        else if (catName.indexOf('📝') !== -1) tagClass = 'tag-update';
 
-        bodyHtml += '<p><span class="tag ' + tagClass + '">' + escapeHtml2(item) + '</span></p>';
-        continue;
+        bodyHtml += '<p><span class="tag ' + tagClass + '">' + escapeHtml2(catName) + '</span></p>';
+        if (catItems && catItems.length > 0) {
+          bodyHtml += '<ul>';
+          for (var ji = 0; ji < catItems.length; ji++) {
+            bodyHtml += '<li>' + catItems[ji] + '</li>';
+          }
+          bodyHtml += '</ul>';
+        }
       }
-
-      if (!inList) { bodyHtml += '<ul>'; inList = true; }
-      bodyHtml += '<li>' + item + '</li>';
+    } else if (Array.isArray(categories)) {
+      // 旧版兼容：平铺数组
+      var inList = false;
+      for (var i = 0; i < categories.length; i++) {
+        var item = categories[i];
+        if (item.match(/^[✨🎨🐛]\s*(新增|优化|修复|首版发布)/)) {
+          if (inList) { bodyHtml += '</ul>'; inList = false; }
+          var oldTagClass = 'tag-new';
+          if (item.indexOf('🎨') !== -1) oldTagClass = 'tag-update';
+          else if (item.indexOf('🐛') !== -1 || item.indexOf('🔧') !== -1) oldTagClass = 'tag-fix';
+          bodyHtml += '<p><span class="tag ' + oldTagClass + '">' + escapeHtml2(item) + '</span></p>';
+          continue;
+        }
+        if (!inList) { bodyHtml += '<ul>'; inList = true; }
+        bodyHtml += '<li>' + item + '</li>';
+      }
+      if (inList) bodyHtml += '</ul>';
     }
-    if (inList) bodyHtml += '</ul>';
 
     return '<div class="changelog-entry' + (isLatest ? ' open' : '') + '">' +
       '<div class="changelog-summary' + (isLatest ? ' open' : '') + '">' + label + '</div>' +
