@@ -76,20 +76,17 @@ PM Agent 收到 VERIFIED 状态 → 进入下一个任务
 
 | 文件 | 需要变更 | 原因 |
 |------|:--------:|------|
-| `src/help/help.html` | ✅ 需更新 | 章节结构按 v2.0 三 Tab 重组（拦截合并入会话管理，新增全局设置章节） |
-| `src/help/help.js` | ✅ 需检查 | 如有硬编码 Tab 名称或章节锚点需更新 |
+| `src/help/help_content.json` | ✅ 需更新 | 章节按 v2.0 三 Tab 重构 |
+| `src/help/help.js` | ✅ 需检查 | 更新锚点引用 + 渲染逻辑 |
 | `README.md` | ✅ 需更新 | 版本号 v1.5.13 → v2.0.0，架构图更新，功能表更新 |
 | `src/changelog.json` | ✅ 需追加 | v2.0.0 条目 |
 | `CHANGELOG.md` | ✅ 需追加 | v2.0.0 条目 |
-| `src/config.js` | ✅ 版本号 | v2.0.0 |
 | `src/manifest.json` | ✅ 版本号 | 2.0.0 |
-| `src/popup/popup.html` | ✅ 版本号 | v2.0.0 |
-| `src/help/help.html` | ✅ 版本号×2 | hero + footer |
 | `docs/process/standard-development-process.md` | ❌ 不变 | 通用流程不依赖版本 |
 | `src/server/server.js` | ❌ 不变 | 无变更 |
 | `src/deploy/*` | ❌ 不变 | 无变更 |
 | `src/scripts/*` | ❌ 不变 | 无变更 |
-|| `src/blocking_rules*` | ✅ **已扩展** | 新增泛微/蓝凌/ShowDoc 等站点，更新维护方式为脚本驱动（`scripts/update-blocking-rules.py`），v2.0 可复用 |
+|| `src/blocking_rules*` | ✅ **已扩展** | 新增泛微/蓝凌/ShowDoc 等站点，`scripts/validate-rules.py` 校验。v2.0 可复用 |
 | `src/content.js` | ❌ 不变 | 无变更 |
 
 ---

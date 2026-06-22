@@ -1909,7 +1909,7 @@ export function renderSessionTab(container, site) {
 
 | 文件 | 操作 |
 |:----|:-----|
-| `src/help/help.html` | 章节结构按新架构重组 |
+|| `src/help/help_content.json` | 按 v2.0 新架构重组章节内容 |
 | `src/help/help.js` | 更新锚点引用 |
 | `README.md` | 版本号 v2.0.0 + 架构图 + 功能表 |
 | Skill 文档 | 项目结构更新 + 锁定规则章节 |
@@ -1931,17 +1931,21 @@ export function renderSessionTab(container, site) {
 | 7 | **站点删除确认** | 删除站点前弹出确认对话框，提示同步连接将断开 |
 | 8 | **首次安装引导页** | 全新安装时弹出 help.html#onboarding 引导页 |
 
-## T11 — 9 项自检（0.5h）
+## T11 — 11 项自检（0.5h）
+
+> **说明**：继承 v1.5.x 自检清单并补充 v2.0 新增检查项。
 
 1. `node --check src/core/*.js src/popup/*.js`
 2. CSS 花括号平衡
 3. HTML `<div>` 标签平衡
 4. manifest 权限 + 引用文件
-5. 版本号 6 处一致
+5. 版本号 6 处一致（manifest / VERSION / changelog.json / CHANGELOG.md 等）
 6. `getCookies` 域解析 9 用例
 7. CHANGELOG.md + changelog.json 同步
 8. 选择器一致性
 9. 元素类型一致性
+10. ZIP 目录结构验证（`unzip -l *.zip` 确认解压后为 `session-master-vX.X.X/`）
+11. `src/help/help_content.json` 规则库及帮助内容完整性校验
 
 ## T12 — 构建 + 测试（1.5h）
 
@@ -1969,19 +1973,13 @@ export function renderSessionTab(container, site) {
 |:----|:------:|:----:|
 | `VERSION` | 1.5.14 | **2.0.0** |
 | `src/manifest.json` | "1.5.14" | **"2.0.0"** |
-| `src/config.js` | '1.5.14' | **'2.0.0'** |
-| `src/popup/popup.html` | v1.5.14 | **v2.0.0** |
-| `src/help/help.html` hero | v1.5.14 | **v2.0.0** |
-| `src/help/help.html` footer | v1.5.14 | **v2.0.0** |
-| `CHANGELOG.md` | — | 追加 v2.0.0 条目 |
 | `src/changelog.json` | — | 追加 v2.0.0 条目 |
-
+| `CHANGELOG.md` | — | 追加 v2.0.0 条目 |
 **发布流程**：
+
 ```bash
-git add -A && git commit -m "v2.0.0: 站点中心架构重构"
-git tag -a v2.0.0 -m "v2.0.0"
-git push origin master --tags
-# 创建 GitHub Release → 上传 zip → 标记 Latest
+bash scripts/release.sh
+# 脚本自动完成：版本号检查 → changelog验证 → 构建ZIP → 创建Release → 上传附件
 ```
 
 ### T13-V：验证步骤

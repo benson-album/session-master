@@ -261,8 +261,11 @@ v2.0 改为按**站点组织**的架构：
   },
 
   "blockingRulesDB": {
-    "version": 1,
+    "version": 2,
+    "lastUpdated": "2026-06-26",
+    "updateUrl": "https://raw.githubusercontent.com/benson-album/session-master/master/src/blocking_rules_db.json",
     "sites": [],
+    "keywordLabels": {},
     "generic": []
   }
 }
