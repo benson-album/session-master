@@ -24,6 +24,7 @@
         if (items[HELP_CONTENT_KEY]) {
           renderSections(container, items[HELP_CONTENT_KEY].sections || []);
           initSidebar(); // 内容已渲染，初始化侧边栏高亮
+          initFileList(); // 内容已渲染，加载文件清单
           updateSyncStatus(items[HELP_VERSION_KEY] || null);
         } else {
           loadFromBundled(container);
@@ -50,6 +51,7 @@
       .then(function(data) {
         renderSections(container, data.sections || []);
         initSidebar(); // 内容已渲染，初始化侧边栏高亮
+        initFileList(); // 内容已渲染，加载文件清单
         // 缓存到 storage
         if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
           chrome.storage.local.set({
@@ -70,6 +72,7 @@
     if (!container || !sections || sections.length === 0) {
       fallbackContent(container);
       initSidebar(); // 即便回退，也重新初始化（保持 clean state）
+      initFileList(); // 即便回退，也尝试加载文件清单
       return;
     }
     var html = '';
@@ -132,6 +135,7 @@
           // 有更新版本
           renderSections(container, remote.sections);
           initSidebar(); // 内容已更新，重新初始化侧边栏高亮
+          initFileList(); // 内容已更新，刷新文件清单
           updateSyncStatus(remoteVer);
           // 缓存到 storage
           if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
@@ -449,16 +453,18 @@
   }
 
   // ===== 文件清单 =====
-  var files = [
-    { name: 'server.js', subdir: 'server', desc: '同步服务器（核心程序，零依赖，支持信令/P2P/云同步）' },
-    { name: 'server.js', subdir: 'deploy', desc: 'Docker 版同步服务器（与 server.js 同步更新）' },
-    { name: 'docker-compose.yaml', subdir: 'deploy', desc: 'Docker Compose 编排配置' },
-    { name: 'Dockerfile', subdir: 'deploy', desc: 'Docker 镜像构建文件（node:22-alpine）' },
-    { name: 'deploy.sh', subdir: 'deploy', desc: '一键部署脚本（SCP + Docker）' }
-  ];
+  function initFileList() {
+    var fileContainer = document.getElementById('fileList');
+    if (!fileContainer) return;
 
-  var fileContainer = document.getElementById('fileList');
-  if (fileContainer) {
+    var files = [
+      { name: 'server.js', subdir: 'server', desc: '同步服务器（核心程序，零依赖，支持信令/P2P/云同步）' },
+      { name: 'server.js', subdir: 'deploy', desc: 'Docker 版同步服务器（与 server.js 同步更新）' },
+      { name: 'docker-compose.yaml', subdir: 'deploy', desc: 'Docker Compose 编排配置' },
+      { name: 'Dockerfile', subdir: 'deploy', desc: 'Docker 镜像构建文件（node:22-alpine）' },
+      { name: 'deploy.sh', subdir: 'deploy', desc: '一键部署脚本（SCP + Docker）' }
+    ];
+
     function getFilePath(f) {
       if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.getURL) {
         return chrome.runtime.getURL(f.subdir + '/' + f.name);
@@ -468,55 +474,8 @@
       return base + f.subdir + '/' + f.name;
     }
 
-    function loadAllFiles() {
-      var html = '';
-      for (var i = 0; i < files.length; i++) {
-        html += '<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid #eee">' +
-          '<div style="flex:1;min-width:0">' +
-            '<span style="font-family:monospace;font-size:13px;color:var(--text-muted)">📄 ' + escapeHtml(files[i].name) + '</span>' +
-            '<br><span style="font-size:11px;color:var(--text-muted)">' + escapeHtml(files[i].desc) + '</span>' +
-          '</div>' +
-          '<span style="padding:4px 10px;background:#f1f3f4;color:#999;border-radius:4px;font-size:12px">⏳</span>' +
-        '</div>';
-      }
-      fileContainer.innerHTML = html;
-
-      var loaded = 0;
-      var hasError = false;
-      for (var i = 0; i < files.length; i++) {
-        (function(idx) {
-          var f = files[idx];
-          var url = getFilePath(f);
-          var xhr = new XMLHttpRequest();
-          xhr.open('GET', url, true);
-          xhr.onload = function() {
-            if (xhr.status >= 200 && xhr.status < 300) {
-              var content = xhr.responseText;
-              var blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
-              var blobUrl = URL.createObjectURL(blob);
-              updateFileItem(idx, f.name, f.desc, blobUrl);
-            } else {
-              updateFileItem(idx, f.name, f.desc, null);
-              hasError = true;
-            }
-            checkDone();
-          };
-          xhr.onerror = function() { updateFileItem(idx, f.name, f.desc, null); hasError = true; checkDone(); };
-          xhr.ontimeout = function() { updateFileItem(idx, f.name, f.desc, null); hasError = true; checkDone(); };
-          xhr.timeout = 10000;
-          xhr.send();
-        })(i);
-      }
-
-      function checkDone() {
-        loaded++;
-        if (loaded === files.length && hasError) {
-          var note = document.createElement('p');
-          note.style.cssText = 'font-size:11px;color:#c5221f;margin-top:6px';
-          note.textContent = '⚠️ 部分文件加载失败，请直接从源码目录获取';
-          fileContainer.parentNode.appendChild(note);
-        }
-      }
+    function escapeHtml(str) {
+      return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
     }
 
     function updateFileItem(idx, name, desc, blobUrl) {
@@ -535,11 +494,56 @@
         '<br><span style="font-size:11px;color:var(--text-muted)">' + safeDesc + '</span></div>' + btnHtml;
     }
 
-    function escapeHtml(str) {
-      return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    // 渲染占位
+    var html = '';
+    for (var i = 0; i < files.length; i++) {
+      html += '<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid #eee">' +
+        '<div style="flex:1;min-width:0">' +
+          '<span style="font-family:monospace;font-size:13px;color:var(--text-muted)">📄 ' + escapeHtml(files[i].name) + '</span>' +
+          '<br><span style="font-size:11px;color:var(--text-muted)">' + escapeHtml(files[i].desc) + '</span>' +
+        '</div>' +
+        '<span style="padding:4px 10px;background:#f1f3f4;color:#999;border-radius:4px;font-size:12px">⏳</span>' +
+      '</div>';
+    }
+    fileContainer.innerHTML = html;
+
+    // 逐个加载文件内容
+    var loaded = 0;
+    var hasError = false;
+    for (var i = 0; i < files.length; i++) {
+      (function(idx) {
+        var f = files[idx];
+        var url = getFilePath(f);
+        var xhr = new XMLHttpRequest();
+        xhr.open('GET', url, true);
+        xhr.onload = function() {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            var content = xhr.responseText;
+            var blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+            var blobUrl = URL.createObjectURL(blob);
+            updateFileItem(idx, f.name, f.desc, blobUrl);
+          } else {
+            updateFileItem(idx, f.name, f.desc, null);
+            hasError = true;
+          }
+          checkDone();
+        };
+        xhr.onerror = function() { updateFileItem(idx, f.name, f.desc, null); hasError = true; checkDone(); };
+        xhr.ontimeout = function() { updateFileItem(idx, f.name, f.desc, null); hasError = true; checkDone(); };
+        xhr.timeout = 10000;
+        xhr.send();
+      })(i);
     }
 
-    loadAllFiles();
+    function checkDone() {
+      loaded++;
+      if (loaded === files.length && hasError) {
+        var note = document.createElement('p');
+        note.style.cssText = 'font-size:11px;color:#c5221f;margin-top:6px';
+        note.textContent = '⚠️ 部分文件加载失败，请直接从源码目录获取';
+        fileContainer.parentNode.appendChild(note);
+      }
+    }
   }
 
   // ===== 初始化入口 =====
