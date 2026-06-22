@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "lastUpdated": "2026-06-22",
+  "lastUpdated": "2026-06-26",
   "updateUrl": "",
   "keywordLabels": {
     "loginCheck": "登录检测",
@@ -19,163 +19,45 @@
     {
       "id": "seeyon",
       "name": "致远OA",
-      "domains": [
-        "*.seeyon.com",
-        "*.zumri.cn",
-        "*.zumri.com"
-      ],
-      "keywords": [
-        "checkSession",
-        "secondLogin",
-        "singleLogin",
-        "duplicateLogin",
-        "conflictLogin",
-        "forcedOffline",
-        "kickOut",
-        "loginCheck",
-        "sessionTimeout"
-      ],
-      "description": "致远OA V9.0+ 踢人检测关键词"
+      "domains": ["*.seeyon.com", "*.seeyon", "*.zumri.cn", "*.zumri"],
+      "keywords": ["checkSession", "secondLogin", "singleLogin", "duplicateLogin", "conflictLogin", "forcedOffline", "kickOut", "loginCheck", "sessionTimeout"],
+      "description": "致远OA V9.0SP1 踢人检测关键词"
     },
     {
       "id": "dingtalk",
       "name": "钉钉",
-      "domains": [
-        "*.dingtalk.com",
-        "*.dtwork.com"
-      ],
-      "keywords": [
-        "loginCheck",
-        "checkSession",
-        "singleLogin",
-        "kickOut"
-      ],
+      "domains": ["*.dingtalk.com"],
+      "keywords": ["loginCheck", "checkSession", "singleLogin", "kickOut"],
       "description": "钉钉网页版 - 登录检测/会话检查/单点登录/踢出会话"
     },
     {
       "id": "wecom",
       "name": "企业微信",
-      "domains": [
-        "*.work.weixin.qq.com",
-        "*.open.work.weixin.qq.com",
-        "*.qyapi.weixin.qq.com"
-      ],
-      "keywords": [
-        "loginCheck",
-        "checkSession",
-        "singleLogin",
-        "forcedOffline"
-      ],
-      "description": "企业微信管理后台 - 登录检测/会话检查/单点登录/强制下线"
+      "domains": ["*.work.weixin.qq.com"],
+      "keywords": ["loginCheck", "checkSession", "singleLogin"],
+      "description": "企业微信管理后台 - 登录检测/会话检查/单点登录"
     },
     {
       "id": "feishu",
       "name": "飞书",
-      "domains": [
-        "*.feishu.cn",
-        "*.larksuite.com",
-        "*.feishu.net"
-      ],
-      "keywords": [
-        "loginCheck",
-        "checkSession",
-        "singleLogin",
-        "sessionTimeout",
-        "forcedOffline"
-      ],
-      "description": "飞书管理后台 - 登录检测/会话检查/单点登录/超时/强制下线"
+      "domains": ["*.feishu.cn", "*.larksuite.com"],
+      "keywords": ["loginCheck", "checkSession", "singleLogin"],
+      "description": "飞书管理后台 - 登录检测/会话检查/单点登录"
     },
     {
       "id": "yuque",
       "name": "语雀",
-      "domains": [
-        "*.yuque.com"
-      ],
-      "keywords": [
-        "loginCheck",
-        "checkSession",
-        "singleLogin",
-        "sessionTimeout"
-      ],
-      "description": "语雀知识库 - 登录检测/会话检查/单点登录/会话超时"
-    },
-    {
-      "id": "weaver",
-      "name": "泛微OA",
-      "domains": [
-        "*.weaver.com.cn",
-        "*.weaver.cn",
-        "*.ecology.com.cn",
-        "*.wework.com"
-      ],
-      "keywords": [
-        "checkSession",
-        "singleLogin",
-        "duplicateLogin",
-        "forcedOffline",
-        "kickOut",
-        "loginCheck",
-        "sessionTimeout"
-      ],
-      "description": "泛微OA/e-cology - 单点登录/强制下线/踢出会话"
-    },
-    {
-      "id": "landray",
-      "name": "蓝凌OA",
-      "domains": [
-        "*.landray.com.cn",
-        "*.km.landray.com.cn",
-        "*.landray.com"
-      ],
-      "keywords": [
-        "checkSession",
-        "singleLogin",
-        "duplicateLogin",
-        "forcedOffline",
-        "loginCheck",
-        "sessionTimeout"
-      ],
-      "description": "蓝凌OA/知识管理系统 - 会话检查/单点登录/强制下线"
-    },
-    {
-      "id": "showdoc",
-      "name": "ShowDoc",
-      "domains": [
-        "*.showdoc.com.cn",
-        "*.showdoc.cc"
-      ],
-      "keywords": [
-        "loginCheck",
-        "checkSession",
-        "sessionTimeout"
-      ],
-      "description": "ShowDoc 文档系统 - 登录检测/会话检查"
+      "domains": ["*.yuque.com"],
+      "keywords": ["loginCheck", "checkSession", "singleLogin"],
+      "description": "语雀知识库 - 登录检测/会话检查/单点登录"
     },
     {
       "id": "wiki",
-      "name": "通用知识库",
-      "domains": [
-        "*.wiki.com",
-        "*.wiki",
-        "*.wiki.cn",
-        "*.confluence.com",
-        "*.confluence.cn",
-        "*.atlassian.net",
-        "*.bookstack.com",
-        "*.bookstack.cn",
-        "*.dokuwiki.com",
-        "*.dokuwiki.cn"
-      ],
+      "name": "知识库",
+      "domains": ["*.wiki.com"],
       "keywords": [],
-      "description": "通用知识库系统 - 域名匹配后使用通用关键词"
+      "description": "通用知识库系统 - 待补充"
     }
   ],
-  "generic": [
-    "loginCheck",
-    "sessionTimeout",
-    "singleLogin",
-    "duplicateLogin",
-    "kickOut",
-    "forcedOffline"
-  ]
+  "generic": ["loginCheck", "sessionTimeout", "singleLogin", "duplicateLogin", "kickOut", "forcedOffline"]
 }

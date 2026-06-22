@@ -29,7 +29,7 @@ export const APP_CONFIG = {
 
   // ===== 升级检测 =====
   UPDATE: {
-    DEFAULT_URL: 'https://raw.githubusercontent.com/benson-album/session-master/develop/VERSION',
+    DEFAULT_URL: 'https://raw.githubusercontent.com/benson-album/session-master/master/VERSION',
     BETA_URL: 'https://raw.githubusercontent.com/benson-album/session-master/develop/VERSION',
     ENABLED: true,
     CHECK_INTERVAL_MINUTES: 360  // 每 6 小时检查一次

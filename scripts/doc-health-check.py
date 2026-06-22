@@ -1,16 +1,14 @@
 #!/usr/bin/env python3
 """
 Document Health Check — 文档健康检查脚本
-支持多版本检测：master (v1.x) 和 develop (v2.0) 各自检测各自的文档。
-
-在每次文档变更前运行，确保检查项全部通过。
+自适应检测当前分支存在哪些版本文档。
 
 用法:
   cd /opt/projects/session-master
   python3 scripts/doc-health-check.py [--fix]
 
 选项:
-  --fix    自动修复部分可修复的问题（如添加缺失的引用）
+  --fix    自动修复部分可修复的问题
 """
 
 import os
@@ -32,7 +30,7 @@ has_version_docs = bool(VERSION_DIRS)
 process_docs_dir = os.path.join(PROJECT, "docs/process")
 
 # ==========================================================
-# Agent 定义（按版本）
+# Agent 定义（仅在 v2.0+ 有效）
 # ==========================================================
 AGENTS = {
     "ME": {"reads": ["development-plan.md", "communication/coordination/"],
@@ -70,7 +68,6 @@ def warn(name, detail=""):
 
 
 def get_docs_list(version_dir):
-    """获取指定版本目录下的 .md 文档列表"""
     docs = []
     for f in sorted(os.listdir(version_dir)):
         fp = os.path.join(version_dir, f)
@@ -80,7 +77,6 @@ def get_docs_list(version_dir):
 
 
 def process_docs():
-    """获取 process/ 目录下的 .md 文档"""
     docs = []
     if os.path.isdir(process_docs_dir):
         for f in sorted(os.listdir(process_docs_dir)):
@@ -91,9 +87,8 @@ def process_docs():
 
 
 print("=" * 60)
-version_info = ", ".join(VERSION_DIRS.keys()) if VERSION_DIRS else "无版本文档目录"
+version_info = ", ".join(VERSION_DIRS.keys()) if VERSION_DIRS else "无版本文档目录（传统开发模式）"
 print(f"📋 文档健康检查（版本: {version_info}）")
-print(f"   路径: docs/{'/ docs/'.join(VERSION_DIRS.keys())}" if VERSION_DIRS else "")
 print("=" * 60)
 
 # ==========================================================
@@ -124,7 +119,6 @@ for ver_name, ver_dir in sorted(VERSION_DIRS.items()):
                 else:
                     full = os.path.join(ver_dir, doc_path)
                 exists = os.path.exists(full)
-                # Communication subdirectories are created during development — warn not fail
                 if doc_path.startswith("communication/"):
                     if exists:
                         check(f"  {agent} {label}: {doc_path}", True)
@@ -134,36 +128,39 @@ for ver_name, ver_dir in sorted(VERSION_DIRS.items()):
                     check(f"  {agent} {label}: {doc_path}", exists)
 
     # --- 2. 文档间交叉引用 ---
-    print(f"\n[2/7] 文档间交叉引用 ({ver_name})")
-    for doc in all_docs:
-        doc_path = os.path.join(ver_dir, doc)
-        if not os.path.exists(doc_path):
-            continue
-        content = open(doc_path).read()
-        refs = 0
-        for other in all_docs:
-            if doc == other:
+    if len(all_docs) > 1:
+        print(f"\n[2/7] 文档间交叉引用 ({ver_name})")
+        for doc in all_docs:
+            doc_path = os.path.join(ver_dir, doc)
+            if not os.path.exists(doc_path):
                 continue
-            if other in content:
-                refs += 1
-        other_count = len(all_docs) - 1
-        check(f"  {doc} 引用了 {refs}/{other_count} 份其他文档", refs >= max(3, other_count // 2),
-              f"(应 ≥{max(3, other_count // 2)}，实际 {refs})")
-
-    print()
-    for doc in all_docs:
-        cited = 0
-        for other in all_docs:
-            if doc == other:
-                continue
-            other_path = os.path.join(ver_dir, other)
-            if os.path.exists(other_path):
-                content = open(other_path).read()
-                if doc in content:
-                    cited += 1
-        other_count = len(all_docs) - 1
-        check(f"  {doc} 被 {cited}/{other_count} 份其他文档引用", cited >= max(3, other_count // 2),
-              f"(应 ≥{max(3, other_count // 2)}，实际 {cited})")
+            content = open(doc_path).read()
+            refs = 0
+            for other in all_docs:
+                if doc == other:
+                    continue
+                if other in content:
+                    refs += 1
+            other_count = len(all_docs) - 1
+            check(f"  {doc} 引用了 {refs}/{other_count} 份其他文档", refs >= max(3, other_count // 2),
+                  f"(应 ≥{max(3, other_count // 2)}，实际 {refs})")
+        print()
+        for doc in all_docs:
+            cited = 0
+            for other in all_docs:
+                if doc == other:
+                    continue
+                other_path = os.path.join(ver_dir, other)
+                if os.path.exists(other_path):
+                    content = open(other_path).read()
+                    if doc in content:
+                        cited += 1
+            other_count = len(all_docs) - 1
+            check(f"  {doc} 被 {cited}/{other_count} 份其他文档引用", cited >= max(3, other_count // 2),
+                  f"(应 ≥{max(3, other_count // 2)}，实际 {cited})")
+    else:
+        print(f"\n[2/7] 文档间交叉引用 ({ver_name})")
+        print("  (只有 1 份文档，无需检查交叉引用)")
 
     # --- 3. 签字链一致性 ---
     print(f"\n[3/7] 签字链一致性 ({ver_name})")
@@ -200,7 +197,6 @@ for ver_name, ver_dir in sorted(VERSION_DIRS.items()):
         old_checkboxes = re.findall(r'□ [^\n]*□', content)
         for oc in old_checkboxes[:3]:
             warn(f"  {doc}: 旧式 □ 复选框残留: {oc[:60]}")
-        # Check for inconsistent "4 agent" vs "5 agent"
         content_lower = content.lower()
         if "4 代理" in content_lower or "4代理" in content_lower:
             check(f"  {doc}: 含'4 代理'需改为'5 角色'", False)
@@ -213,7 +209,6 @@ for ver_name, ver_dir in sorted(VERSION_DIRS.items()):
             continue
         doc_lower = doc.lower()
         content = open(doc_path).read()
-        # Only methodology files need strict general-purpose check
         if "methodology" in doc_lower or "method" in doc_lower:
             project_terms = ["SessionMaster", "session-master", "v1.5", "src/core/", "background.js", "popup.js"]
             for term in project_terms:
@@ -244,8 +239,6 @@ if process_files:
     print(f"\n{'=' * 50}")
     print(f"📁 [process/] 版本无关文档检查")
     print(f"{'=' * 50}")
-
-    # Check lessons-learned has version management section
     print(f"\n[+] 经验教训文档")
     ll_path = os.path.join(process_docs_dir, "lessons-learned.md")
     if os.path.exists(ll_path):
@@ -274,9 +267,8 @@ else:
         print("⚠️  --fix 模式: 部分问题已自动修复，请重新检查")
     sys.exit(1)
 
-# Version doc summary
 if VERSION_DIRS:
     print(f"\n📌 已检查版本: {', '.join(sorted(VERSION_DIRS.keys()))}")
 else:
-    print("\n📌 当前分支无版本专用文档目录（仅检查 process/）")
+    print("\n📌 当前分支无版本专用文档目录（传统开发模式，仅检查 process/）")
 print("=" * 60)
