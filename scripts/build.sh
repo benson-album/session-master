@@ -9,6 +9,34 @@ PROJECT_ROOT="$SCRIPT_DIR"
 SRC_DIR="$PROJECT_ROOT/src"
 # OUTPUT_ZIP 在获取版本号后定义
 
+# --release 模式：从 changelog.json 生成 GitHub Release body 文本
+if [ "$1" = "--release" ]; then
+  echo "============================================"
+  echo "  Release body 生成（从 changelog.json）"
+  echo "============================================"
+  python3 -c "
+import json, sys
+with open('$SRC_DIR/changelog.json') as f:
+    data = json.load(f)
+if not data:
+    print('changelog.json 为空')
+    sys.exit(1)
+v = data[0]
+ver = v['version'].split()[0]  # 去掉 '(master)' 后缀
+print(f'# v{ver}')
+print()
+for item in v.get('items', []):
+    print(f'- {item}')
+print()
+print('---')
+print(f'完整更新日志: https://github.com/benson-album/session-master/blob/master/src/changelog.json')
+" 2>/dev/null || echo "无法读取 changelog.json"
+  echo ""
+  echo "将以上内容粘贴到 GitHub Release body 中，或执行:"
+  echo "  bash scripts/build.sh --release | xclip -selection clipboard"
+  exit 0
+fi
+
 echo "============================================"
 echo " SessionMaster 构建脚本"
 echo "============================================"
@@ -91,6 +119,24 @@ echo "  输出: $OUTPUT_ZIP"
 echo "  大小: $(numfmt --to=iec $ZIP_SIZE 2>/dev/null || echo "$ZIP_SIZE bytes")"
 echo "  版本: v$MANIFEST_VER"
 echo ""
+
+# 生成 Release body 提示（从 changelog.json 取出最新版本的 items）
+echo "  📋 Release body 预览（从 src/changelog.json 取最新条目）:"
+python3 -c "
+import json
+with open('$SRC_DIR/changelog.json') as f:
+    data = json.load(f)
+if data:
+    v = data[0]
+    print(f'    版本: {v[\"version\"]} ({v[\"date\"]})')
+    for item in v.get('items', []):
+        print(f'    • {item}')
+" 2>/dev/null || echo "  ⚠️  无法读取 changelog.json"
+echo ""
+echo "  发布时执行以下命令创建/更新 Release body:"
+echo "    bash scripts/build.sh --release"
+echo ""
+
 echo "  在浏览器中加载:"
 echo "  1. 打开 chrome://extensions"
 echo "  2. 开启开发者模式"
