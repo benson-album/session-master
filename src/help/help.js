@@ -340,13 +340,15 @@
 
     function updateActive(visibleIds) {
       var activeId = null;
-      var bestTop = Infinity;
+      var HEADER_OFFSET = 70;
+      var bestDist = Infinity;
       for (var i = 0; i < sections.length; i++) {
         if (visibleIds.indexOf(sections[i].id) !== -1) {
-          // 取最靠近视口顶部的章节（不按数组顺序）
+          // 取 top 最接近视口顶部锚点(70px)的章节
           var top = sections[i].el.getBoundingClientRect().top;
-          if (top < bestTop) {
-            bestTop = top;
+          var dist = Math.abs(top - HEADER_OFFSET);
+          if (dist < bestDist) {
+            bestDist = dist;
             activeId = sections[i].id;
           }
         }
@@ -364,7 +366,7 @@
     var visibleSet = {};
 
     function getClosestSection() {
-      var scrollY = window.scrollY + 80;
+      var scrollY = window.scrollY + 70;
       var best = null;
       var bestDist = Infinity;
       for (var i = 0; i < sections.length; i++) {
