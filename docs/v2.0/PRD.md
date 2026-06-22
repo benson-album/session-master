@@ -100,7 +100,7 @@ v2.0 改为按**站点组织**的架构：
 - 底部选项「添加新站点」
 - 首次打开时自动识别当前浏览器 URL 的域名
 
-### 2.2 Tab 1：🌐 会话管理
+#### 2.2.1 界面布局
 
 ```
 🌐 会话管理 — [oa.company.com ▼]
@@ -179,6 +179,19 @@ v2.0 改为按**站点组织**的架构：
   [📖 使用说明] [📋 导出日志]
   版本更新检查
 ```
+
+### 2.5 近期 v1.5.x UX 功能（交互描述）
+
+以下功能已在 v1.5.x 阶段上线，是 v2.0 保留并继承的交互特性：
+
+| 功能 | 交互描述 |
+|:----:|:---------|
+| **版本更新横幅** | header 下方显示 🆕 橙色卡片，提示新版本可用，点击可跳转更新 |
+| **版本号 hover 提示** | 鼠标悬停 popup 顶部版本号时显示 tooltip：「vX.X.X · 已是最新版本」 |
+| **版本号点击跳转** | 点击版本号直接打开 GitHub Releases 页面查看更新日志 |
+| **🖥️ 设备状态指示器** | 当检测到有新版本可用时，在全局设置 Tab 的设备身份区域显示 ⬆ vX 标记 |
+| **设备身份弹窗** | 点击「查看完整设备详情」弹出 HTML 卡片布局，展示设备 ID、创建时间、同步状态等信息 |
+| **getSiteName 修复** | 修复原 getSiteName 在多级子域名（如 a.b.example.com）下提取主域名不准确的 Bug；改用 `getDomainFromUrl` 统一处理，优先匹配已配置站点列表中的域名，回退到提取根域名 |
 
 ---
 
@@ -279,52 +292,66 @@ v2.0 首次启动时自动执行：
 
 ```javascript
 async function migrateV1toV2() {
-  const v1data = {
-    beats: await getStorage('heartbeat_configs', []),
-    p2p: await getStorage('sync_config', {}),
-    server: await getStorage('server_sync_config', {}),
-    identity: await getStorage('device_identity', {}),
-    blocker: await getStorage('blocker_config', {}),
-  };
-  
-  // 合并站点
-  const sites = [];
-  const domains = new Set();
-  
-  v1data.beats.forEach(b => domains.add(b.domain));
-  if (v1data.p2p.syncedDomains) domains.add(v1data.p2p.syncedDomains[0]);
-  
-  domains.forEach(domain => {
-    sites.push({
-      domain,
-      heartbeats: v1data.beats.filter(b => b.domain === domain),
-      sync: {
-        masterMode: v1data.p2p.masterMode || v1data.server.masterMode || false,
-        isMaster: v1data.p2p.isMaster !== false,
-        p2p: {
-          enabled: v1data.p2p.enabled && v1data.p2p.mode === 'p2p',
-          roomId: v1data.p2p.p2pRoomId || null,
-          connected: false,
+  try {
+    const v1data = {
+      beats: await getStorage('heartbeat_configs', []),
+      p2p: await getStorage('sync_config', {}),
+      server: await getStorage('server_sync_config', {}),
+      identity: await getStorage('device_identity', {}),
+      blocker: await getStorage('blocker_config', {}),
+    };
+
+    // 合并站点
+    const sites = [];
+    const domains = new Set();
+
+    v1data.beats.forEach(b => domains.add(b.domain));
+    if (v1data.p2p.syncedDomains) domains.add(v1data.p2p.syncedDomains[0]);
+
+    domains.forEach(domain => {
+      sites.push({
+        domain,
+        heartbeats: v1data.beats.filter(b => b.domain === domain),
+        sync: {
+          masterMode: v1data.p2p.masterMode || v1data.server.masterMode || false,
+          isMaster: v1data.p2p.isMaster !== false,
+          p2p: {
+            enabled: v1data.p2p.enabled && v1data.p2p.mode === 'p2p',
+            roomId: v1data.p2p.p2pRoomId || null,
+            connected: false,
+            connectedPeerName: null,  // v2.0 新增：记录已连接的对端设备名称
+          },
+          server: {
+            enabled: v1data.server.enabled || false,
+            deviceId: v1data.server.deviceId || null,
+            pairKey: v1data.server.pairKey || null,
+          },
         },
-        server: {
-          enabled: v1data.server.enabled || false,
-          deviceId: v1data.server.deviceId || null,
-          pairKey: v1data.server.pairKey || null,
-        },
-      },
+      });
     });
-  });
-  
-  // 保存新结构
-  await setStorage('v2_sites', sites);
-  await setStorage('v2_global', {
-    signalUrl: v1data.p2p.signalUrl || '',
-    serverUrl: v1data.server.serverUrl || '',
-    p2pDeviceName: v1data.p2p.p2pDeviceName || '',
-    serverDeviceName: v1data.server.deviceName || '',
-    syncInterval: v1data.p2p.intervalMinutes || v1data.server.intervalMinutes || 5,
-    deviceIdentity: v1data.identity,
-  });
+
+    // 保存新结构
+    await setStorage('v2_sites', sites);
+    await setStorage('v2_global', {
+      signalUrl: v1data.p2p.signalUrl || '',
+      serverUrl: v1data.server.serverUrl || '',
+      p2pDeviceName: v1data.p2p.p2pDeviceName || '',
+      serverDeviceName: v1data.server.deviceName || '',
+      syncInterval: v1data.p2p.intervalMinutes || v1data.server.intervalMinutes || 5,
+      deviceIdentity: v1data.identity,
+    });
+
+    // blocker_config → blockerConfig 映射
+    await setStorage('blockerConfig', v1data.blocker);
+
+    // 标记迁移完成
+    await setStorage('v2_migrated', true);
+  } catch (error) {
+    console.error('[Migration] v1.x → v2.0 迁移失败:', error);
+    // 回退策略：读取失败时保留旧键，不阻塞启动
+    await setStorage('v2_migrated', false);
+    await setStorage('v2_migration_error', error.message);
+  }
 }
 
 ### 3.4 Alarm 命名约定（按站点隔离）
@@ -471,6 +498,12 @@ async function p2pDisconnect(siteDomain) {
 - 迁移完成后，popup 顶部版本号显示 v2.0.0
 - 首次迁移 toast："🔄 已升级到 v2.0，您的数据已安全迁移"
 
+### 5.4 迁移前修复：STORAGE_KEYS 共用键 Bug
+
+**问题**：`config.js` 中 `STORAGE_KEYS.SYNC_CONFIG` 与 `SERVER_SYNC_CONFIG` 原指向同一存储键，导致 P2P 配置与服务器配置互相覆盖。
+
+**修复**：v2.0 迁移前已将二者拆分为独立键，确保 `sync_config` 和 `server_sync_config` 各自独立存储。此修复已提前合入 v1.5.x 版本，v2.0 迁移代码信赖此前提。
+
 ---
 
 ## 6. 功能变更汇总
@@ -514,7 +547,7 @@ async function p2pDisconnect(siteDomain) {
 |:----:|------|:----:|
 | **数据迁移** | 纯 `chrome.storage` 操作，无网络依赖，可离线执行 | 🟡 需充分测试边界：全空状态、部分配置状态、完整配置状态 |
 | **存储键变更** | 旧键保留，新增 `v2_sites` + `v2_global`，无破坏性变更 | 🟢 低风险 |
-| **UI 重构** | popup.html + popup.js 重写，但所有逻辑函数保持 | 🟡 工作量大（约 200 行 popup.js 重写 + HTML 重排） |
+| **UI 重构** | popup.html + popup.js 重写，但所有逻辑函数保持 | 🟡 工作量大（约 2100 行 popup.js 重写 + HTML 重排）<br/>⚠️ 原估算 200 行，实地测量后修正为 2100 行，工时已相应调整 |
 | **锁定规则** | 从 `setDomainDependentState` 改为 `hasSite` + `isCurrentTab` 双重判定 | 🟢 代码量小 |
 | **后向兼容** | 旧存储键保留 | 🟢 可回滚 |
 | **用户迁移** | 自动迁移无感知 | 🟢 已在 onInstalled 中处理 |

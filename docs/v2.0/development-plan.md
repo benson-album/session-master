@@ -2,7 +2,7 @@
 
 > **版本**：v2.0-exec
 > **粒度**：逐文件、逐函数、逐行操作
-> **工时**：12-15h（P0 3.5h / P1 4.5h / P2 2h / P3 2.5h）
+> **工时**：24-30h（P0 4.5h / P1 9h / P2 6h / P3 4h）
 > **工作模式**：5 角色三层协作（我 → PM → PD/DE/QA）
 
 ---
@@ -921,14 +921,79 @@ docs/v2.0/communication/
 - [Agent 架构总览](#agent-架构总览)
 - [Agent 通信协议](#agent-通信协议)
 - [方案调整与变更协调机制](#方案调整与变更协调机制)
-- [P0：基础设施（3.5h）](#p0基础设施35h)
-- [P1：UI 重构（4.5h）](#p1ui-重构45h)
-- [P2：架构优化（2h）](#p2架构优化2h)
-- [P3：收尾（2.5h）](#p3收尾25h)
+- [P0：基础设施（4.5h）](#p0基础设施45h)
+- [P1：UI 重构（9h）](#p1ui-重构9h)
+- [P2：架构优化（6h）](#p2架构优化6h)
+- [P3：收尾（4h）](#p3收尾4h)
 
 ---
 
-# P0：基础设施（3.5h）
+# P0：基础设施（4.5h）
+
+---
+
+## T0 — 全新安装初始化（1h）
+
+处理无 v1 数据的首次安装场景——用户全新安装扩展时，没有任何旧数据可供迁移，需要初始化默认的 v2 数据结构。
+
+### 涉及文件
+
+| 操作 | 文件 |
+|:----:|:----:|
+| 修改 | `src/core/migration.js` |
+| 修改 | `src/background.js`（`onInstalled` 逻辑）|
+
+### T0-S1：在 migration.js 中新增首次安装检测
+
+在 `runMigrations()` 中增加分支：当检测到既无 v2 键也无 v1 旧键时，直接初始化 v2 默认值：
+
+```javascript
+async function isCleanInstall() {
+  const all = await chrome.storage.local.get(null);
+  const hasV1Keys = Object.keys(all).some(k =>
+    ['heartbeat_configs','sync_config','server_sync_config','device_identity','lastHeartbeatTime',
+     'blocking_state','blockedHosts','blockingRules','blockingConfig',
+     'p2pRoomId','p2pPeerId','currentRoomId','signalUrl','serverUrl',
+     'userBlockingRules','rulesDB','cookieMeta','p2pConnectedAt',
+     'p2pConnectedPeerName'].includes(k)
+  );
+  const hasV2Keys = all.v2_sites !== undefined || all.v2_global !== undefined;
+  return !hasV1Keys && !hasV2Keys;
+}
+```
+
+在 `runMigrations()` 开头添加：
+
+```javascript
+// 检测是否全新安装（无 v1 也无 v2 数据）
+if (await isCleanInstall()) {
+  await setStorage('v2_sites', []);
+  await setStorage('v2_global', {});
+  await setStorage(SCHEMA_VERSION_KEY, LATEST_SCHEMA);
+  return; // 跳过迁移
+}
+```
+
+### T0-S2：在 background.js 中处理首次安装引导
+
+在 onInstalled 的 reason 判断中，当 `reason === 'install'` 且为全新安装时，打开欢迎/引导页（可选）：
+
+```javascript
+if (details.reason === 'install') {
+  // 如果是全新安装（非更新），弹出引导页
+  chrome.tabs.create({ url: chrome.runtime.getURL('src/help/help.html#onboarding') });
+}
+```
+
+### T0-V：验证步骤
+
+| # | 方式 | 步骤 | 预期 |
+|:-:|:----:|:----|:----:|
+| 1 | 自动 | `bash scripts/build.sh` | 构建通过 |
+| 2 | 手动 | 清除所有 storage → 加载扩展 | `v2_sites = []`、`v2_global = {}`、`v2_schema_version = 2` |
+| 3 | 手动 | 检查旧键 | 无任何 v1 旧键被创建 |
+| 4 | 手动 | 重载扩展 | `v2_schema_version = 2`，不再执行初始化写入 |
+| 5 | 手动 | 控制台 | 无报错 |
 
 ---
 
@@ -1431,7 +1496,7 @@ import './core/sites.js';
 
 ### 🏁 里程碑 M-P0：基础设施完成
 
-**触发条件**：T1 ~ T4 全部验证通过
+**触发条件**：T0 ~ T4 全部验证通过
 
 **交付物清单**：
 
@@ -1454,7 +1519,7 @@ import './core/sites.js';
 
 ---
 
-# P1：UI 重构（4.5h）
+# P1：UI 重构（9h）
 
 ---
 
@@ -1563,16 +1628,18 @@ SEL-1 ~ SEL-6
 
 ---
 
-## T6 — 三 Tab 内容重构（2.5h）
+## T6 — 三 Tab 内容重构（7h）
 
 ### 涉及文件
 
 | 操作 | 文件 |
 |:----:|:----:|
 | 修改 | `src/popup/popup.html`（三 Tab 内容区重写）|
-| 新建 | `src/popup/session-tab.js`（会话管理 Tab）|
-| 新建 | `src/popup/sync-tab.js`（同步管理 Tab）|
-| 新建 | `src/popup/global-tab.js`（全局设置 Tab）|
+| 新建 | `src/popup/session-tab.js`（会话管理 Tab，从 popup.js 中提取约 700 行）|
+| 新建 | `src/popup/sync-tab.js`（同步管理 Tab，从 popup.js 中提取约 600 行）|
+| 新建 | `src/popup/global-tab.js`（全局设置 Tab，从 popup.js 中提取约 400 行）|
+
+> **说明**：popup.js 目前约 2100 行，T6 需要从中提取约 1700 行到三个 Tab 文件中，同时重写 HTML 结构和 Tab 切换逻辑，工作量远大于原估算。
 
 ### T6-S1：HTML 结构
 
@@ -1702,21 +1769,21 @@ function setDomainDependentState(hasDomain, tabInfo) {
 
 ---
 
-# P2：架构优化（2h，建议做）
+# P2：架构优化（6h）
 
 ---
 
-## T8 — 消息路由注册表（1h）
+## T8 — 消息路由注册表（2.5h）
 
 ### 涉及文件
 
 | 操作 | 文件 |
 |:----:|:----:|
 | 新建 | `src/core/messaging.js` |
-| 修改 | 各 `core/*.js` 模块（末尾注册 handler）|
-| 修改 | `src/background.js`（移除 switch，调用 `initMessaging`）|
+| 修改 | 各 `core/*.js` 模块（末尾注册 handler，涉及 cookies.js/heartbeat.js/sync-p2p.js/sync-server.js/blocker.js/sites.js 共 6 个模块）|
+| 修改 | `src/background.js`（移除约 50 行 switch 语句，改为 `initMessaging`）|
 
-### T8-S1：实现 messaging.js
+### T8-S1：实现 messaging.js（30min）
 
 ```javascript
 // src/core/messaging.js
@@ -1783,15 +1850,17 @@ initMessaging();
 
 ---
 
-## T9 — UI 渲染函数化（1h）
+## T9 — UI 渲染函数化（3.5h）
 
 ### 涉及文件
 
 | 操作 | 文件 |
 |:----:|:----:|
-| 新建 | `src/popup/session-tab.js` |
-| 新建 | `src/popup/sync-tab.js` |
-| 新建 | `src/popup/global-tab.js` |
+| 新建 | `src/popup/session-tab.js`（从 popup.js 提取约 700 行并重构为渲染函数）|
+| 新建 | `src/popup/sync-tab.js`（从 popup.js 提取约 600 行并重构为渲染函数）|
+| 新建 | `src/popup/global-tab.js`（从 popup.js 提取约 400 行并重构为渲染函数）|
+
+> **说明**：T9 与 T6 紧密关联——T6 创建了三个 Tab 文件的基础结构（HTML + 简单切换），T9 在此基础上将剩余的 inline DOM 操作全部迁移为独立的渲染函数组件。T6 离开 popup.js 中约 400 行（站点选择器 + 初始化 + 事件绑定），T9 进一步将其函数化。
 
 每个文件导出渲染函数，不再直接操作 `document.getElementById`，而是接受 `container` 参数：
 
@@ -1830,11 +1899,13 @@ export function renderSessionTab(container, site) {
 
 ---
 
-# P3：收尾（2.5h）
+# P3：收尾（4h）
 
 ---
 
-## T10 — 文档更新（1h）
+## T10 — 文档更新（1.5h）
+
+### 文档文件更新
 
 | 文件 | 操作 |
 |:----|:-----|
@@ -1844,6 +1915,21 @@ export function renderSessionTab(container, site) {
 | Skill 文档 | 项目结构更新 + 锁定规则章节 |
 
 验收：HLP-1~10, RDM-1~6, SKL-1~4
+
+### UX 特性文档补充（新增，约 0.5h）
+
+在各文档（help.html / README.md）中补充 v2.0 新增 UX 特性的说明文档共 8 项：
+
+| # | UX 特性 | 文档要点 |
+|:-:|:--------|:---------|
+| 1 | **站点选择器横幅** | 展示当前站点、切换下拉框、添加站点按钮，与之前版本无站点横幅的区别 |
+| 2 | **版本号交互** | popup 头部版本号点击可复制、可跳转 CHANGELOG |
+| 3 | **设备状态指示器** | 同步管理 Tab 中显示设备在线/离线/未配置状态 |
+| 4 | **Tab 锁定规则** | 无站点/有站点/正常页三种锁定状态的图示说明 |
+| 5 | **Toast 通知机制** | 操作结果的轻提示反馈（成功/错误） |
+| 6 | **保活记录 inline 编辑** | 在会话管理 Tab 中直接编辑保活 URL、间隔 |
+| 7 | **站点删除确认** | 删除站点前弹出确认对话框，提示同步连接将断开 |
+| 8 | **首次安装引导页** | 全新安装时弹出 help.html#onboarding 引导页 |
 
 ## T11 — 9 项自检（0.5h）
 
@@ -1857,11 +1943,23 @@ export function renderSessionTab(container, site) {
 8. 选择器一致性
 9. 元素类型一致性
 
-## T12 — 构建 + 测试（0.5h）
+## T12 — 构建 + 测试（1.5h）
 
+### 构建（0.5h）
 - `bash scripts/build.sh`
-- 加载到浏览器
-- 执行 test-plan.md 全部用例
+- 确认无 lint/语法错误
+
+### 首次全面手动测试（新增，1h）
+执行 test-plan.md 中的全部手动测试用例，完整覆盖 P0~P3 所有功能：
+
+| 测试范围 | 测试项 | 预计时间 |
+|:---------|:-------|:--------:|
+| P0 基础设施 | 全新安装初始化（T0-V）、数据迁移（T1-V）、Alarm 隔离（T2-V）、P2P 隔离（T3-V） | 20min |
+| P1 UI 重构 | 站点选择器（SEL-1~6）、三 Tab 内容（SES-1~15、SYN-1~18、GLB-1~10）、锁定规则（LCK-1~8）| 25min |
+| P2 架构优化 | 消息路由行为一致性、渲染函数独立性 | 5min |
+| P3 收尾 | 文档链接、版本号一致性、构建产物 | 10min |
+
+> **说明**：原估算仅含构建和自动化测试，遗漏了首次全面手动验证的工作量。v2.0 重构涉及大量 UI 交互变更，手动测试必不可少。
 
 ## T13 — 版本号 + 发布（0.5h）
 
@@ -1896,9 +1994,88 @@ git push origin master --tags
 | 4 | 手动 | 检查 GitHub Release | v2.0.0 存在且为 Latest |
 | 5 | 手动 | 下载 Release 附件 | zip 文件名 = `session-master-v2.0.0.zip` |
 
+---
+
+## 附录：降级回退操作指南（v2.0 → v1.x）
+
+当用户从 v2.0 版本回退到 v1.x 时，按以下步骤操作。
+
+### 适用场景
+
+- **功能回退**：v2.0 站点中心架构不满足预期，需要恢复到原有单站点模式
+- **兼容性问题**：v2.0 与某些第三方扩展/脚本冲突
+- **数据迁移故障**：迁移过程出现不可修复的数据损坏
+
+### 降级前提
+
+- ⚠️ **v2.0 保留所有 v1.x 旧键**（`heartbeat_configs`、`sync_config`、`server_sync_config`、`device_identity` 等均未删除），v1.x 可直接读取旧键恢复运行
+- ⚠️ **降级不会丢失 v1.x 原始数据**，但 v2.0 期间通过站点选择器添加的新站点不会自动同步到 v1.x 数据结构中
+
+### 降级步骤
+
+#### 步骤 1：备份当前数据（可选但推荐）
+
+```bash
+# 打开扩展 → DevTools → Application → Storage → Local
+# 点击「Export」导出全部 storage JSON
+```
+
+#### 步骤 2：清理 v2.0 数据键
+
+删除以下 v2.0 新增的 storage 键（v1.x 不会读取它们）：
+
+| 要删除的键 | 说明 |
+|:-----------|:-----|
+| `v2_sites` | v2.0 站点中心数据结构 |
+| `v2_global` | v2.0 全局设置 |
+| `v2_schema_version` | 迁移版本标记 |
+
+**方法 A — 通过控制台**：
+```javascript
+chrome.storage.local.remove(['v2_sites', 'v2_global', 'v2_schema_version'], () => {
+  console.log('v2.0 数据已清除');
+});
+```
+
+**方法 B — 手动删除**：
+1. 打开 Chrome → 扩展管理 → SessionMaster → Service Worker
+2. 在 Console 标签粘贴上述代码并执行
+3. 或在 DevTools → Application → Local Storage 中逐一右键删除
+
+#### 步骤 3：卸载 v2.0 扩展
+
+1. 打开 `chrome://extensions/`
+2. 找到 SessionMaster v2.0
+3. 点击「移除」
+
+#### 步骤 4：安装 v1.x 版本
+
+1. 从 GitHub Releases 下载 v1.5.14（或上一个大版本）的 zip 包
+2. 打开 `chrome://extensions/`
+3. 开启「开发者模式」
+4. 拖拽 zip 包 / 点击「加载已解压的扩展」
+5. 确认扩展图标恢复且功能正常
+
+#### 步骤 5：验证降级成功
+
+| # | 验证项 | 预期 |
+|:-:|:-------|:----:|
+| 1 | 扩展可正常加载 | 无报错提示 |
+| 2 | 旧键数据完整 | `heartbeat_configs`、`sync_config` 等与升级前一致 |
+| 3 | 保活定时器运行 | 控制台可见心跳日志 |
+| 4 | 同步连接可用 | P2P / 服务器同步可正常连接 |
+| 5 | 拦截规则生效 | 已配置的拦截规则正常工作 |
+
+### 注意事项
+
+1. **v2.0 新增的站点数据不会出现在 v1.x 中**：降级后只有原 v1.x 已有的站点会恢复。如果用户在 v2.0 期间通过站点选择器添加了新站点，需要手动重新在 v1.x 中配置。
+2. **同步连接历史记录**：v2.0 中 P2P 连接记录存储在 `v2_sites` 中，降级后不追溯。原 v1.x 的 `sync_config` 中的连接配置不受影响。
+3. **数据不兼容警告**：如果降级后又想回到 v2.0，需要重新执行数据迁移（`onInstalled` 触发 `runMigrations()` 会从 v1 旧键重新生成 `v2_sites`）。
+4. **回滚版本一致性**：确保回退的 v1.x 版本与升级前的 v1.x 版本一致（推荐 v1.5.14）。
+
 ### 🏁 里程碑 M-P3：v2.0.0 发布
 
-**触发条件**：T10 ~ T13 全部验证通过
+**触发条件**：T0 ~ T13 全部验证通过
 
 **最终交付物清单**：
 
@@ -1907,11 +2084,13 @@ git push origin master --tags
 | M3-1 | **v2.0.0 Release** | GitHub Release + zip 附件 + Latest 标记 |
 | M3-2 | **站点中心架构** | 三 Tab（会话/同步/全局）+ 站点选择器 |
 | M3-3 | **链式迁移框架** | `schema_version` + `runMigrations()`，v3.0 可直接用 |
-| M3-4 | **Alarm/P2P 按站点隔离** | alarm 名称含域名，P2P 连接按站点索引 |
-| M3-5 | **帮助文档同步** | help.html + README 按新架构重组 |
-| M3-6 | **v1.x 数据迁移** | 旧键保留，新键 `v2_sites` + `v2_global` 正确 |
-| M3-7 | **模块化代码** | `src/core/` 7 模块 + `src/popup/` Tab 组件 |
-| M3-8 | **回滚方案** | 旧键保留，删除 `v2_` 键即可降级 |
+| M3-4 | **全新安装初始化** | 无 v1 数据时自动初始化默认 v2 结构 |
+| M3-5 | **Alarm/P2P 按站点隔离** | alarm 名称含域名，P2P 连接按站点索引 |
+| M3-6 | **帮助文档同步** | help.html + README 按新架构重组 |
+| M3-7 | **UX 特性文档** | 8 项新增 UX 特性使用说明 |
+| M3-8 | **v1.x 数据迁移** | 旧键保留，新键 `v2_sites` + `v2_global` 正确 |
+| M3-9 | **模块化代码** | `src/core/` 7 模块 + `src/popup/` Tab 组件 |
+| M3-10 | **回滚方案** | 旧键保留，删除 `v2_` 键即可降级；降级回退操作指南已文档化 |
 
 **最终签字确认**（QA 签质量 → PD 签文档 → PM 汇总 → **我终签**）：
 
@@ -1926,6 +2105,9 @@ git push origin master --tags
 
 | 任务 | 文件 | 操作 | 估算 |
 |:----:|:----|:----|:----:|
+| T0 | `src/core/migration.js` | 改 + 首次安装检测（isCleanInstall） | 20min |
+| T0 | `src/background.js` | 改 + onInstalled 引导逻辑 | 20min |
+| T0-V | — | 验证：全新安装初始化 | 20min |
 | T1 | `src/core/migration.js` | 新建 80 行 | 20min |
 | T1 | `src/core/sites.js` | 新建 60 行 | 15min |
 | T1 | `src/background.js` | 改 +8 行（import + onInstalled） | 10min |
@@ -1941,15 +2123,22 @@ git push origin master --tags
 | T5 | `src/popup/popup.html` | 新增站点选择器 DOM | 15min |
 | T5 | `src/popup/site-selector.js` | 新建 60 行 | 30min |
 | T5 | `src/popup/popup.js` | 改入口集成 | 15min |
-| T6 | `src/popup/popup.html` | 三 Tab 内容重写 | 45min |
-| T6 | `src/popup/session-tab.js` | 新建 | 30min |
-| T6 | `src/popup/sync-tab.js` | 新建 | 30min |
-| T6 | `src/popup/global-tab.js` | 新建 | 15min |
+| T6 | `src/popup/popup.html` | 三 Tab 内容重写 | 1.5h |
+| T6 | `src/popup/session-tab.js` | 新建（约 700 行，从 popup.js 提取） | 2h |
+| T6 | `src/popup/sync-tab.js` | 新建（约 600 行，从 popup.js 提取） | 1.5h |
+| T6 | `src/popup/global-tab.js` | 新建（约 400 行，从 popup.js 提取） | 1h |
+| T6 | `src/popup/popup.js` | 改 Tab 切换逻辑 + 清理冗余代码 | 1h |
 | T7 | `src/popup/popup.js` | 改锁定规则 | 30min |
 | T8 | `src/core/messaging.js` | 新建 40 行 | 30min |
-| T8 | 各 core/*.js | 改末尾注册 handler | 30min |
-| T9 | `src/popup/*-tab.js` | 改渲染函数化 | 1h |
+| T8 | 各 core/*.js | 改末尾注册 handler（6 个模块每个 10min） | 1h |
+| T8 | `src/background.js` | 改移除 switch 语句（约 50 行） | 1h |
+| T9 | `src/popup/*-tab.js` | 改渲染函数化（三个 Tab 各约 1h） | 3h |
+| T9 | `src/popup/popup.js` | 改入口集成渲染函数调用 | 30min |
 | T10 | `src/help/help.html` | 章结构重写 | 45min |
+| T10 | `src/help/help.js` | 更新锚点引用 | 10min |
+| T10 | `README.md` | 版本号 + 架构图 + 功能表 | 15min |
+| T10 | 各文档 | UX 特性文档补充（8 项） | 20min |
 | T11 | — | 9 项自检 | 30min |
-| T12 | — | 构建 + 测试 | 30min |
+| T12 | — | 构建 + 自动测试 | 30min |
+| T12 | — | 首次全面手动测试 | 1h |
 | T13 | 6 处版本号 | 改 | 15min |
