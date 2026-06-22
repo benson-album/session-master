@@ -57,6 +57,27 @@
       "domains": ["*.wiki.com"],
       "keywords": [],
       "description": "通用知识库系统 - 待补充"
+    },
+    {
+      "id": "weaver",
+      "name": "泛微OA",
+      "domains": ["*.weaver.com.cn", "*.e-cology.cn", "*.e-office.cn", "*.weaver"],
+      "keywords": ["checkSession", "singleLogin", "duplicateLogin", "conflictLogin", "forcedOffline", "kickOut", "loginCheck", "sessionTimeout"],
+      "description": "泛微OA e-cology/e-office - 会话/单点/冲突/踢出检测"
+    },
+    {
+      "id": "landray",
+      "name": "蓝凌OA",
+      "domains": ["*.landray.com.cn", "*.landray.com", "*.km.landray"],
+      "keywords": ["checkSession", "singleLogin", "duplicateLogin", "conflictLogin", "forcedOffline", "kickOut", "loginCheck", "sessionTimeout"],
+      "description": "蓝凌OA - 会话/单点/冲突/踢出检测"
+    },
+    {
+      "id": "showdoc",
+      "name": "ShowDoc",
+      "domains": ["*.showdoc.com.cn", "*.showdoc.com"],
+      "keywords": ["loginCheck", "checkSession", "singleLogin"],
+      "description": "ShowDoc 文档系统 - 登录检测/会话检查/单点登录"
     }
   ],
   "generic": ["loginCheck", "sessionTimeout", "singleLogin", "duplicateLogin", "kickOut", "forcedOffline"]
