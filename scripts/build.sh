@@ -102,7 +102,9 @@ DIR_NAME="session-master-v$MANIFEST_VER"
 TEMP_DIR="_tmp_zip_$$"
 mkdir -p "$TEMP_DIR/$DIR_NAME"
 cp -r "$SRC_DIR"/* "$TEMP_DIR/$DIR_NAME/"
-# 排除隐藏文件和 node_modules
+# 清理 Chrome 自动生成的 _metadata/ 目录（非 . 开头，不会被 */.* 排除）
+rm -rf "$TEMP_DIR/$DIR_NAME/_metadata"
+# 排除隐藏文件
 cd "$TEMP_DIR"
 zip -r "$OUTPUT_ZIP" "$DIR_NAME/" -x "*/.*" > /dev/null
 cd "$PROJECT_ROOT"
