@@ -104,7 +104,11 @@
           lastExportData.localStorage = lsResult.data;
           document.getElementById('resultCount').textContent = `${result.data.cookies.length} 个 Cookie（${domainCount} 个关联域）+ ${keys.length} 项本地存储`;
           // 显示 localStorage 详情
-          const lsHtml = keys.map(k => `<div>📌 <code>${k}</code>: ${String(lsResult.data[k]).substring(0, 60)}${String(lsResult.data[k]).length > 60 ? '...' : ''}</div>`).join('');
+          const lsHtml = keys.map(k => {
+            const val = String(lsResult.data[k]);
+            const truncated = val.length > 50 ? val.substring(0, 50) + '...' : val;
+            return `<div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%">📌 <code>${k}</code>: ${truncated}</div>`;
+          }).join('');
           document.getElementById('lsKeyList').innerHTML = lsHtml;
           document.getElementById('localStorageResult').style.display = 'block';
           showToast(`✅ 已导出 ${result.data.cookies.length} 个 Cookie + ${keys.length} 项本地存储`);
@@ -285,6 +289,7 @@
     document.getElementById('localStorageResult').style.display = 'none';
     document.getElementById('lsKeyManager').style.display = 'none';
     document.getElementById('importStats').style.display = 'none';
+    document.getElementById('btnManageLSKeys').textContent = '管理';
   });
   document.getElementById('btnCloseImport').addEventListener('click', () => {
     document.getElementById('importBox').style.display = 'none';
@@ -309,21 +314,33 @@
   // 显示当前页面的预设信息
   function showPresetInfo(domain) {
     const preset = storagePresets.find(p => domain.endsWith(p.domain));
+    const infoEl = document.getElementById('lsPresetInfo');
     if (preset) {
-      document.getElementById('lsPresetInfo').textContent = `📋 已识别 ${preset.nameZh}，预设 ${preset.localStorageKeys.length} 个 Key`;
-      document.getElementById('lsPresetInfo').style.display = 'block';
+      const keys = preset.localStorageKeys.join(', ');
+      const cookies = preset.knownCookiePrefixes.join(', ');
+      infoEl.innerHTML = `📋 已识别 <strong>${preset.nameZh}</strong><br>
+        <span style="color:#888">本地存储 Key: ${keys}</span><br>
+        <span style="color:#888">Cookie 前缀: ${cookies}</span>`;
+      infoEl.style.display = 'block';
     } else {
-      document.getElementById('lsPresetInfo').style.display = 'none';
+      infoEl.style.display = 'none';
     }
   }
   
   // 管理 localStorage Key 按钮
   document.getElementById('btnManageLSKeys').addEventListener('click', () => {
     const mgr = document.getElementById('lsKeyManager');
-    mgr.style.display = mgr.style.display === 'none' ? 'block' : 'none';
-    if (mgr.style.display === 'block' && currentDomain) {
-      showPresetInfo(currentDomain);
-      renderCustomKeys();
+    const btn = document.getElementById('btnManageLSKeys');
+    if (mgr.style.display === 'none') {
+      mgr.style.display = 'block';
+      btn.textContent = '收起';
+      if (currentDomain) {
+        showPresetInfo(currentDomain);
+        renderCustomKeys();
+      }
+    } else {
+      mgr.style.display = 'none';
+      btn.textContent = '管理';
     }
   });
   
