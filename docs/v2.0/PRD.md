@@ -194,7 +194,8 @@ v2.0 改为按**站点组织**的架构：
 || **getSiteName 修复** | 修复原 getSiteName 在多级子域名（如 a.b.example.com）下提取主域名不准确的 Bug；改用 `getDomainFromUrl` 统一处理，优先匹配已配置站点列表中的域名，回退到提取根域名 |
 || **主从开关状态可视化** | 开关标签实时显示当前同步模式（平等/主从），开关状态与颜色联动（开→蓝色、关→灰色），用户无需进入配置即可感知当前角色 |
 || **拦截默认关闭** | `masterEnabled` 默认值从 `true` 改为 `false`，防止拦截与后端正常通信冲突（如心跳请求被误拦）。v2.0 新站点初次配置拦截时默认为关闭态 |
-|| **规则库解耦维护** | `blocking_rules_db.json` 改为由 `scripts/update-blocking-rules.py` 脚本自动生成（单一数据源 Python 常量 → 校验 → JSON），不再手动编辑 JSON 文件。v2.0 可复用相同数据源和生成流程 |
+|| **规则库解耦维护** | `blocking_rules_db.json` 以独立 JSON 文件形式存在，搭配 `scripts/validate-rules.py` 校验脚本（检查 JSON 格式、站点 ID 去重、域名格式、关键词引用完整性），构建时 `build.sh` 自动校验。v2.0 可复用相同文件格式和校验流程 |
+|| **规则库远程自动同步** | 内置规则库自动从 GitHub raw 同步（启动后 15s + 每日 alarm），24h 节流 + 版本检查（仅远程 > 本地才更新）。管理区显示版本号/上次同步时间/自动同步状态。v2.0 可复用此架构，将 updateUrl 指向独立仓库或 CDN |
 
 ---|---
 
