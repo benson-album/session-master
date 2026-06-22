@@ -321,7 +321,7 @@
               banner.style.animation = 'updatePulse 1.5s ease-in-out 3';
             }
             banner.innerHTML = '⬆️ 新版本 <strong>v' + latest + '</strong> 可用（当前 v' + current + '）&nbsp;&nbsp;' +
-              '<a href="' + updateUrl + '" target="_blank" style="color:#fff;text-decoration:underline">查看最新版本号</a>';
+              '<a href="https://github.com/benson-album/session-master/releases/latest" target="_blank" style="color:#fff;text-decoration:underline">查看最新版本</a>';
             heroEl.appendChild(banner);
           }
         })
