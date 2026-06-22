@@ -88,5 +88,52 @@
     "knownCookiePrefixes": ["WB", "SUB", "SUP"],
     "cookieDomains": [".weibo.com", ".sina.com.cn"],
     "notes": "社交媒体平台"
+  },
+  {
+    "domain": "youku.com",
+    "name": "优酷",
+    "nameZh": "优酷 (Youku)",
+    "localStorageKeys": [
+      "youku_user",
+      "youku_token",
+      "youku_nick",
+      "yunCookie",
+      "utdata"
+    ],
+    "knownCookiePrefixes": ["_m_h5_tk", "_m_h5_tk_enc", "cna", "isg", "xlly_s", "munb", "xmunb"],
+    "cookieDomains": [".youku.com", ".taobao.com", ".alikunlun.com"],
+    "notes": "阿里系，统一登录/淘宝账号。Cookie 含 _m_h5_tk 签名密钥"
+  },
+  {
+    "domain": "iqiyi.com",
+    "name": "爱奇艺",
+    "nameZh": "爱奇艺 (iQiyi)",
+    "localStorageKeys": [
+      "iqiyi_user",
+      "iqiyi_token",
+      "iqiyi_nickname",
+      "p_uid",
+      "p_access_token",
+      "p_refresh_token"
+    ],
+    "knownCookiePrefixes": ["P00001", "P00002", "P00003", "QSI_SI_", "QSI_CI_"],
+    "cookieDomains": [".iqiyi.com", ".qiyi.com"],
+    "notes": "百度系。Cookie 以 P 开头，含 P00001/P00002/P00003 登录态系列"
+  },
+  {
+    "domain": "bilibili.com",
+    "name": "哔哩哔哩",
+    "nameZh": "哔哩哔哩 (Bilibili)",
+    "localStorageKeys": [
+      "bili_user",
+      "bili_token",
+      "bili_jct",
+      "bili_access_key",
+      "bili_refresh_key",
+      "bili_nickname"
+    ],
+    "knownCookiePrefixes": ["buvid3", "buvid4", "buvid_fp", "b_lsid", "_uuid", "fingerprint", "SESSDATA", "bili_jct", "DedeUserID", "DedeUserID__ckMd5", "sid"],
+    "cookieDomains": [".bilibili.com", ".hdslb.net", ".biligame.com"],
+    "notes": "自建登录。核心认证 Cookie: SESSDATA + bili_jct + DedeUserID，设备标识: buvid3/buvid4 系列"
   }
 ]
