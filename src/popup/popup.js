@@ -400,6 +400,15 @@
     await loadBlockerState();
   });
 
+  // 规则库折叠/展开
+  document.getElementById('ruleDBToggle').addEventListener('click', function() {
+    const list = document.getElementById('ruleDBList');
+    const arrow = document.getElementById('ruleDBArrow');
+    const isHidden = list.style.display === 'none';
+    list.style.display = isHidden ? 'block' : 'none';
+    arrow.textContent = isHidden ? '▼' : '▶';
+  });
+
   // 关键词标签点击切换（事件委托）
   document.getElementById('activeRulesContainer').addEventListener('click', async function(e) {
     var tag = e.target.closest('.kw-toggle');
