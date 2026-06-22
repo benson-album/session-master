@@ -460,7 +460,7 @@ async function exportCookies(domain) {
   }
   const exportTime = new Date().toISOString();
   const quickPrefix = '# Domain: ' + domain + '\n';
-  const data = { domain, exportTime, cookies: cookies.map(c => ({ name: c.name, value: c.value, domain: c.domain, path: c.path, secure: c.secure, httpOnly: c.httpOnly, sameSite: c.sameSite, hostOnly: c.hostOnly, _exportTime: exportTime })), quick: quickPrefix + cookies.map(c => `${c.name}=${c.value}`).join('; ') };
+  const data = { domain, exportTime, cookies: cookies.map(c => ({ name: c.name, value: c.value, domain: c.domain, path: c.path, secure: c.secure, httpOnly: c.httpOnly, sameSite: c.sameSite, hostOnly: c.hostOnly, expirationDate: c.expirationDate, _exportTime: exportTime })), quick: quickPrefix + cookies.map(c => `${c.name}=${c.value}`).join('; ') };
   logger.info('cookie', '导出 Cookie: ' + domain + ', ' + cookies.length + ' 个');
   return { success: true, message: `已导出 ${cookies.length} 个 Cookie`, data };
 }
@@ -470,6 +470,7 @@ async function importCookies(cookieData) {
   for (const c of cookieData.cookies) {
     try {
       const details = { url: cookieApiUrl(c.domain, c.secure, c.path), name: c.name, value: c.value, path: c.path || '/', secure: c.secure !== false, httpOnly: c.httpOnly === true, sameSite: c.sameSite || 'lax' };
+      if (c.expirationDate != null) details.expirationDate = c.expirationDate;
       if (!c.hostOnly) details.domain = c.domain;
       await chrome.cookies.set(details);
       results.success++;
@@ -582,6 +583,7 @@ async function importCookiesSmart(cookieData, fromDeviceId) {
         path: c.path || '/', secure: c.secure !== false,
         httpOnly: c.httpOnly === true, sameSite: c.sameSite || 'lax'
       };
+      if (c.expirationDate != null) details.expirationDate = c.expirationDate;
       if (!c.hostOnly) details.domain = c.domain;
       await chrome.cookies.set(details);
       results.success++;
@@ -632,7 +634,7 @@ async function exportCookiesSmart(domain) {
     cookies: syncCookies.map(c => ({
       name: c.name, value: c.value, domain: c.domain, path: c.path,
       secure: c.secure, httpOnly: c.httpOnly, sameSite: c.sameSite,
-      hostOnly: c.hostOnly, _exportTime: exportTime
+      hostOnly: c.hostOnly, expirationDate: c.expirationDate, _exportTime: exportTime
     })),
     quick: (quickPrefix + syncCookies.map(c => `${c.name}=${c.value}`).join('; '))
   };
@@ -650,6 +652,7 @@ async function importCookiesUnconditional(cookieData) {
         path: c.path || '/', secure: c.secure !== false,
         httpOnly: c.httpOnly === true, sameSite: c.sameSite || 'lax'
       };
+      if (c.expirationDate != null) details.expirationDate = c.expirationDate;
       if (!c.hostOnly) details.domain = c.domain;
       await chrome.cookies.set(details);
       results.success++;
@@ -1525,6 +1528,30 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       case 'importWithCookieClear': sendResponse(await importWithCookieClear(request.domain, request.data)); break;
       case 'clearCookies': sendResponse(await clearCookies(request.domain)); break;
       case 'getDomainFromUrl': try { sendResponse({ domain: new URL(request.url).hostname }); } catch { sendResponse({ domain: '' }); } break;
+
+      // ---- localStorage 同步（腾讯视频等双存储站点） ----
+      case 'readLocalStorage':
+        try {
+          const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+          if (tabs.length === 0) { sendResponse({ success: false, message: '未找到活动标签页' }); break; }
+          chrome.tabs.sendMessage(tabs[0].id, { action: 'readLocalStorage', keys: request.keys }, (resp) => {
+            sendResponse(resp || { success: false, message: 'content script 未响应' });
+          });
+        } catch (e) {
+          sendResponse({ success: false, message: e.message });
+        }
+        return true; // 异步响应
+      case 'writeLocalStorage':
+        try {
+          const tabs2 = await chrome.tabs.query({ active: true, currentWindow: true });
+          if (tabs2.length === 0) { sendResponse({ success: false, message: '未找到活动标签页' }); break; }
+          chrome.tabs.sendMessage(tabs2[0].id, { action: 'writeLocalStorage', data: request.data }, (resp) => {
+            sendResponse(resp || { success: false, message: 'content script 未响应' });
+          });
+        } catch (e) {
+          sendResponse({ success: false, message: e.message });
+        }
+        return true; // 异步响应
 
       // ---- 拦截规则 ----
       case 'getBlockingRules': sendResponse({ rules: await getUserBlockingRules() }); break;

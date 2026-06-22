@@ -151,4 +151,62 @@
   // 暴露状态给 background
   window.__sessionMasterActive = true;
   
+  // ========== localStorage 读写接口（支持腾讯视频等双存储站点） ==========
+  
+  // 已知需要同步的 localStorage 键名列表
+  const LOCALSTORAGE_KEYS = [
+    'ams_cookies',           // 腾讯视频：API 认证头
+    'qimei',                 // Tencent 设备标识
+    'qimei36',               // Tencent 36位随机设备标识
+    'q36cookiekey',          // 36位cookie key
+    'qmuuk',                 // UUID
+    'g_utdata',              // 用户数据
+    'vqq_user_info',         // 腾讯视频用户信息
+    'vqq_access_token',      // 腾讯视频访问令牌
+    'vqq_refresh_token'      // 腾讯视频刷新令牌
+  ];
+  
+  // 读取 localStorage 数据
+  function readLocalStorage(keys) {
+    const result = {};
+    const targetKeys = keys && keys.length > 0 ? keys : LOCALSTORAGE_KEYS;
+    for (const key of targetKeys) {
+      try {
+        const val = localStorage.getItem(key);
+        if (val !== null) result[key] = val;
+      } catch(e) {
+        console.log('[SessionMaster] ⚠️ 读取 localStorage 失败:', key, e.message);
+      }
+    }
+    return result;
+  }
+  
+  // 写入 localStorage 数据
+  function writeLocalStorage(data) {
+    let count = 0;
+    for (const [key, value] of Object.entries(data)) {
+      try {
+        localStorage.setItem(key, value);
+        count++;
+      } catch(e) {
+        console.log('[SessionMaster] ⚠️ 写入 localStorage 失败:', key, e.message);
+      }
+    }
+    return count;
+  }
+  
+  // 监听来自 background/popup 的消息
+  chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    if (message.action === 'readLocalStorage') {
+      const data = readLocalStorage(message.keys);
+      sendResponse({ success: true, data, domain: window.location.hostname });
+      return true;
+    }
+    if (message.action === 'writeLocalStorage') {
+      const count = writeLocalStorage(message.data || {});
+      sendResponse({ success: true, count, domain: window.location.hostname });
+      return true;
+    }
+  });
+  
 })();
