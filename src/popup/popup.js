@@ -705,19 +705,21 @@
   function updateMasterUI(masterMode, isMaster) {
     const statusEl = document.getElementById('masterStatus');
     const deviceRow = document.getElementById('masterDeviceRow');
+    const modeLabel = document.getElementById('masterModeLabel');
     
     if (masterMode) {
       statusEl.textContent = '📡 已开启 — ' + (isMaster ? '此设备为【主设备】，将上传 Cookie 给其他设备' : '此设备为【从设备】，仅接收不下发');
       statusEl.style.background = isMaster ? '#e6f4ea' : '#fff3e0';
       statusEl.style.color = isMaster ? '#137333' : '#e65100';
       deviceRow.style.display = 'block';
-      setMasterConfigLocked(true); // 开启后锁定主从身份切换
+      setMasterConfigLocked(true);
+      if (modeLabel) { modeLabel.textContent = '主从模式'; modeLabel.style.color = '#e65100'; }
     } else {
       statusEl.textContent = '⏸️ 已关闭（多设备平等模式，自动版本控制）';
       statusEl.style.background = '#f1f3f4';
       statusEl.style.color = '#888';
       deviceRow.style.display = 'none';
-      setMasterConfigLocked(false);
+      if (modeLabel) { modeLabel.textContent = '平等模式'; modeLabel.style.color = '#137333'; }
     }
   }
 
@@ -762,18 +764,20 @@
     const statusEl = document.getElementById('p2pMasterStatus');
     const deviceRow = document.getElementById('p2pMasterDeviceRow');
     const isToggle = document.getElementById('p2pIsMasterToggle');
+    const modeLabel = document.getElementById('p2pMasterModeLabel');
     if (masterMode) {
       statusEl.textContent = '📡 已开启 — ' + (isMaster ? '主设备（上传 Cookie）' : '从设备（仅接收）');
       statusEl.style.background = isMaster ? '#e6f4ea' : '#fff3e0';
       statusEl.style.color = isMaster ? '#137333' : '#e65100';
       deviceRow.style.display = 'block';
       if (isToggle) isToggle.disabled = true;
+      if (modeLabel) { modeLabel.textContent = '主从模式'; modeLabel.style.color = '#e65100'; }
     } else {
       statusEl.textContent = '⏸️ 已关闭（平等模式）';
       statusEl.style.background = '#f1f3f4';
       statusEl.style.color = '#888';
       deviceRow.style.display = 'none';
-      if (isToggle) isToggle.disabled = false;
+      if (modeLabel) { modeLabel.textContent = '平等模式'; modeLabel.style.color = '#137333'; }
     }
   }
 
@@ -907,8 +911,15 @@
     const roomId = document.getElementById('p2pRoomCode').value.trim().toUpperCase();
     if (!roomId || roomId.length < 4) return showToast('⚠️ 请输入有效的配对码');
     
-    const deviceName = document.getElementById('p2pDeviceName').value.trim();
-    if (!deviceName) return showToast('⚠️ 请输入设备名称');
+    let deviceName = document.getElementById('p2pDeviceName').value.trim();
+    if (!deviceName) {
+      // 尝试从已保存配置读取设备名
+      const syncConfig = await chrome.runtime.sendMessage({ action: 'getSyncConfig' });
+      deviceName = (syncConfig && syncConfig.p2pDeviceName) || '';
+      if (!deviceName) return showToast('⚠️ 请输入设备名称');
+      // 回填输入框
+      document.getElementById('p2pDeviceName').value = deviceName;
+    }
     
     const result = await chrome.runtime.sendMessage({ action: 'p2pJoinRoom', roomId, deviceName, signalUrl: document.getElementById('p2pSignalUrl').value.trim() });
     if (!result.success) return showToast('⚠️ ' + result.error);

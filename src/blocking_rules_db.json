@@ -27,22 +27,29 @@
       "id": "dingtalk",
       "name": "钉钉",
       "domains": ["*.dingtalk.com"],
-      "keywords": [],
-      "description": "钉钉网页版 - 待补充"
+      "keywords": ["loginCheck", "checkSession", "singleLogin", "kickOut"],
+      "description": "钉钉网页版 - 登录检测/会话检查/单点登录/踢出会话"
     },
     {
       "id": "wecom",
       "name": "企业微信",
       "domains": ["*.work.weixin.qq.com"],
-      "keywords": [],
-      "description": "企业微信管理后台 - 待补充"
+      "keywords": ["loginCheck", "checkSession", "singleLogin"],
+      "description": "企业微信管理后台 - 登录检测/会话检查/单点登录"
     },
     {
       "id": "feishu",
       "name": "飞书",
       "domains": ["*.feishu.cn", "*.larksuite.com"],
-      "keywords": [],
-      "description": "飞书管理后台 - 待补充"
+      "keywords": ["loginCheck", "checkSession", "singleLogin"],
+      "description": "飞书管理后台 - 登录检测/会话检查/单点登录"
+    },
+    {
+      "id": "yuque",
+      "name": "语雀",
+      "domains": ["*.yuque.com"],
+      "keywords": ["loginCheck", "checkSession", "singleLogin"],
+      "description": "语雀知识库 - 登录检测/会话检查/单点登录"
     },
     {
       "id": "wiki",

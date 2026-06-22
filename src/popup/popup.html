@@ -221,7 +221,8 @@
                 <p class="form-hint" style="font-size:10px">即你的同步服务器地址，用于两台浏览器握手配对</p>
               </div>
               <div class="sync-toggle-row" style="margin-top:8px;padding-top:8px;border-top:1px solid #f0f0f0">
-                <span style="font-size:12px;font-weight:600;color:#555">📡 主从设备模式</span>
+                <span style="font-size:12px;font-weight:600;color:#555">📡 同步模式</span>
+                <span id="p2pMasterModeLabel" style="font-size:11px;font-weight:500;color:#137333">平等模式</span>
                 <label class="switch" style="width:36px;height:20px">
                   <input type="checkbox" id="p2pMasterModeToggle">
                   <span class="slider" style="height:20px"></span>
@@ -266,6 +267,7 @@
             <span class="slider"></span>
           </label>
         </div>
+        <p style="font-size:11px;color:#999;margin:2px 0 4px 0">❗ 请先完成下方同步配置后再开启</p>
         <div id="syncStatus" class="sync-status" style="margin-top:6px">未启用</div>
         <p id="serverConnectionTime" class="connection-time" style="display:none"></p>
         
@@ -319,7 +321,8 @@
             </div>
 
             <div class="sync-toggle-row" style="margin-top:12px;padding-top:10px;border-top:1px solid #f0f0f0">
-              <span style="font-size:13px;font-weight:600;color:#555">📡 主从设备模式</span>
+              <span style="font-size:13px;font-weight:600;color:#555">📡 同步模式</span>
+              <span id="masterModeLabel" style="font-size:11px;font-weight:500;color:#137333">平等模式</span>
               <label class="switch">
                 <input type="checkbox" id="masterModeToggle">
                 <span class="slider"></span>

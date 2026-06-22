@@ -1400,7 +1400,7 @@ async function importRulesDB(jsonStr) {
 
 const BLOCKER_CONFIG_KEY = 'blocker_config';
 const DEFAULT_BLOCKER_CONFIG = {
-  masterEnabled: true,
+  masterEnabled: false,
   siteEnabled: {},        // { siteId: true/false }
   keywordOverrides: {}    // { keyword: true/false }
 };
