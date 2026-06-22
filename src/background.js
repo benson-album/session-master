@@ -1189,10 +1189,10 @@ async function getHeartbeats() { return await getStorage(HEARTBEAT_KEY, []); }
 
 async function saveHeartbeats(beats) {
   await setStorage(HEARTBEAT_KEY, beats);
-  // 同步更新 alarms
+  // 先清除所有旧 alarm，再重新创建
   const allAlarms = await chrome.alarms.getAll();
   const existing = allAlarms.filter(a => a.name.startsWith('heartbeat_'));
-  for (const a of existing) chrome.alarms.clear(a.name);
+  await Promise.all(existing.map(a => chrome.alarms.clear(a.name)));
   for (const beat of beats) {
     if (beat.enabled && beat.url) {
       chrome.alarms.create('heartbeat_' + beat.id, { periodInMinutes: beat.intervalMinutes || 10 });
