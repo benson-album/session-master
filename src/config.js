@@ -19,7 +19,7 @@ export const APP_CONFIG = {
   // ===== 存储键 =====
   STORAGE_KEYS: {
     SYNC_CONFIG: 'cloud_sync_config',
-    SERVER_SYNC_CONFIG: 'cloud_sync_config',
+    SERVER_SYNC_CONFIG: 'cloud_server_sync_config',
     UPDATE_CONFIG: 'update_config',
     BLOCKING_RULES: 'blockingRules',
     BLOCKING_RULES_DB: 'blockingRulesDB',
