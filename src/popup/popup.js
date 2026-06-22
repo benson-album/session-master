@@ -1849,21 +1849,11 @@
     var verEl = document.getElementById('popupVersion');
     var status = document.getElementById('deviceStatus');
     if (!banner || !textEl) return;
-    textEl.textContent = '🆕 v' + latest + ' 可用（当前 v' + current + '）';
+    textEl.innerHTML = 'v' + latest + ' 可用 <span class="current-ver">当前 v' + current + '</span>';
     banner.style.display = 'flex';
     bindUpdateBannerEvents(latest);
     // 版本号 title 保持 "点击查看更新日志"
     if (verEl) verEl.title = '点击查看更新日志';
-    // 🖥️ 旁边显示 ⬆ 有新版本（可点击跳转下载）
-    if (status) {
-      status.textContent = '⬆ ' + latest;
-      status.className = 'device-status status-update';
-      status.style.display = 'inline-flex';
-      status.title = '新版本 v' + latest + ' 可用，点击下载';
-      status.onclick = function() {
-        chrome.tabs.create({ url: 'https://github.com/benson-album/session-master/releases/latest' });
-      };
-    }
   }
 
   function showUpToDate() {
