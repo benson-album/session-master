@@ -80,7 +80,10 @@
   document.getElementById('btnExport').addEventListener('click', async () => {
     if (!currentDomain) return showToast('⚠️ 无法获取当前站点域名');
     const result = await chrome.runtime.sendMessage({ action: 'getCookies', domain: currentDomain });
-    if (!result.success) return showToast('⚠️ ' + result.message);
+    if (!result.success) {
+      // 无 Cookie → 提示用户先登录
+      return showToast('⚠️ 未找到 Cookie（' + currentDomain + '），请先登录目标站点再导出');
+    }
     document.getElementById('resultTitle').textContent = `🍪 ${currentDomain}`;
     document.getElementById('resultCount').textContent = `${result.data.cookies.length} 个 Cookie`;
     document.getElementById('resultContent').value = result.data.quick;
@@ -1394,6 +1397,11 @@
     const select = document.getElementById('heartbeatInterval');
     let url = input.value.trim();
     if (!url) return showToast('⚠️ 请输入保活 URL');
+    // 前置条件检查：验证是否有 Cookie（无 Cookie 说明未登录，保活无意义）
+    const cookieCheck = await chrome.runtime.sendMessage({ action: 'getCookies', domain: currentDomain });
+    if (!cookieCheck.success) {
+      return showToast('⚠️ 未找到 ' + currentDomain + ' 的 Cookie，请先登录目标站点再添加保活');
+    }
     const interval = parseInt(select.value);
     // 获取当前页面标题，计算可读站点名
     let siteName = '';

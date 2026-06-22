@@ -456,7 +456,7 @@ async function exportCookies(domain) {
   const cookies = await getCookies(domain);
   if (cookies.length === 0) {
     logger.warn('cookie', '导出 Cookie 为空: ' + domain);
-    return { success: false, message: '未找到该域名的 Cookie', data: null };
+    return { success: false, message: '未找到该域名的 Cookie，请先登录目标站点', data: null };
   }
   const exportTime = new Date().toISOString();
   const quickPrefix = '# Domain: ' + domain + '\n';
