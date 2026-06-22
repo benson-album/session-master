@@ -98,7 +98,8 @@ with open('src/changelog.json') as f:
     data = json.load(f)
 v = data[0]
 ver = v['version']
-lines = ['# v' + ver, '']
+title = v.get('title', 'v' + ver)
+lines = [title, '']
 items = v.get('items', {})
 if isinstance(items, dict):
     for cat, item_list in items.items():

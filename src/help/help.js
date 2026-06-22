@@ -74,7 +74,8 @@
   }
 
   function buildChangelogEntry(ver, isLatest) {
-    var label = 'v' + ver.version;
+    var title = ver.title || 'v' + ver.version;
+    var label = title;
     if (ver.date) label += ' (' + ver.date + ')';
     if (isLatest) label += ' <span class="tag-latest">🔵 最新</span>';
 
