@@ -85,11 +85,14 @@
       return showToast('⚠️ 未找到 Cookie（' + currentDomain + '），请先登录目标站点再导出');
     }
     document.getElementById('resultTitle').textContent = `🍪 ${currentDomain}`;
-    document.getElementById('resultCount').textContent = `${result.data.cookies.length} 个 Cookie`;
+    const domainCount = result.data._stats ? result.data._stats.totalDomains : 1;
+    document.getElementById('resultCount').textContent = `${result.data.cookies.length} 个 Cookie（${domainCount} 个关联域）`;
     document.getElementById('resultContent').value = result.data.quick;
     document.getElementById('resultHint').textContent = `✅ 导出成功！导出时间: ${new Date(result.data.exportTime).toLocaleString()}`;
     document.getElementById('cookieResult').style.display = 'block';
     document.getElementById('importBox').style.display = 'none';
+    document.getElementById('localStorageResult').style.display = 'none';
+    document.getElementById('lsKeyManager').style.display = 'none';
     lastExportData = result.data;
     
     // 尝试读取页面的 localStorage（腾讯视频等双存储站点）
@@ -99,7 +102,11 @@
         const keys = Object.keys(lsResult.data);
         if (keys.length > 0) {
           lastExportData.localStorage = lsResult.data;
-          document.getElementById('resultCount').textContent = `${result.data.cookies.length} 个 Cookie + ${keys.length} 项本地存储`;
+          document.getElementById('resultCount').textContent = `${result.data.cookies.length} 个 Cookie（${domainCount} 个关联域）+ ${keys.length} 项本地存储`;
+          // 显示 localStorage 详情
+          const lsHtml = keys.map(k => `<div>📌 <code>${k}</code>: ${String(lsResult.data[k]).substring(0, 60)}${String(lsResult.data[k]).length > 60 ? '...' : ''}</div>`).join('');
+          document.getElementById('lsKeyList').innerHTML = lsHtml;
+          document.getElementById('localStorageResult').style.display = 'block';
           showToast(`✅ 已导出 ${result.data.cookies.length} 个 Cookie + ${keys.length} 项本地存储`);
           return;
         }
@@ -191,6 +198,22 @@
     const compositeResult = await chrome.runtime.sendMessage({ action: 'importWithCookieClear', domain: currentDomain, data: importData });
     document.getElementById('importTextarea').value = '';
     document.getElementById('importBox').style.display = 'none';
+    
+    // 显示导入统计
+    const statsEl = document.getElementById('importStats');
+    document.getElementById('importStatsSummary').textContent = `✅ 成功 ${compositeResult.imported} 个 / ❌ 失败 ${compositeResult.failed} 个`;
+    if (compositeResult.byDomain) {
+      const domainHtml = Object.entries(compositeResult.byDomain)
+        .sort((a, b) => b[1].total - a[1].total)
+        .map(([d, s]) => {
+          const pct = s.total > 0 ? Math.round(s.ok / s.total * 100) : 0;
+          const bar = '█'.repeat(Math.round(pct / 10)) + '░'.repeat(Math.max(0, 10 - Math.round(pct / 10)));
+          return `<div>${bar} <code>${d}</code> — ${s.ok}/${s.total} (${pct}%)</div>`;
+        }).join('');
+      document.getElementById('importStatsByDomain').innerHTML = domainHtml;
+    }
+    statsEl.style.display = 'block';
+    
     if (compositeResult.imported > 0) showToast(`✅ 成功导入 ${compositeResult.imported} 个 Cookie！刷新页面生效`);
     if (compositeResult.failed > 0) console.warn('导入失败:', compositeResult.errors);
     
@@ -223,6 +246,22 @@
       };
       const compositeResult = await chrome.runtime.sendMessage({ action: 'importWithCookieClear', domain: currentDomain, data: importData });
       document.getElementById('importBox').style.display = 'none';
+      
+      // 显示导入统计
+      const statsEl = document.getElementById('importStats');
+      document.getElementById('importStatsSummary').textContent = `✅ 成功 ${compositeResult.imported} 个 / ❌ 失败 ${compositeResult.failed} 个`;
+      if (compositeResult.byDomain) {
+        const domainHtml = Object.entries(compositeResult.byDomain)
+          .sort((a, b) => b[1].total - a[1].total)
+          .map(([d, s]) => {
+            const pct = s.total > 0 ? Math.round(s.ok / s.total * 100) : 0;
+            const bar = '█'.repeat(Math.round(pct / 10)) + '░'.repeat(Math.max(0, 10 - Math.round(pct / 10)));
+            return `<div>${bar} <code>${d}</code> — ${s.ok}/${s.total} (${pct}%)</div>`;
+          }).join('');
+        document.getElementById('importStatsByDomain').innerHTML = domainHtml;
+      }
+      statsEl.style.display = 'block';
+      
       if (compositeResult.imported > 0) showToast(`✅ 从文件成功导入 ${compositeResult.imported} 个 Cookie！刷新页面生效`);
       if (compositeResult.failed > 0) console.warn('导入失败:', compositeResult.errors);
       
@@ -243,10 +282,98 @@
   // 关闭导出/导入面板
   document.getElementById('btnCloseResult').addEventListener('click', () => {
     document.getElementById('cookieResult').style.display = 'none';
+    document.getElementById('localStorageResult').style.display = 'none';
+    document.getElementById('lsKeyManager').style.display = 'none';
+    document.getElementById('importStats').style.display = 'none';
   });
   document.getElementById('btnCloseImport').addEventListener('click', () => {
     document.getElementById('importBox').style.display = 'none';
   });
+
+  // ========== Phase 3: localStorage 管理 ==========
+  // 预设列表缓存
+  let storagePresets = [];
+  let customLSKeys = [];
+  
+  // 加载预设
+  async function loadStoragePresets() {
+    try {
+      const resp = await fetch(chrome.runtime.getURL('storage_presets.json'));
+      storagePresets = await resp.json();
+    } catch(e) {
+      console.log('[SessionMaster] ⚠️ 加载存储预设失败:', e.message);
+    }
+  }
+  loadStoragePresets();
+  
+  // 显示当前页面的预设信息
+  function showPresetInfo(domain) {
+    const preset = storagePresets.find(p => domain.endsWith(p.domain));
+    if (preset) {
+      document.getElementById('lsPresetInfo').textContent = `📋 已识别 ${preset.nameZh}，预设 ${preset.localStorageKeys.length} 个 Key`;
+      document.getElementById('lsPresetInfo').style.display = 'block';
+    } else {
+      document.getElementById('lsPresetInfo').style.display = 'none';
+    }
+  }
+  
+  // 管理 localStorage Key 按钮
+  document.getElementById('btnManageLSKeys').addEventListener('click', () => {
+    const mgr = document.getElementById('lsKeyManager');
+    mgr.style.display = mgr.style.display === 'none' ? 'block' : 'none';
+    if (mgr.style.display === 'block' && currentDomain) {
+      showPresetInfo(currentDomain);
+      renderCustomKeys();
+    }
+  });
+  
+  // 添加自定义 Key
+  document.getElementById('btnAddLSKey').addEventListener('click', () => {
+    const input = document.getElementById('lsCustomKey');
+    const key = input.value.trim();
+    if (!key) return showToast('⚠️ 请输入 localStorage key 名称');
+    if (customLSKeys.includes(key)) return showToast('⚠️ 该 Key 已在列表中');
+    customLSKeys.push(key);
+    input.value = '';
+    renderCustomKeys();
+    saveCustomLSKeys();
+    showToast(`✅ 已添加: ${key}`);
+  });
+  
+  // 按 Enter 键添加
+  document.getElementById('lsCustomKey').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') document.getElementById('btnAddLSKey').click();
+  });
+  
+  function renderCustomKeys() {
+    const container = document.getElementById('lsCustomKeyList');
+    if (customLSKeys.length === 0) {
+      container.innerHTML = '<span style="color:#999">暂无自定义 Key</span>';
+      return;
+    }
+    container.innerHTML = customLSKeys.map(k => 
+      `<span style="display:inline-block;margin:2px;padding:2px 6px;background:#e8f5e9;border-radius:3px;font-size:10px">
+        ${k} <span class="btn-link" data-key="${k}" style="color:#c5221f;cursor:pointer;margin-left:2px">✕</span>
+      </span>`
+    ).join('');
+    // 绑定删除事件
+    container.querySelectorAll('[data-key]').forEach(el => {
+      el.addEventListener('click', () => {
+        customLSKeys = customLSKeys.filter(k => k !== el.dataset.key);
+        renderCustomKeys();
+        saveCustomLSKeys();
+      });
+    });
+  }
+  
+  const LS_KEYS_STORAGE = 'custom_ls_keys';
+  async function saveCustomLSKeys() {
+    await chrome.storage.local.set({ [LS_KEYS_STORAGE]: customLSKeys });
+  }
+  async function loadCustomLSKeys() {
+    customLSKeys = (await chrome.storage.local.get(LS_KEYS_STORAGE))[LS_KEYS_STORAGE] || [];
+  }
+  loadCustomLSKeys();
 
   document.getElementById('btnClear').addEventListener('click', async () => {
     if (!currentDomain) return showToast('⚠️ 无法获取当前站点域名');

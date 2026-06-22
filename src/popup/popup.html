@@ -84,6 +84,24 @@
         </div>
         <textarea id="resultContent" readonly rows="4"></textarea>
         <p id="resultHint" class="hint">在目标浏览器点击「导入 Cookie」粘贴即可</p>
+        <!-- Phase 3: localStorage 结果显示 -->
+        <div id="localStorageResult" class="ls-result" style="display:none;margin-top:8px">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+            <span style="font-size:12px;font-weight:600;color:#555">📦 本地存储 (localStorage)</span>
+            <button id="btnManageLSKeys" class="btn-link" style="font-size:11px;padding:1px 6px">管理</button>
+          </div>
+          <div id="lsKeyList" style="font-size:11px;color:#666"></div>
+        </div>
+        <!-- Phase 3: 管理 localStorage Key 面板 -->
+        <div id="lsKeyManager" class="ls-manager" style="display:none;margin-top:8px">
+          <label style="font-size:11px;font-weight:600;color:#555">自定义同步 Key：</label>
+          <div class="input-row" style="margin-top:4px">
+            <input type="text" id="lsCustomKey" placeholder="输入 localStorage key 名称" style="flex:1;font-size:11px">
+            <button id="btnAddLSKey" class="btn-small" style="padding:4px 8px">➕ 添加</button>
+          </div>
+          <div id="lsCustomKeyList" style="margin-top:4px;font-size:11px;color:#666"></div>
+          <div id="lsPresetInfo" style="margin-top:4px;font-size:10px;color:#999"></div>
+        </div>
       </div>
       
       <div id="importBox" class="section" style="display:none">
@@ -97,6 +115,13 @@
           <button id="btnImportFromFile" class="btn btn-secondary" style="flex:1">📂 从文件导入</button>
         </div>
         <input type="file" id="importCookieFile" accept=".json" style="display:none">
+        <!-- Phase 3: 导入统计结果 -->
+        <div id="importStats" class="import-stats" style="display:none;margin-top:8px">
+          <div style="font-size:12px;font-weight:600;color:#555;margin-bottom:4px">📊 导入结果</div>
+          <div id="importStatsSummary" style="font-size:12px;margin-bottom:4px"></div>
+          <div id="importStatsByDomain" style="font-size:11px;color:#666"></div>
+          <div id="importLSError" style="font-size:11px;color:#ea4335;margin-top:4px;display:none"></div>
+        </div>
       </div>
 
       <!-- → ② 保活 -->

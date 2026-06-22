@@ -433,9 +433,6 @@ async function getCookies(domain) {
   addFormat(cleanDomain);
 
   // 2. 对多段域名，逐级向上查父级域
-  //    music.163.com → 查 .music.163.com → 163.com → .163.com
-  //    www.example.co.uk → 查 example.co.uk
-  //    IP 地址（192.168.1.1）跳过父级查询
   if (!/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(cleanDomain)) {
     const parts = cleanDomain.split('.');
     if (parts.length >= 2) {
@@ -445,11 +442,35 @@ async function getCookies(domain) {
     }
   }
   
+  // 第一轮查询
   for (const d of formats) {
     try { results = results.concat(await chrome.cookies.getAll({ domain: d })); } catch (e) {}
   }
+  
+  // 3. 第二轮：从已找到的 Cookie 中提取额外域名再查一次（增强域名发现）
+  const extraDomains = new Set();
+  for (const c of results) {
+    const d = c.domain.startsWith('.') ? c.domain.substring(1) : c.domain;
+    if (!formats.includes(d) && !formats.includes('.' + d)) extraDomains.add(d);
+  }
+  for (const d of extraDomains) {
+    try { results = results.concat(await chrome.cookies.getAll({ domain: d })); } catch (e) {}
+    try { results = results.concat(await chrome.cookies.getAll({ domain: '.' + d })); } catch (e) {}
+  }
+  
+  // 去重
   const seen = new Set();
-  return results.filter(c => { const key = `${c.name}:${c.domain}:${c.path}`; if (seen.has(key)) return false; seen.add(key); return true; });
+  const deduped = results.filter(c => { 
+    const key = `${c.name}:${c.domain}:${c.path}`; 
+    if (seen.has(key)) return false; 
+    seen.add(key); 
+    return true; 
+  });
+  
+  if (extraDomains.size > 0) {
+    logger.debug('cookie', `增强域名发现: 额外查到 ${extraDomains.size} 个域, 总计 ${deduped.length} 个 Cookie`);
+  }
+  return deduped;
 }
 
 async function exportCookies(domain) {
@@ -460,9 +481,18 @@ async function exportCookies(domain) {
   }
   const exportTime = new Date().toISOString();
   const quickPrefix = '# Domain: ' + domain + '\n';
-  const data = { domain, exportTime, cookies: cookies.map(c => ({ name: c.name, value: c.value, domain: c.domain, path: c.path, secure: c.secure, httpOnly: c.httpOnly, sameSite: c.sameSite, hostOnly: c.hostOnly, expirationDate: c.expirationDate, _exportTime: exportTime })), quick: quickPrefix + cookies.map(c => `${c.name}=${c.value}`).join('; ') };
-  logger.info('cookie', '导出 Cookie: ' + domain + ', ' + cookies.length + ' 个');
-  return { success: true, message: `已导出 ${cookies.length} 个 Cookie`, data };
+  // 提取所有关联域名用于统计
+  const domains = [...new Set(cookies.map(c => c.domain))];
+  const data = { 
+    domain, exportTime, 
+    _version: '2.0', 
+    _storageTypes: ['cookies'],
+    _stats: { totalDomains: domains.length, domains },
+    cookies: cookies.map(c => ({ name: c.name, value: c.value, domain: c.domain, path: c.path, secure: c.secure, httpOnly: c.httpOnly, sameSite: c.sameSite, hostOnly: c.hostOnly, expirationDate: c.expirationDate, _exportTime: exportTime })), 
+    quick: quickPrefix + cookies.map(c => `${c.name}=${c.value}`).join('; ') 
+  };
+  logger.info('cookie', '导出 Cookie: ' + domain + ', ' + cookies.length + ' 个, ' + domains.length + ' 个关联域');
+  return { success: true, message: `已导出 ${cookies.length} 个 Cookie（${domains.length} 个域）`, data };
 }
 
 async function importCookies(cookieData) {
@@ -519,12 +549,33 @@ async function importWithCookieClear(domain, importData) {
   const importResult = await importCookiesUnconditional(importData);
   const imported = importResult.success || 0;
   const failed = importResult.failed || 0;
+  
+  // 按域名分组统计
+  const byDomain = {};
+  if (importData.cookies) {
+    for (const c of importData.cookies) {
+      const d = c.domain || domain;
+      if (!byDomain[d]) byDomain[d] = { total: 0, ok: 0, fail: 0 };
+      byDomain[d].total++;
+    }
+    // 从导入结果中匹配
+    if (importResult.domainResults) {
+      for (const [d, r] of Object.entries(importResult.domainResults)) {
+        if (byDomain[d]) {
+          byDomain[d].ok = r.success;
+          byDomain[d].fail = r.failed;
+        }
+      }
+    }
+  }
+  
   logger.info('cookie', '导入 Cookie（复合操作）: ' + domain + ', 已清除 ' + clearResult.removed + ' 个, 已导入 ' + imported + ' 个, 失败 ' + failed + ' 个, 保活记录未受影响');
   return {
     cleared: clearResult.removed,
     imported: imported,
     failed: failed,
-    errors: importResult.errors || []
+    errors: importResult.errors || [],
+    byDomain
   };
 }
 
@@ -643,7 +694,7 @@ async function exportCookiesSmart(domain) {
 
 // 无条件导入（用于手动导入，用户主动操作）
 async function importCookiesUnconditional(cookieData) {
-  const results = { success: 0, failed: 0, errors: [] };
+  const results = { success: 0, failed: 0, errors: [], domainResults: {} };
   for (const c of cookieData.cookies) {
     try {
       const details = {
@@ -656,9 +707,16 @@ async function importCookiesUnconditional(cookieData) {
       if (!c.hostOnly) details.domain = c.domain;
       await chrome.cookies.set(details);
       results.success++;
+      // 按域名统计
+      const d = c.domain || 'unknown';
+      if (!results.domainResults[d]) results.domainResults[d] = { success: 0, failed: 0 };
+      results.domainResults[d].success++;
     } catch (e) {
       results.failed++;
       results.errors.push(`${c.name}: ${e.message}`);
+      const d = c.domain || 'unknown';
+      if (!results.domainResults[d]) results.domainResults[d] = { success: 0, failed: 0 };
+      results.domainResults[d].failed++;
     }
   }
   return results;
