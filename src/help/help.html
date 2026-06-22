@@ -579,6 +579,17 @@
           <tr><td>🛡️ 踢人请求拦截</td><td>自动阻止浏览器检测多设备登录的请求</td><td>⭐ 自动</td></tr>
         </table>
 
+        <h3>弹窗快速导览</h3>
+        <p>点击浏览器工具栏的 SessionMaster 图标，弹窗分为 3 个 Tab：</p>
+        <table>
+          <tr><th>Tab</th><th>功能</th><th>操作入口</th></tr>
+          <tr><td>🍪 会话管理</td><td>Cookie 导出/导入/清除、会话保活</td><td>导出/导入 Cookie · 添加保活心跳</td></tr>
+          <tr><td>🔗 同步</td><td>P2P 直连 / 服务器模式自动同步</td><td>创建/加入配对 · 配置同步服务器</td></tr>
+          <tr><td>🛡️ 拦截</td><td>踢人请求拦截规则管理</td><td>主开关 · 规则库 · 自定义规则</td></tr>
+        </table>
+        <p>弹窗顶部显示<strong>当前站点域名</strong>和<strong>设备状态指示器</strong>（点击可查看设备 ID/名称/创建时间）。</p>
+        <p>检测到新版本时，弹窗顶部会显示<strong>🆕 橙色更新横幅</strong>，可一键跳转下载。</p>
+
         <h3 id="mode-compare">同步模式对比</h3>
         <table>
           <tr><th>对比项</th><th>🔗 P2P 直连</th><th>☁️ 云端同步（服务器）</th></tr>
@@ -808,6 +819,18 @@ node server.js 5789
           当你访问匹配的 OA 站点时，插件会自动加载针对该站点的拦截规则。
         </div>
 
+        <h3>开关层次</h3>
+        <ul>
+          <li><strong>🛡️ 拦截主开关：</strong>在「拦截 Tab」顶部，全局开启/关闭拦截功能。关闭后所有站点的拦截均暂停。</li>
+          <li><strong>📂 规则库站点开关：</strong>展开「拦截规则库」后，每个站点右侧有独立开关，可单独启用/禁用某个站点的规则。</li>
+          <li><strong>🏷️ 关键词开关：</strong>匹配当前站点后，激活的关键词标签会显示在「已激活规则」区，点击某个关键词可临时关闭它。</li>
+        </ul>
+        <p>三个层次由大到小：主开关 → 站点开关 → 关键词开关，任一开关关闭都会停掉对应层级的拦截。</p>
+
+        <h3>已激活规则</h3>
+        <p>当访问的域名匹配到规则库中的某个站点时，弹窗会自动显示<strong>当前站点激活的拦截关键词</strong>：
+          点击关键词标签可单独开启/关闭该关键词的拦截。</p>
+
         <h3>自定义规则</h3>
         <div class="step">
           <div class="step-num">1</div>
@@ -906,6 +929,14 @@ node server.js 5789
         <div class="tip info">
           <strong>❓ 扩展图标出现「NEW」角标是什么？</strong><br>
           <strong>版本升级检测</strong>功能检测到新版本时自动显示。点击扩展图标打开帮助页可查看详情。检测每 6 小时自动执行，也可在设置中关闭「启用升级检测」。新版本发布后，浏览器图标会出现红色「NEW」角标并弹出系统通知。
+        </div>
+        <div class="tip success">
+          <strong>❓ 弹窗顶部的设备状态指示器怎么用？</strong><br>
+          弹窗顶部显示的设备状态图标（如 🖥️），点击后弹出<strong>设备身份详情</strong>卡片，可查看设备 ID、设备名称、创建时间。设备身份用于 P2P 和服务器模式的设备识别，区分不同的设备。
+        </div>
+        <div class="tip info">
+          <strong>❓ 怎么查看 Cookie 的详细信息？</strong><br>
+          在「获取当前站点 Cookie」后，每个 Cookie 项都可<strong>点击展开</strong>查看详情（name、value、domain、path、secure、httpOnly 等完整属性）。同一区域的「清除」按钮可一键清空当前站点的所有 Cookie。
         </div>
       </div>
 
