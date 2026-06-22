@@ -284,3 +284,19 @@ cd /opt/projects/session-master && python3 scripts/doc-health-check.py
 - ✅ 定义文档更新流程（起草→审核→发布→通知）
 - ✅ 定义跨文档一致性原则（PRD 是源头、dev-plan 必须覆盖 PRD、test-plan 必须覆盖 PRD+dev-plan）
 - ✅ 定义版本号对齐规则（draft→beta→stable 各阶段要求）
+
+---
+
+### #19️⃣ ZIP 解压目录名未包裹版本号（反复 Bug）
+
+**时间**：2026-06-22
+**现象**：`scripts/build.sh` 输出的 ZIP 解压后文件平铺在根目录，没有 `session-master-vX.X.X/` 父目录。用户反馈后修复，但修复只改了外层 zip 文件名（`OUTPUT_ZIP` 变量），**没改内部目录结构**。
+
+**根因**：
+1. 当初只关注了 zip 文件名格式，没验证解压后的目录结构
+2. `build.sh` 直接 `cd src && zip -r output.zip .` 天然平铺打包，缺少目录包裹层
+3. 修复后没有执行完整的端到端验证（构建→解压→检查目录布局）
+
+**改正措施**：
+- ✅ build.sh 改用临时目录 + 版本号子目录方式打包：`mkdir -p _tmp/session-master-vX.X.X/ && cp -r src/* _tmp/session-master-vX.X.X/ && zip -r output.zip session-master-vX.X.X/`
+- ✅ 新增自检条款：每次发版前必须执行 `unzip -l *.zip | head -5` 检查第一条目录名是否含版本号

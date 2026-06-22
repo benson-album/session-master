@@ -68,11 +68,17 @@ echo "[3/3] 构建 $OUTPUT_ZIP ..."
 
 # 先复制 VERSION 到 src 目录下，打包进 zip
 cp "$PROJECT_ROOT/VERSION" "$SRC_DIR/VERSION"
-cd "$SRC_DIR"
-zip -r "$OUTPUT_ZIP" . \
-  -x ".*" -x "*/.*" \
-  -x "node_modules/*" \
-  > /dev/null
+
+# 构建时以版本号目录包裹，确保解压后为 session-master-vX.X.X/
+DIR_NAME="session-master-v$MANIFEST_VER"
+TEMP_DIR="_tmp_zip_$$"
+mkdir -p "$TEMP_DIR/$DIR_NAME"
+cp -r "$SRC_DIR"/* "$TEMP_DIR/$DIR_NAME/"
+# 排除隐藏文件和 node_modules
+cd "$TEMP_DIR"
+zip -r "$OUTPUT_ZIP" "$DIR_NAME/" -x "*/.*" > /dev/null
+cd "$PROJECT_ROOT"
+rm -rf "$TEMP_DIR"
 rm "$SRC_DIR/VERSION"
 
 # 检查
