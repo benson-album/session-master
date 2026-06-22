@@ -85,25 +85,17 @@
       // 新版：分类分组结构 { "🐛 修复": [...], "🎨 优化": [...] }
       var catKeys = Object.keys(categories);
       for (var ci = 0; ci < catKeys.length; ci++) {
-        var catName = catKeys[ci];
-        var catItems = categories[catName];
+      var catName = catKeys[ci];
+      var catItems = categories[catName];
 
-        var tagClass = 'tag-new';
-        if (catName.indexOf('🎨') !== -1 || catName.indexOf('优化') !== -1) tagClass = 'tag-update';
-        else if (catName.indexOf('🐛') !== -1 || catName.indexOf('修复') !== -1) tagClass = 'tag-fix';
-        else if (catName.indexOf('🛡️') !== -1 || catName.indexOf('拦截') !== -1) tagClass = 'tag-fix';
-        else if (catName.indexOf('🏗️') !== -1 || catName.indexOf('架构') !== -1) tagClass = 'tag-fix';
-        else if (catName.indexOf('🔧') !== -1) tagClass = 'tag-fix';
-        else if (catName.indexOf('📝') !== -1) tagClass = 'tag-update';
-
-        bodyHtml += '<p><span class="tag ' + tagClass + '">' + escapeHtml2(catName) + '</span></p>';
-        if (catItems && catItems.length > 0) {
-          bodyHtml += '<ul>';
-          for (var ji = 0; ji < catItems.length; ji++) {
-            bodyHtml += '<li>' + catItems[ji] + '</li>';
-          }
-          bodyHtml += '</ul>';
+      bodyHtml += '<div class="category-heading">' + escapeHtml2(catName) + '</div>';
+      if (catItems && catItems.length > 0) {
+        bodyHtml += '<ul>';
+        for (var ji = 0; ji < catItems.length; ji++) {
+          bodyHtml += '<li>' + catItems[ji] + '</li>';
         }
+        bodyHtml += '</ul>';
+      }
       }
     } else if (Array.isArray(categories)) {
       // 旧版兼容：平铺数组
