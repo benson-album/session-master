@@ -208,20 +208,26 @@
     "nameZh": "百度网盘",
     "localStorageKeys": [
       "passLoginType",
-      "bdstoken",
-      "loginData",
-      "baidu_token"
+      "MIAO_LID",
+      "browserId",
+      "ndut_fmt",
+      "wp-locateUpload-v20"
     ],
     "knownCookiePrefixes": [
       "BAIDUID",
-      "PANPSC",
+      "BIDUPSID",
+      "PANWEB",
       "csrfToken",
-      "newlogin"
+      "ZFY",
+      "XF",
+      "ndut_fmt",
+      "H_PS_PSSID",
+      "MCITY"
     ],
     "cookieDomains": [
       ".baidu.com"
     ],
-    "notes": "百度统一SSO认证。BAIDUID为全局认证种子，PANPSC为网盘专属。bdstoken为URL签名参数。需要登录态确认localStorage完整列表。"
+    "notes": "百度统一SSO认证。BAIDUID为全局认证种子。PANWEB为网盘专属标记。ZFY/XF系列为安全令牌。MIAO_LID/browserId为设备标识。需登录态确认。实测cookie约16个，localStorage约70个Key但大部分为临时缓存和用户专属数据（含用户ID前缀）。"
   },
   {
     "domain": "www.alipan.com",
