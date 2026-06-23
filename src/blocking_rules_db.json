@@ -2,6 +2,7 @@
   "version": 2,
   "lastUpdated": "2026-06-26",
   "updateUrl": "https://raw.githubusercontent.com/benson-album/session-master/master/src/blocking_rules_db.json",
+  "description": "拦截规则库 — 仅适用于前端定时器踢人检测的OA/企业协作类站点。视频、网盘类站点使用服务端API限流，拦截无效。",
   "keywordLabels": {
     "loginCheck": "登录检测",
     "sessionTimeout": "会话超时",
