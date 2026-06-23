@@ -45,7 +45,7 @@
       ".iqiyi.com",
       ".qiyi.com"
     ],
-    "notes": "核心认证: P00001 + QN00001 (HttpOnly)。百度账号体系登录。"
+    "notes": "核心认证: P00001 + QN00001 (HttpOnly)。自有SSO + 百度联合登录（需BAIDUID跨域）。"
   },
   {
     "domain": "youku.com",
@@ -100,7 +100,7 @@
       ".video.qq.com",
       ".film.qq.com"
     ],
-    "notes": "微信登录（wxuin）或QQ登录。认证Cookie: access_token, openid, refresh_token, vuserid, vusession"
+    "notes": "微信/QQ登录。认证Cookie核心: access_token, openid, refresh_token, vuserid, vusession。ams_cookies为JSON嵌套结构，内含多个认证凭证。需配合.qq.com域Cookie使用。"
   },
   {
     "domain": "feishu.cn",
@@ -284,7 +284,7 @@
     "cookieDomains": [
       ".cloud.189.cn"
     ],
-    "notes": "openresty + WoTrus EV证书。X-Frame-Options值拼写错误SAMEORIGN。需登录后才能确认认证体系。"
+    "notes": "openresty + WoTrus EV证书。X-Frame-Options值拼写错误SAMEORIGIN。需登录后才能确认认证体系。"
   },
   {
     "domain": "pan.xunlei.com",
