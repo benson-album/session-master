@@ -151,25 +151,15 @@
   // 暴露状态给 background
   window.__sessionMasterActive = true;
   
-  // ========== localStorage 读写接口（支持腾讯视频等双存储站点） ==========
+  // ========== localStorage 读写接口（支持多站点存储同步） ==========
   
-  // 已知需要同步的 localStorage 键名列表
-  const LOCALSTORAGE_KEYS = [
-    'ams_cookies',           // 腾讯视频：API 认证头
-    'qimei',                 // Tencent 设备标识
-    'qimei36',               // Tencent 36位随机设备标识
-    'q36cookiekey',          // 36位cookie key
-    'qmuuk',                 // UUID
-    'g_utdata',              // 用户数据
-    'vqq_user_info',         // 腾讯视频用户信息
-    'vqq_access_token',      // 腾讯视频访问令牌
-    'vqq_refresh_token'      // 腾讯视频刷新令牌
-  ];
+  // localStorage Key 列表从 message 传入，不再硬编码
+  // 预设数据存储在 storage_presets.json（插件资源中），由 popup/background 拼接后传入
   
   // 读取 localStorage 数据
   function readLocalStorage(keys) {
     const result = {};
-    const targetKeys = keys && keys.length > 0 ? keys : LOCALSTORAGE_KEYS;
+    const targetKeys = keys && keys.length > 0 ? keys : [];
     for (const key of targetKeys) {
       try {
         const val = localStorage.getItem(key);

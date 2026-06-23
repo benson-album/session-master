@@ -95,11 +95,17 @@
     document.getElementById('lsKeyManager').style.display = 'none';
     lastExportData = result.data;
     
-    // 尝试读取页面的 localStorage（腾讯视频等双存储站点）
+    // 读取页面的 localStorage（按当前域匹配预设 Key + 自定义 Key）
     try {
-      const lsResult = await chrome.runtime.sendMessage({ action: 'readLocalStorage' });
-      if (lsResult && lsResult.success) {
-        const keys = Object.keys(lsResult.data);
+      // 计算当前域名对应的预设 Key 列表
+      const domain = currentDomain || result.data.domain;
+      const preset = storagePresets.find(p => domain && domain.endsWith(p.domain));
+      const presetKeys = preset ? preset.localStorageKeys : [];
+      // 合并预设 Key 和用户自定义 Key（自定义存储在 chrome.storage）
+      const allLSKeys = [...new Set([...presetKeys, ...customLSKeys])];
+      if (allLSKeys.length > 0) {
+        const lsResult = await chrome.runtime.sendMessage({ action: 'readLocalStorage', keys: allLSKeys });
+        const keys = lsResult && lsResult.data ? Object.keys(lsResult.data) : [];
         if (keys.length > 0) {
           lastExportData.localStorage = lsResult.data;
           document.getElementById('resultCount').textContent = `${result.data.cookies.length} 个 Cookie（${domainCount} 个关联域）+ ${keys.length} 项本地存储`;
