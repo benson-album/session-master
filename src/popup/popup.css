@@ -512,7 +512,18 @@ textarea {
   height: 24px;
 }
 /* 全局抑制焦点黑框，使用自定义 focus 样式 */
-input:focus, select:focus, textarea:focus, button:focus { outline: none; }
+html, body { outline: none; border: none; }
+input:focus, select:focus, textarea:focus, button:focus,
+a:focus, a:focus-visible, [tabindex]:focus,
+.btn-link:focus, .btn-small:focus, .tab-btn:focus,
+.sync-mode-btn:focus, .update-banner-btn:focus,
+.modal-close:focus, .guide-card-detail summary:focus {
+  outline: none !important;
+}
+/* 额外覆写 :focus-visible（Chrome 键盘导航焦点） */
+:focus-visible { outline: none !important; }
+/* 覆写 Chrome 原生 popup 边框 */
+html { border: none !important; }
 .switch input { opacity: 0; width: 0; height: 0; }
 .slider {
   position: absolute;
