@@ -512,8 +512,14 @@
             // force / switch: 调用原始函数完成退出
             // 通过注入的 script 标签调用原始函数
             var execScript = document.createElement('script');
-            var originCall = event.data.obj + (event.data.method ? '.' + event.data.method : '');
-            execScript.textContent = 'window.__sm_orig_' + event.data.obj + '_' + (event.data.method || '') + '();';
+            // 根据消息类型决定调用方式
+            if (event.data.method) {
+              // SDK 函数：window.__sm_orig_{obj}_{method}()
+              execScript.textContent = 'window.__sm_orig_' + event.data.obj + '_' + event.data.method + '();';
+            } else {
+              // 非 SD 函数（如 exitCurrentSystem）：window.{obj}()
+              execScript.textContent = 'window.' + event.data.obj + '();';
+            }
             document.body.appendChild(execScript);
             execScript.remove();
           });
@@ -521,38 +527,22 @@
       });
     }
 
-    // ========== 拦截 window.exitCurrentSystem（致远 OA 专用） ==========
+    // ========== 拦截 window.exitCurrentSystem（致远 OA 专用，注入 <script>） ==========
     // 部分 OA 使用直接函数调用退出（而非 XHR），需额外拦截
-    if (typeof window.exitCurrentSystem === 'function') {
-      const origExit = window.exitCurrentSystem;
-      const self = window;
-      Object.defineProperty(self, 'exitCurrentSystem', {
-        get: function() {
-          // 如果退出保护开启，返回一个拦截函数
-          if (logoutProtectionEnabled) {
-            return function() {
-              console.log('[SessionMaster] 🚪 拦截 exitCurrentSystem() 退出调用');
-              showLogoutConfirmDialog(function(choice) {
-                if (choice === 'cancel') return;
-                if (choice === 'disconnect') {
-                  document.cookie.split(';').forEach(c => {
-                    document.cookie = c.replace(/^ +/, '').replace(/=.*/, '=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/');
-                  });
-                  window.location.reload();
-                  return;
-                }
-                // force 或 switch：放行原始退出函数
-                if (choice === 'switch') {
-                  chrome.runtime.sendMessage({ action: 'backupCookiesForDomain', domain: getDomain() }).catch(() => {});
-                }
-                origExit.apply(self, arguments);
-              });
-            };
-          }
-          return origExit;
-        },
-        configurable: true
-      });
+    // 注意：必须在主 world 中重写函数，content script isolated world 无效
+    if (logoutProtectionEnabled) {
+      var exitScript = document.createElement('script');
+      exitScript.textContent =
+        '(function(){try{' +
+        'var _origExit=window.exitCurrentSystem;' +
+        'if(typeof _origExit==="function"){' +
+          'window.__sm_orig_exitCurrentSystem=_origExit;' +
+          'window.exitCurrentSystem=function(){' +
+            'window.postMessage({sm_logout_trigger:true,obj:"__sm_orig_exitCurrentSystem",method:""},"*");' +
+          '};' +
+        '}' +
+        '}catch(e){}})();';
+      (document.head || document.documentElement).appendChild(exitScript);
     }
 
     console.log('[SessionMaster] ✅ 踢人拦截 + 退出保护已部署');
