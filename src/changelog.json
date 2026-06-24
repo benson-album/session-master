@@ -1,5 +1,14 @@
 [
   {
+    "version": "1.6.7",
+    "date": "2026-06-24",
+    "items": {
+      "🐛 修复": [
+        "SDK 退出拦截恢复原始函数时捕获并传入原始参数，适配各 SDK 不同签名（腾讯视频 `{showConfirmDialog}`、B站 `(callback, url)` 等）"
+      ]
+    }
+  },
+  {
     "version": "1.6.6",
     "date": "2026-06-24",
     "items": {

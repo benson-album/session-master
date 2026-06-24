@@ -278,6 +278,19 @@ fetch("https://pbaccess.video.qq.com/trpc.vector_layout...", {
 | SDK 延迟加载 | `txv.login.logout` 可能在页面加载完成后才可用。拦截器在 `interceptKickFunctions()` 部署时检查并重写 |
 | 多 Tab 登录 | 退出仅影响当前 Tab，其他 Tab 需各自退出或等 Session 过期 |
 
+
+
+### 7.4 Cookie 导出局限性
+
+| 维度 | 说明 |
+|:-----|:------|
+| **问题** | 用户登录后导出 Cookie，53 个 Cookie 中 0 个 HttpOnly，缺少认证凭证（`uin`、`skey`） |
+| **根因** | 腾讯视频使用微信登录（`main_login=wx`）时，认证 Cookie 可能为非 HttpOnly 但需特定域/路径；或登录态在导出前已过期 |
+| **影响** | 导入此类 Cookie 后在浏览器中处于**未登录状态**，logout SD 函数不会初始化，退出保护无法触发 |
+| **建议** | 导出后可用 JSON 格式检查是否包含 `uin`、`skey` 等认证 Cookie；缺失则需重新登录后立即导出 |
+
+> ⚠️ 退出保护仅在**已登录**且退出保护开关开启时生效。若导入的 Cookie 不含登录凭证（HttpOnly 或特定域），页面处于未登录态，SDK 退出按钮不会出现，拦截自然不触发。
+
 ## 七、未来改进建议
 
 ### Phase 3（推荐）
