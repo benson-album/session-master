@@ -4,8 +4,8 @@
     "date": "2026-06-24",
     "items": {
       "🐛 修复": [
-        "href 拦截 try 缺少 catch 导致 interceptKickFunctions 中断，退出保护注入未执行——已补 catch",
-        "DOM 点击拦截改为独立部署在 init() 中，不依赖 interceptKickFunctions 是否完整执行"
+        "**退出保护一直不生效的根因**：interceptKickFunctions() 中 Object.defineProperty(location.href) 外层有 try 无 catch，Chrome 内容脚本中修改 location 抛异常后函数崩溃，SDK 注入和 DOM 拦截代码均未执行到",
+        "DOM 点击拦截改为独立部署在 init() 中，与 interceptKickFunctions() 解耦"
       ]
     }
   },
