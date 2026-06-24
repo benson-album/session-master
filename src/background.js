@@ -1340,7 +1340,58 @@ async function clearSyncHistory() {
   return [];
 }
 
-// ========== 规则库管理（按网站归类 + 远程更新）==========
+// ========== 内置 DNR 规则管理 ==========
+// 从 blocking_rules.json 加载并动态注册 DNR 规则
+// 替换原 manifest.json 中的 static ruleset，使规则可被 masterEnabled 控制
+
+const BUILTIN_DNR_RULES_ID_OFFSET = 100;
+const BUILTIN_DNR_RULES_SOURCE = 'blocking_rules.json';
+
+async function loadBuiltinDNRRules() {
+  try {
+    const resp = await fetch(chrome.runtime.getURL(BUILTIN_DNR_RULES_SOURCE));
+    const rules = await resp.json();
+    return rules || [];
+  } catch (e) {
+    logger.info('blocker', '读取内置 DNR 规则失败: ' + e.message);
+    return [];
+  }
+}
+
+async function updateBuiltinDNRRules(enabled) {
+  const currentRules = await chrome.declarativeNetRequest.getDynamicRules();
+  // 只管理内置规则（ID 范围 100-199）
+  const currentBuiltinIds = currentRules
+    .filter(r => r.id >= BUILTIN_DNR_RULES_ID_OFFSET && r.id < BUILTIN_DNR_RULES_ID_OFFSET + 100)
+    .map(r => r.id);
+  
+  if (enabled) {
+    const builtinRules = await loadBuiltinDNRRules();
+    const dnrRules = builtinRules.map((rule, index) => ({
+      id: BUILTIN_DNR_RULES_ID_OFFSET + index,
+      priority: 1,
+      action: { type: 'block' },
+      condition: {
+        urlFilter: rule.condition.urlFilter,
+        resourceTypes: rule.condition.resourceTypes || ['xmlhttprequest', 'script', 'other']
+      }
+    }));
+    await chrome.declarativeNetRequest.updateDynamicRules({
+      removeRuleIds: [...currentBuiltinIds],
+      addRules: dnrRules
+    });
+    logger.info('blocker', '内置 DNR 规则已加载: ' + dnrRules.length + ' 条');
+  } else {
+    await chrome.declarativeNetRequest.updateDynamicRules({
+      removeRuleIds: currentBuiltinIds,
+      addRules: []
+    });
+    logger.info('blocker', '内置 DNR 规则已卸载');
+  }
+}
+
+// 重写 getBlockerConfig 的 setter 调用，使其在 masterEnabled 变化时联动 DNR 规则
+// 在 getBlockerConfig 的写入逻辑中会调用此函数
 
 const USER_RULES_KEY = 'user_blocking_rules';
 const RULES_DB_KEY = 'blocking_rules_db';
@@ -1543,6 +1594,10 @@ async function saveBlockerConfig(config) {
   if (config && config.masterEnabled !== undefined) changes.push('主开关=' + config.masterEnabled);
   if (config && config.mode !== undefined) changes.push('模式=' + config.mode);
   if (changes.length > 0) logger.info('blocker', '拦截配置变更: ' + changes.join(', '));
+  // masterEnabled 变化时联动 DNR 动态规则（静默执行，不阻塞保存流程）
+  if (config && config.masterEnabled !== undefined) {
+    updateBuiltinDNRRules(config.masterEnabled).catch(() => {});
+  }
   return merged;
 }
 
@@ -1835,6 +1890,10 @@ chrome.runtime.onInstalled.addListener(async () => {
 
   const rules = await getUserBlockingRules();
   if (rules.length > 0) await updateDynamicRules(rules);
+
+  // 初始化内置 DNR 规则（跟随 masterEnabled 状态）
+  const blockerConfig = await getBlockerConfig();
+  await updateBuiltinDNRRules(blockerConfig.masterEnabled);
 
   // 恢复之前的同步状态
   const config = await getSyncConfig();

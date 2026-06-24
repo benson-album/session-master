@@ -44,15 +44,6 @@
       "128": "icons/icon128.svg"
     }
   },
-  "declarative_net_request": {
-    "rule_resources": [
-      {
-        "id": "blocking_rules",
-        "enabled": true,
-        "path": "blocking_rules.json"
-      }
-    ]
-  },
   "web_accessible_resources": [
   {
     "resources": ["help/*", "server/*", "deploy/*", "changelog.json", "blocking_rules.json", "blocking_rules_db.json", "storage_presets.json"],

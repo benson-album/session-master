@@ -8,46 +8,81 @@
   'use strict';
   
   // ========== 拦截开关状态 ==========
-  // 默认开启（向后兼容），background 会异步更新此值
-  let blockingEnabled = true;
+  // 默认关闭（先查询后台再按需开启），避免阻塞非 OA 站点的正常事件监听
+  let blockingEnabled = false;
   
   // 获取当前站点域名
   function getDomain() {
     try { return window.location.hostname; } catch { return ''; }
   }
   
-  // 异步查询拦截状态
+  // 异步查询拦截状态（返回 Promise）
   function checkBlockingState() {
-    const domain = getDomain();
-    if (!domain) return;
-    try {
-      chrome.runtime.sendMessage(
-        { action: 'isBlockingEnabled', domain: domain },
-        function(response) {
-          if (response && response.enabled === false) {
-            blockingEnabled = false;
-            console.log('[SessionMaster] 🛡️ 当前站点未匹配拦截规则，拦截已暂停');
-          } else {
-            blockingEnabled = true;
-            console.log('[SessionMaster] 🛡️ 拦截已激活 -', domain);
+    return new Promise((resolve) => {
+      const domain = getDomain();
+      if (!domain) { resolve(false); return; }
+      try {
+        chrome.runtime.sendMessage(
+          { action: 'isBlockingEnabled', domain: domain },
+          function(response) {
+            const enabled = response && response.enabled === true;
+            if (enabled) {
+              console.log('[SessionMaster] 🛡️ 拦截已激活 -', domain);
+            } else {
+              console.log('[SessionMaster] 🛡️ 当前站点未匹配拦截规则，拦截已暂停');
+            }
+            resolve(enabled);
           }
-        }
-      );
-    } catch(e) {
-      // 发送消息失败时保持默认开启
-      console.log('[SessionMaster] ⚠️ 查询拦截状态失败:', e.message);
-    }
+        );
+      } catch(e) {
+        console.log('[SessionMaster] ⚠️ 查询拦截状态失败:', e.message);
+        resolve(false);
+      }
+    });
   }
   
   // ========== 拦截前端踢人脚本 ==========
   
   // 关键词列表 - 匹配可能触发踢人的函数/变量/事件
+  // 注意：部分 OA（如致远 V9）通过 [LOGOUT] 响应前缀踢人，由 XHR 响应拦截处理
   const KICK_KEYWORDS = [
     'secondLogin', 'checkSession', 'sessionTimeout', 'forcedOffline',
     'kickOut', 'singleLogin', 'duplicateLogin', 'conflictLogin',
     '登录冲突', '被踢', '挤下线', '重复登录', 'singleLoginCheck'
   ];
   
+  // 安全地获取函数字符串（防止原生函数 toString 抛异常）
+  function safeFnStr(fn) {
+    if (typeof fn !== 'function') return '';
+    try {
+      const s = fn.toString();
+      if (s.length > 5000) return '';
+      return s.toLowerCase();
+    } catch { return ''; }
+  }
+
+  // 精确关键词匹配：函数体或参数中包含精确关键词才拦截
+  function matchKickKeywords(text) {
+    if (!text) return null;
+    const lower = text.toLowerCase();
+    for (const keyword of KICK_KEYWORDS) {
+      const pattern = new RegExp('[^a-z]' + keyword.toLowerCase() + '[^a-z]');
+      if (pattern.test(' ' + lower + ' ')) return keyword;
+    }
+    return null;
+  }
+
+  // 检查函数体或字符串参数是否含踢人关键词
+  function hasKickKeyword(fn, args) {
+    if (!blockingEnabled) return false;
+    const fnStr = safeFnStr(fn);
+    if (fnStr && matchKickKeywords(fnStr)) return true;
+    for (const arg of args) {
+      if (typeof arg === 'string' && matchKickKeywords(arg)) return true;
+    }
+    return false;
+  }
+
   /**
    * 拦截并阻止踢人相关的函数调用
    * 通过重写 setTimeout/setInterval 阻止定时踢人检测
@@ -57,45 +92,10 @@
     const origSetTimeout = window.setTimeout;
     const origAddEventListener = EventTarget.prototype.addEventListener;
 
-    // 安全地获取函数字符串（防止原生函数 toString 抛异常）
-    function safeFnStr(fn) {
-      if (typeof fn !== 'function') return '';
-      try {
-        const s = fn.toString();
-        // 避免匹配过长的函数体（压缩代码可能误匹配关键词）
-        if (s.length > 5000) return '';
-        return s.toLowerCase();
-      } catch { return ''; }
-    }
-
-    // 精确关键词匹配：函数体或参数中包含精确关键词才拦截
-    function matchKickKeywords(text) {
-      if (!text) return null;
-      const lower = text.toLowerCase();
-      for (const keyword of KICK_KEYWORDS) {
-        // 使用正则：整词匹配，避免部分匹配（如 "secondLoginCheck" 不会匹配 "secondLogin"）
-        const pattern = new RegExp('[^a-z]' + keyword.toLowerCase() + '[^a-z]');
-        if (pattern.test(' ' + lower + ' ')) return keyword;
-      }
-      return null;
-    }
-
-    // 检查函数体或字符串参数是否含踢人关键词
-    function hasKickKeyword(fn, args) {
-      if (!blockingEnabled) return false;      // ← 新增：拦截开关检查
-      const fnStr = safeFnStr(fn);
-      if (fnStr && matchKickKeywords(fnStr)) return true;
-      for (const arg of args) {
-        if (typeof arg === 'string' && matchKickKeywords(arg)) return true;
-      }
-      return false;
-    }
-
     // 重写 setInterval
     window.setInterval = function(fn, delay, ...args) {
-      if (!blockingEnabled)                    // ← 新增：拦截开关检查
+      if (!blockingEnabled)
         return origSetInterval.call(window, fn, delay, ...args);
-      // 只检查常见 OA 踢人检测间隔（1-3秒），且必须含关键词
       if (delay >= 800 && delay <= 3000 && hasKickKeyword(fn, args)) {
         console.log('[SessionMaster] 🛑 已拦截踢人检测定时器');
         return 0;
@@ -105,7 +105,7 @@
 
     // 重写 setTimeout
     window.setTimeout = function(fn, delay, ...args) {
-      if (!blockingEnabled)                    // ← 新增：拦截开关检查
+      if (!blockingEnabled)
         return origSetTimeout.call(window, fn, delay, ...args);
       if (delay >= 800 && delay <= 3000 && hasKickKeyword(fn, args)) {
         console.log('[SessionMaster] 🛑 已拦截踢人检测 setTimeout');
@@ -114,7 +114,7 @@
       return origSetTimeout.call(window, fn, delay, ...args);
     };
 
-    // 拦截 addEventListener
+    // 拦截 addEventListener（message / storage / beforeunload）
     EventTarget.prototype.addEventListener = function(type, listener, options) {
       if (blockingEnabled && (type === 'message' || type === 'storage' || type === 'beforeunload')) {
         const fnStr = safeFnStr(listener);
@@ -126,35 +126,75 @@
       return origAddEventListener.call(this, type, listener, options);
     };
 
-    // 标记 XMLHttpRequest URL
+    // ========== XHR 响应拦截（[LOGOUT] 前缀检测）==========
+    // 部分 OA（如致远 V9.0SP1）通过在所有 AJAX 响应的开头插入 [LOGOUT] 来触发客户端踢人
+    // 现有 setTimeout/Interval 拦截无法处理此模式，需在 XHR 响应层面拦截
+    const LOGOUT_PREFIX = '[LOGOUT]';
+
+    // 重写 onreadystatechange setter，注入响应拦截
+    function interceptXhrReadyStateChange(xhr, origSetter) {
+      Object.defineProperty(xhr, 'onreadystatechange', {
+        get: function() { return origSetter; },
+        set: function(newHandler) {
+          if (typeof newHandler !== 'function') {
+            origSetter = newHandler;
+            return;
+          }
+          origSetter = function() {
+            if (xhr.readyState === 4 && blockingEnabled) {
+              const respText = xhr.responseText || '';
+              if (typeof respText === 'string' && respText.startsWith(LOGOUT_PREFIX)) {
+                console.log('[SessionMaster] 🛑 已拦截 [LOGOUT] 踢人响应');
+                return;  // 不调用原始 handler，阻止踢人
+              }
+            }
+            return newHandler.apply(this, arguments);
+          };
+        },
+        configurable: true
+      });
+    }
+
     const origOpen = XMLHttpRequest.prototype.open;
     XMLHttpRequest.prototype.open = function(method, url, ...rest) {
       this._sessionMasterUrl = url.toString().toLowerCase();
+      interceptXhrReadyStateChange(this, null);
       return origOpen.apply(this, [method, url, ...rest]);
+    };
+    
+    // 同时也拦截 addEventListener('readystatechange') 模式
+    function interceptXhrAddEventListener(xhr) {
+      const origAddXhrListener = xhr.addEventListener;
+      if (origAddXhrListener) {
+        xhr.addEventListener = function(type, listener, options) {
+          if (type === 'readystatechange' && blockingEnabled && typeof listener === 'function') {
+            const wrapped = function() {
+              if (xhr.readyState === 4) {
+                const respText = xhr.responseText || '';
+                if (typeof respText === 'string' && respText.startsWith(LOGOUT_PREFIX)) {
+                  console.log('[SessionMaster] 🛑 已拦截 [LOGOUT] 踢人响应 (addEventListener)');
+                  return;
+                }
+              }
+              return listener.apply(this, arguments);
+            };
+            return origAddXhrListener.call(this, type, wrapped, options);
+          }
+          return origAddXhrListener.call(this, type, listener, options);
+        };
+      }
+    }
+
+    const origSend = XMLHttpRequest.prototype.send;
+    XMLHttpRequest.prototype.send = function(...args) {
+      interceptXhrAddEventListener(this);
+      return origSend.apply(this, args);
     };
 
     console.log('[SessionMaster] ✅ 踢人拦截已部署');
-    // 查询后台拦截状态
-    checkBlockingState();
   }
-  
-  // ========== 页面加载时执行 ==========
-  
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => {
-      interceptKickFunctions();
-    });
-  } else {
-    interceptKickFunctions();
-  }
-  
-  // 暴露状态给 background
-  window.__sessionMasterActive = true;
   
   // ========== localStorage 读写接口（支持多站点存储同步） ==========
-  
-  // localStorage Key 列表从 message 传入，不再硬编码
-  // 预设数据存储在 storage_presets.json（插件资源中），由 popup/background 拼接后传入
   
   // 读取 localStorage 数据
   function readLocalStorage(keys) {
@@ -198,5 +238,26 @@
       return true;
     }
   });
+  
+  // ========== 页面加载时执行 ==========
+  // 先查询后台确认是否需要拦截，再决定是否部署拦截器
+  // 避免在未匹配站点上因默认值 true 引发竞态条件
+  
+  async function init() {
+    blockingEnabled = await checkBlockingState();
+    if (blockingEnabled) {
+      interceptKickFunctions();
+    } else {
+      // 即使不拦截，也暴露状态标记以便 background 查询
+      console.log('[SessionMaster] ✅ 内容脚本已加载（拦截未激活）');
+    }
+    window.__sessionMasterActive = true;
+  }
+  
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => { init(); });
+  } else {
+    init();
+  }
   
 })();
