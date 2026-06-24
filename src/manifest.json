@@ -1,9 +1,9 @@
 {
   "manifest_version": 3,
-  "name": "SessionMaster · 会话大师",
-  "version": "1.6.7",
+  "name": "SessionMaster \u00b7 \u4f1a\u8bdd\u5927\u5e08",
+  "version": "1.6.8",
   "author": "BenSon.Album (chinasir@qq.com)",
-  "description": "突破网站单设备登录限制 —— 跨浏览器 Cookie 同步 + 拦截踢人请求",
+  "description": "\u7a81\u7834\u7f51\u7ad9\u5355\u8bbe\u5907\u767b\u5f55\u9650\u5236 \u2014\u2014 \u8de8\u6d4f\u89c8\u5668 Cookie \u540c\u6b65 + \u62e6\u622a\u8e22\u4eba\u8bf7\u6c42",
   "content_security_policy": {
     "extension_pages": "script-src 'self'; object-src 'self';"
   },
@@ -32,22 +32,36 @@
   },
   "content_scripts": [
     {
-      "matches": ["*://*/*"],
-      "js": ["content.js"],
+      "matches": [
+        "*://*/*"
+      ],
+      "js": [
+        "content.js"
+      ],
       "run_at": "document_end"
     }
   ],
   "action": {
     "default_popup": "popup/popup.html",
-    "default_title": "SessionMaster · 会话大师",
+    "default_title": "SessionMaster \u00b7 \u4f1a\u8bdd\u5927\u5e08",
     "default_icon": {
       "128": "icons/icon128.svg"
     }
   },
   "web_accessible_resources": [
-  {
-    "resources": ["help/*", "server/*", "deploy/*", "changelog.json", "blocking_rules.json", "blocking_rules_db.json", "storage_presets.json"],
-    "matches": ["<all_urls>"]
-  }
+    {
+      "resources": [
+        "help/*",
+        "server/*",
+        "deploy/*",
+        "changelog.json",
+        "blocking_rules.json",
+        "blocking_rules_db.json",
+        "storage_presets.json"
+      ],
+      "matches": [
+        "<all_urls>"
+      ]
+    }
   ]
 }

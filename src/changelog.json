@@ -1,5 +1,15 @@
 [
   {
+    "version": "1.6.8",
+    "date": "2026-06-24",
+    "items": {
+      "🐛 修复": [
+        "退出保护 SDK 拦截改用 Object.defineProperty，兼容 writable:false 的防篡改属性",
+        "新增 DOM 点击拦截兜底：document.addEventListener 在捕获阶段拦截「退出账号」按钮点击，不依赖 SDK 函数名"
+      ]
+    }
+  },
+  {
     "version": "1.6.7",
     "date": "2026-06-24",
     "items": {
