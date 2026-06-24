@@ -10,6 +10,7 @@
   // ========== 拦截开关状态 ==========
   // 默认关闭（先查询后台再按需开启），避免阻塞非 OA 站点的正常事件监听
   let blockingEnabled = false;
+  let logoutProtectionEnabled = false;
   
   // 获取当前站点域名
   function getDomain() {
@@ -41,14 +42,11 @@
 
   // ========== 运行时代码指纹检测 ==========
   // 不依赖域名规则库，通过检测页面 JS 特征自动识别 OA 产品版本
-  // 适用于致远 OA 等标准化产品——同一版本在成千上万客户实例上使用相同代码
 
   const OA_FINGERPRINTS = [
-    // 致远 OA V9 (Seeyon): [LOGOUT] 响应前缀 + getXMLHttpRequestData 函数
     { id: 'seeyon_v9', name: '致远OA V9',
       scripts: ['all-min.js', 'getAjaxDataServlet', 'ajaxShortCutManager'],
       html: ['[LOGOUT]', 'getXMLHttpRequestData', 'exitCurrentSystem'] },
-    // 可扩展其他 OA 产品指纹...
   ];
 
   function detectOAFingerprint() {
@@ -58,19 +56,15 @@
     const scriptUrls = Array.from(scripts).map(s => (s.src || '').toLowerCase());
 
     for (const oa of OA_FINGERPRINTS) {
-      // 检查 script URL 特征（如 all-min.js 是致远 OA 唯一的 JS 入口）
       let scriptsMatch = 0;
       for (const pat of oa.scripts) {
         if (scriptUrls.some(u => u.includes(pat))) scriptsMatch++;
-        // 也检查页面 URL 中是否含该模式（如 ajax.do 是 URL 参数而非 script src）
         else if (pageUrl.includes(pat)) scriptsMatch++;
       }
-      // 检查 HTML 特征
       let htmlMatch = 0;
       for (const pat of oa.html) {
         if (pageHtml.includes(pat.toLowerCase())) htmlMatch++;
       }
-      // 命中半数以上的特征即视为匹配
       const totalChecks = oa.scripts.length + oa.html.length;
       const hits = scriptsMatch + htmlMatch;
       if (hits >= Math.ceil(totalChecks / 2)) {
@@ -81,17 +75,167 @@
     return null;
   }
   
+  // ========== 退出保护 ==========
+  // 检测并拦截用户触发的退出请求，弹窗让用户选择操作方式
+  // 独立于 OA 踢人拦截，对所有站点通用
+
+  const LOGOUT_PATTERNS = [
+    'method=logout',
+    'method=loginout',
+    '/logout',
+    'signout',
+    'loginout',
+    'exitSystem',
+    'exitCurrentSystem',
+    'doLogout'
+  ];
+
+  // 异步查询退出保护状态
+  function checkLogoutProtectionState() {
+    return new Promise((resolve) => {
+      try {
+        chrome.runtime.sendMessage(
+          { action: 'isLogoutProtectionEnabled' },
+          function(response) {
+            resolve(response && response.enabled === true);
+          }
+        );
+      } catch(e) {
+        resolve(false);
+      }
+    });
+  }
+
+  // 检测 URL 是否匹配退出模式
+  function isLogoutUrl(url) {
+    if (!url || typeof url !== 'string') return false;
+    const lower = url.toLowerCase();
+    return LOGOUT_PATTERNS.some(p => lower.includes(p));
+  }
+
+  // 注入退出确认弹窗到页面（含密码验证）
+  function showLogoutConfirmDialog(callback) {
+    if (document.getElementById('__sm_logout_modal')) return;
+
+    // 生成今日日期作为密码
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = String(now.getMonth() + 1).padStart(2, '0');
+    const d = String(now.getDate()).padStart(2, '0');
+    const todayPwd = `${y}${m}${d}`;
+
+    const overlay = document.createElement('div');
+    overlay.id = '__sm_logout_modal';
+    overlay.style.cssText =
+      'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);' +
+      'z-index:2147483647;display:flex;align-items:center;justify-content:center;' +
+      'font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;';
+
+    const modal = document.createElement('div');
+    modal.style.cssText =
+      'background:#fff;border-radius:12px;padding:24px;max-width:420px;' +
+      'width:90%;box-shadow:0 8px 32px rgba(0,0,0,0.2);' +
+      'animation:__sm_fadeIn 0.2s ease-out;';
+
+    // 主弹窗内容
+    modal.innerHTML =
+      '<style>@keyframes __sm_fadeIn{from{opacity:0;transform:scale(0.95)}to{opacity:1;transform:scale(1)}}</style>' +
+      '<div style="font-size:18px;font-weight:700;margin-bottom:8px;color:#1a1a1a">🚪 退出确认</div>' +
+      '<div style="font-size:13px;color:#666;margin-bottom:16px;line-height:1.5">' +
+      '会话大师检测到退出操作。当前此设备可能与其他设备共享登录会话：</div>' +
+      '<div style="display:flex;flex-direction:column;gap:8px">' +
+      '<button id="__sm_logout_disconnect" style="padding:10px 16px;border:1px solid #e0e0e0;border-radius:8px;background:#fff;cursor:pointer;text-align:left;font-size:13px">' +
+      '<span style="font-weight:600">🔒 仅断开此设备</span><br><span style="color:#888;font-size:12px">本地清除 Cookie，不影响其他设备的共享会话</span></button>' +
+      '<button id="__sm_logout_switch" style="padding:10px 16px;border:1px solid #e0e0e0;border-radius:8px;background:#fff;cursor:pointer;text-align:left;font-size:13px">' +
+      '<span style="font-weight:600">🔄 更换账号</span><br><span style="color:#888;font-size:12px">保存当前 Cookie 后退出，可重新登录其他账号</span></button>' +
+      '<button id="__sm_logout_force" style="padding:10px 16px;border:1px solid #e0e0e0;border-radius:8px;background:#fff;cursor:pointer;text-align:left;font-size:13px">' +
+      '<span style="font-weight:600;color:#d32f2f">🚪 完全退出</span><br><span style="color:#888;font-size:12px">正常退出登录，所有共享此会话的设备将断开</span></button>' +
+      '</div>' +
+      '<button id="__sm_logout_cancel" style="width:100%;margin-top:12px;padding:10px;border:1px solid #ddd;border-radius:8px;background:#f5f5f5;cursor:pointer;font-size:13px;color:#666">取消</button>';
+
+    // 完全退出密码弹窗
+    const pwdModal = document.createElement('div');
+    pwdModal.style.cssText = 'display:none';
+    pwdModal.innerHTML =
+      '<div style="font-size:16px;font-weight:600;margin-bottom:12px;color:#d32f2f">🔐 完全退出需要验证</div>' +
+      '<div style="font-size:13px;color:#666;margin-bottom:12px;line-height:1.5">' +
+      '请输入今天的日期作为确认密码（格式：YYYYMMDD）</div>' +
+      '<input id="__sm_logout_pwd" type="password" placeholder="例如 ' + todayPwd + '" ' +
+      'style="width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:8px;font-size:14px;box-sizing:border-box;outline:none">' +
+      '<div id="__sm_logout_pwd_error" style="color:#d32f2f;font-size:12px;margin-top:6px;display:none">❌ 密码错误，请重试</div>' +
+      '<div style="display:flex;gap:8px;margin-top:12px">' +
+      '<button id="__sm_logout_pwd_confirm" style="flex:1;padding:10px;border:none;border-radius:8px;background:#d32f2f;color:#fff;cursor:pointer;font-size:13px;font-weight:600">确认退出</button>' +
+      '<button id="__sm_logout_pwd_back" style="padding:10px 16px;border:1px solid #ddd;border-radius:8px;background:#fff;cursor:pointer;font-size:13px;color:#666">返回</button>' +
+      '</div>';
+
+    modal.appendChild(pwdModal);
+    overlay.appendChild(modal);
+    document.body.appendChild(overlay);
+
+    // 按钮 hover
+    modal.querySelectorAll('button').forEach(b => {
+      b.addEventListener('mouseenter', () => { b.style.background = '#f8f8f8'; });
+      b.addEventListener('mouseleave', () => {
+        if (b.id === '__sm_logout_cancel') b.style.background = '#f5f5f5';
+        else if (b.id === '__sm_logout_pwd_confirm') b.style.background = '#d32f2f';
+        else if (b.id === '__sm_logout_pwd_back') b.style.background = '#fff';
+        else b.style.background = '#fff';
+      });
+    });
+
+    function close(result) {
+      overlay.remove();
+      callback(result);
+    }
+
+    // 主选项
+    document.getElementById('__sm_logout_disconnect').onclick = () => close('disconnect');
+    document.getElementById('__sm_logout_switch').onclick = () => close('switch');
+
+    // 完全退出 → 切换密码弹窗
+    document.getElementById('__sm_logout_force').onclick = function() {
+      modal.querySelector('div:first-child').style.display = 'none';  // 隐藏主选项
+      pwdModal.style.display = 'block';
+      document.getElementById('__sm_logout_pwd').focus();
+    };
+
+    // 密码确认
+    function verifyPassword() {
+      const pwd = document.getElementById('__sm_logout_pwd').value.trim();
+      if (pwd === todayPwd) {
+        close('force');
+      } else {
+        document.getElementById('__sm_logout_pwd_error').style.display = 'block';
+        document.getElementById('__sm_logout_pwd').focus();
+        document.getElementById('__sm_logout_pwd').select();
+      }
+    }
+
+    document.getElementById('__sm_logout_pwd_confirm').onclick = verifyPassword;
+    document.getElementById('__sm_logout_pwd').addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') verifyPassword();
+    });
+
+    // 返回主选项
+    document.getElementById('__sm_logout_pwd_back').onclick = function() {
+      pwdModal.style.display = 'none';
+      modal.querySelector('div:first-child').style.display = 'block';
+      document.getElementById('__sm_logout_pwd_error').style.display = 'none';
+      document.getElementById('__sm_logout_pwd').value = '';
+    };
+
+    document.getElementById('__sm_logout_cancel').onclick = () => close('cancel');
+    overlay.onclick = (e) => { if (e.target === overlay) close('cancel'); };
+  }
+
   // ========== 拦截前端踢人脚本 ==========
   
-  // 关键词列表 - 匹配可能触发踢人的函数/变量/事件
-  // 注意：部分 OA（如致远 V9）通过 [LOGOUT] 响应前缀踢人，由 XHR 响应拦截处理
   const KICK_KEYWORDS = [
     'secondLogin', 'checkSession', 'sessionTimeout', 'forcedOffline',
     'kickOut', 'singleLogin', 'duplicateLogin', 'conflictLogin',
     '登录冲突', '被踢', '挤下线', '重复登录', 'singleLoginCheck'
   ];
   
-  // 安全地获取函数字符串（防止原生函数 toString 抛异常）
   function safeFnStr(fn) {
     if (typeof fn !== 'function') return '';
     try {
@@ -101,7 +245,6 @@
     } catch { return ''; }
   }
 
-  // 精确关键词匹配：函数体或参数中包含精确关键词才拦截
   function matchKickKeywords(text) {
     if (!text) return null;
     const lower = text.toLowerCase();
@@ -112,7 +255,6 @@
     return null;
   }
 
-  // 检查函数体或字符串参数是否含踢人关键词
   function hasKickKeyword(fn, args) {
     if (!blockingEnabled) return false;
     const fnStr = safeFnStr(fn);
@@ -123,10 +265,7 @@
     return false;
   }
 
-  /**
-   * 拦截并阻止踢人相关的函数调用
-   * 通过重写 setTimeout/setInterval 阻止定时踢人检测
-   */
+  // 拦截并阻止踢人相关的函数调用 + 退出保护
   function interceptKickFunctions() {
     const origSetInterval = window.setInterval;
     const origSetTimeout = window.setTimeout;
@@ -154,7 +293,7 @@
       return origSetTimeout.call(window, fn, delay, ...args);
     };
 
-    // 拦截 addEventListener（message / storage / beforeunload）
+    // 拦截 addEventListener
     EventTarget.prototype.addEventListener = function(type, listener, options) {
       if (blockingEnabled && (type === 'message' || type === 'storage' || type === 'beforeunload')) {
         const fnStr = safeFnStr(listener);
@@ -167,11 +306,8 @@
     };
 
     // ========== XHR 响应拦截（[LOGOUT] 前缀检测）==========
-    // 部分 OA（如致远 V9.0SP1）通过在所有 AJAX 响应的开头插入 [LOGOUT] 来触发客户端踢人
-    // 现有 setTimeout/Interval 拦截无法处理此模式，需在 XHR 响应层面拦截
     const LOGOUT_PREFIX = '[LOGOUT]';
 
-    // 重写 onreadystatechange setter，注入响应拦截
     function interceptXhrReadyStateChange(xhr, origSetter) {
       Object.defineProperty(xhr, 'onreadystatechange', {
         get: function() { return origSetter; },
@@ -185,7 +321,7 @@
               const respText = xhr.responseText || '';
               if (typeof respText === 'string' && respText.startsWith(LOGOUT_PREFIX)) {
                 console.log('[SessionMaster] 🛑 已拦截 [LOGOUT] 踢人响应');
-                return;  // 不调用原始 handler，阻止踢人
+                return;
               }
             }
             return newHandler.apply(this, arguments);
@@ -195,14 +331,25 @@
       });
     }
 
+    // ========== 退出请求拦截（URL 模式匹配）==========
+    // 在 XMLHttpRequest.prototype.open 中同时注入退出检测
     const origOpen = XMLHttpRequest.prototype.open;
     XMLHttpRequest.prototype.open = function(method, url, ...rest) {
-      this._sessionMasterUrl = url.toString().toLowerCase();
+      const urlStr = (url || '').toString().toLowerCase();
+      this._sessionMasterUrl = urlStr;
       interceptXhrReadyStateChange(this, null);
+
+      // 退出保护：检测 URL 是否匹配退出模式
+      if (logoutProtectionEnabled && isLogoutUrl(urlStr)) {
+        console.log('[SessionMaster] 🚪 检测到退出请求:', urlStr);
+        // 标记此请求为退出，在 send 时处理
+        this._isLogoutRequest = true;
+      }
+
       return origOpen.apply(this, [method, url, ...rest]);
     };
     
-    // 同时也拦截 addEventListener('readystatechange') 模式
+    // addEventListener('readystatechange') 拦截
     function interceptXhrAddEventListener(xhr) {
       const origAddXhrListener = xhr.addEventListener;
       if (origAddXhrListener) {
@@ -225,18 +372,94 @@
       }
     }
 
+    // ========== XHR send 拦截：注入退出确认弹窗 ==========
     const origSend = XMLHttpRequest.prototype.send;
     XMLHttpRequest.prototype.send = function(...args) {
       interceptXhrAddEventListener(this);
+      
+      // 如果此请求被标记为退出且保护开启，显示确认弹窗并阻止请求
+      if (this._isLogoutRequest && logoutProtectionEnabled) {
+        console.log('[SessionMaster] 🚪 退出请求已被拦截，等待用户确认');
+        this._isLogoutRequest = false;  // 防止重复拦截
+        
+        // 同步方式阻止请求发出——弹窗选择后再决定是否放行
+        const xhr = this;
+        showLogoutConfirmDialog(function(choice) {
+          if (choice === 'cancel') {
+            // 用户取消，什么都不做（请求已被阻止）
+            console.log('[SessionMaster] 🚪 退出已取消');
+            return;
+          }
+          if (choice === 'disconnect') {
+            // 仅断开此设备：清除 Cookie 但不发出退出请求
+            document.cookie.split(';').forEach(c => {
+              document.cookie = c.replace(/^ +/, '').replace(/=.*/, '=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/');
+            });
+            console.log('[SessionMaster] 🚪 已清除本地 Cookie，仅断开此设备');
+            // 清完 Cookie 刷新页面
+            window.location.reload();
+            return;
+          }
+          if (choice === 'switch') {
+            // 更换账号：先导出 Cookie，再放行退出请求
+            chrome.runtime.sendMessage({
+              action: 'backupCookiesForDomain',
+              domain: getDomain()
+            }).catch(() => {});
+            console.log('[SessionMaster] 🚪 Cookie 已备份，放行退出请求');
+            // 放行请求
+            origSend.apply(xhr, args);
+            return;
+          }
+          // force: 完全退出，正常放行请求
+          console.log('[SessionMaster] 🚪 完全退出，放行请求');
+          origSend.apply(xhr, args);
+        });
+        return;  // 阻止原始 send，等待弹窗结果
+      }
+      
       return origSend.apply(this, args);
     };
 
-    console.log('[SessionMaster] ✅ 踢人拦截已部署');
+    // ========== 拦截 window.exitCurrentSystem（致远 OA 专用） ==========
+    // 部分 OA 使用直接函数调用退出（而非 XHR），需额外拦截
+    if (typeof window.exitCurrentSystem === 'function') {
+      const origExit = window.exitCurrentSystem;
+      const self = window;
+      Object.defineProperty(self, 'exitCurrentSystem', {
+        get: function() {
+          // 如果退出保护开启，返回一个拦截函数
+          if (logoutProtectionEnabled) {
+            return function() {
+              console.log('[SessionMaster] 🚪 拦截 exitCurrentSystem() 退出调用');
+              showLogoutConfirmDialog(function(choice) {
+                if (choice === 'cancel') return;
+                if (choice === 'disconnect') {
+                  document.cookie.split(';').forEach(c => {
+                    document.cookie = c.replace(/^ +/, '').replace(/=.*/, '=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/');
+                  });
+                  window.location.reload();
+                  return;
+                }
+                // force 或 switch：放行原始退出函数
+                if (choice === 'switch') {
+                  chrome.runtime.sendMessage({ action: 'backupCookiesForDomain', domain: getDomain() }).catch(() => {});
+                }
+                origExit.apply(self, arguments);
+              });
+            };
+          }
+          return origExit;
+        },
+        configurable: true
+      });
+    }
+
+    console.log('[SessionMaster] ✅ 踢人拦截 + 退出保护已部署');
   }
   
-  // ========== localStorage 读写接口（支持多站点存储同步） ==========
+  // ========== localStorage 读写接口 ==========
   
-  // 读取 localStorage 数据
   function readLocalStorage(keys) {
     const result = {};
     const targetKeys = keys && keys.length > 0 ? keys : [];
@@ -251,7 +474,6 @@
     return result;
   }
   
-  // 写入 localStorage 数据
   function writeLocalStorage(data) {
     let count = 0;
     for (const [key, value] of Object.entries(data)) {
@@ -265,7 +487,6 @@
     return count;
   }
   
-  // 监听来自 background/popup 的消息
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.action === 'readLocalStorage') {
       const data = readLocalStorage(message.keys);
@@ -280,19 +501,30 @@
   });
   
   // ========== 页面加载时执行 ==========
-  // 先查询后台确认是否需要拦截，再决定是否部署拦截器
-  // 避免在未匹配站点上因默认值 true 引发竞态条件
   
   async function init() {
-    blockingEnabled = await checkBlockingState();
-    if (blockingEnabled) {
+    // 并行查询 OA 拦截状态和退出保护状态
+    const [kickEnabled, logoutEnabled] = await Promise.all([
+      checkBlockingState(),
+      checkLogoutProtectionState()
+    ]);
+    
+    logoutProtectionEnabled = logoutEnabled;
+    if (logoutEnabled) {
+      console.log('[SessionMaster] 🚪 退出保护已开启');
+    }
+
+    if (kickEnabled) {
+      blockingEnabled = true;
       interceptKickFunctions();
     } else {
-      // 域名未匹配 → 尝试运行时代码指纹检测（覆盖致远 OA 等标准化产品）
       const fp = detectOAFingerprint();
       if (fp) {
         blockingEnabled = true;
         console.log('[SessionMaster] 🛡️ 代码指纹匹配成功，拦截已激活 -', getDomain());
+        interceptKickFunctions();
+      } else if (logoutEnabled) {
+        // 只有退出保护开启时也部署拦截（包含退出拦截代码）
         interceptKickFunctions();
       } else {
         console.log('[SessionMaster] ✅ 内容脚本已加载（拦截未激活）');
