@@ -415,45 +415,39 @@
       return origSend.apply(this, args);
     };
 
-    // ========== 拦截 window.location.href 赋值（覆盖页面跳转退出）==========
+    // ========== 拦截 window.location.href 赋值 ==========
     if (logoutProtectionEnabled) {
-      let _href = window.location.href;
-      let _settingHref = false;  // 防止递归
-      Object.defineProperty(window.location, 'href', {
-        get: function() { return _href; },
-        set: function(newVal) {
-          if (_settingHref || typeof newVal !== 'string') {
+      try {
+        var _href = window.location.href;
+        var _settingHref = false;
+        Object.defineProperty(window.location, 'href', {
+          get: function() { return _href; },
+          set: function(newVal) {
+            if (_settingHref || typeof newVal !== 'string') { _href = newVal; return; }
+            if (isLogoutUrl(newVal)) {
+              console.log('[SessionMaster] 🚪 拦截页面跳转退出:', newVal);
+              showLogoutConfirmDialog(function(choice) {
+                if (choice === 'cancel') return;
+                if (choice === 'disconnect') {
+                  document.cookie.split(';').forEach(function(c) {
+                    document.cookie = c.replace(/^ +/, '').replace(/=.*/, '=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/');
+                  });
+                  window.location.reload();
+                  return;
+                }
+                if (choice === 'switch') {
+                  chrome.runtime.sendMessage({ action: 'backupCookiesForDomain', domain: getDomain() }).catch(function(){});
+                }
+                _settingHref = true;
+                window.location.href = newVal;
+              });
+              return;
+            }
             _href = newVal;
-            return;
-          }
-          if (isLogoutUrl(newVal)) {
-            console.log('[SessionMaster] 🚪 拦截页面跳转退出:', newVal);
-            showLogoutConfirmDialog(function(choice) {
-              if (choice === 'cancel') return;
-              if (choice === 'disconnect') {
-                document.cookie.split(';').forEach(c => {
-                  document.cookie = c.replace(/^ +/, '').replace(/=.*/, '=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/');
-                });
-                window.location.reload();
-                return;
-              }
-              if (choice === 'switch') {
-                chrome.runtime.sendMessage({ action: 'backupCookiesForDomain', domain: getDomain() }).catch(() => {});
-              }
-              // force: 放行跳转
-              _settingHref = true;
-              window.location.href = newVal;
-            });
-            return;
-          }
-          _href = newVal;
-          try {
-            // 使用 location.assign 模拟原生 setter 行为
-            window.location.assign(newVal);
-          } catch(e) {}
-        },
-        configurable: true
-      });
+          },
+          configurable: true
+        });
+      } catch(e) { console.log('[SessionMaster] ⚠️ href 拦截不可用:', e.message); }
     }
 
     // ========== 拦截 SDK 退出函数调用（注入 <script> 到主 world）==========
@@ -640,6 +634,32 @@
     logoutProtectionEnabled = logoutEnabled;
     if (logoutEnabled) {
       console.log('[SessionMaster] 🚪 退出保护已开启');
+      // DOM click interceptor (independent of interceptKickFunctions)
+      document.addEventListener('click', function(e) {
+        var t = e.target;
+        while (t && t !== document) {
+          if (t.textContent && t.textContent.trim() === '退出账号') {
+            console.log('[SessionMaster] DOM click intercept');
+            e.preventDefault();
+            e.stopPropagation();
+            showLogoutConfirmDialog(function(choice) {
+              if (choice === 'cancel') return;
+              if (choice === 'disconnect') {
+                document.cookie.split(';').forEach(function(x) {
+                  document.cookie = x.replace(/^ +/, '').replace(/=.*/, '=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/');
+                });
+                window.location.reload();
+                return;
+              }
+              if (choice === 'switch') {
+                chrome.runtime.sendMessage({ action: 'backupCookiesForDomain', domain: getDomain() }).catch(function(){});
+              }
+            });
+            return;
+          }
+          t = t.parentElement;
+        }
+      }, true);
     }
 
     if (kickEnabled) {
