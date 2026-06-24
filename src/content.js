@@ -89,7 +89,10 @@
     'exitCurrentSystem',
     'doLogout',
     'passport://logout',
-    'action=logout'
+    'action=logout',
+    'login/logout',
+    '/sso/logout',
+    'accounts/logout'
   ];
 
   // SDK 退出函数列表 - 这些函数存在时，拦截其调用
