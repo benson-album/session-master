@@ -159,7 +159,7 @@
     pwdModal.innerHTML =
       '<div style="font-size:16px;font-weight:600;margin-bottom:12px;color:#d32f2f">🔐 完全退出需要验证</div>' +
       '<div style="font-size:13px;color:#666;margin-bottom:12px;line-height:1.5">' +
-      '请输入验证密码</div>' +
+      '此操作将导致所有共享此会话的设备集体下线，继续操作需要验证解锁密码</div>' +
       '<input id="__sm_logout_pwd" type="password" placeholder="" ' +
       'style="width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:8px;font-size:14px;box-sizing:border-box;outline:none">' +
       '<div id="__sm_logout_pwd_error" style="color:#d32f2f;font-size:12px;margin-top:6px;display:none">❌ 密码错误，请重试</div>' +
