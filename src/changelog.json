@@ -1,5 +1,17 @@
 [
   {
+    "version": "1.6.5",
+    "date": "2026-06-24",
+    "items": {
+      "🚪 退出保护增强": [
+        "新增页面跳转退出拦截：拦截 window.location.href 赋值（覆盖优酷 passport://logout 等自定义协议）",
+        "新增 SDK 退出函数拦截：运行时重写 txv.login.logout（腾讯视频）、Ke.logout（B站）",
+        "补充退出模式：passport://logout、action=logout、/sso/logout、accounts/logout、login/logout",
+        "8 份站点分析报告补充退出机制分析"
+      ]
+    }
+  },
+  {
     "version": "1.6.4",
     "date": "2026-06-24",
     "items": {
