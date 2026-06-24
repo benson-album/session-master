@@ -83,11 +83,19 @@
     'method=logout',
     'method=loginout',
     '/logout',
+    '/loginout',
     'signout',
-    'loginout',
     'exitSystem',
     'exitCurrentSystem',
-    'doLogout'
+    'doLogout',
+    'passport://logout',
+    'action=logout'
+  ];
+
+  // SDK 退出函数列表 - 这些函数存在时，拦截其调用
+  const LOGOUT_SDK_FUNCTIONS = [
+    { obj: 'txv', key: 'login', method: 'logout', name: '腾讯视频' },
+    { obj: 'Ke', method: 'logout', name: 'B站' }
   ];
 
   // 异步查询退出保护状态
@@ -377,49 +385,104 @@
     XMLHttpRequest.prototype.send = function(...args) {
       interceptXhrAddEventListener(this);
       
-      // 如果此请求被标记为退出且保护开启，显示确认弹窗并阻止请求
       if (this._isLogoutRequest && logoutProtectionEnabled) {
         console.log('[SessionMaster] 🚪 退出请求已被拦截，等待用户确认');
-        this._isLogoutRequest = false;  // 防止重复拦截
+        this._isLogoutRequest = false;
         
-        // 同步方式阻止请求发出——弹窗选择后再决定是否放行
         const xhr = this;
         showLogoutConfirmDialog(function(choice) {
-          if (choice === 'cancel') {
-            // 用户取消，什么都不做（请求已被阻止）
-            console.log('[SessionMaster] 🚪 退出已取消');
-            return;
-          }
+          if (choice === 'cancel') return;
           if (choice === 'disconnect') {
-            // 仅断开此设备：清除 Cookie 但不发出退出请求
             document.cookie.split(';').forEach(c => {
               document.cookie = c.replace(/^ +/, '').replace(/=.*/, '=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/');
             });
-            console.log('[SessionMaster] 🚪 已清除本地 Cookie，仅断开此设备');
-            // 清完 Cookie 刷新页面
             window.location.reload();
             return;
           }
           if (choice === 'switch') {
-            // 更换账号：先导出 Cookie，再放行退出请求
-            chrome.runtime.sendMessage({
-              action: 'backupCookiesForDomain',
-              domain: getDomain()
-            }).catch(() => {});
-            console.log('[SessionMaster] 🚪 Cookie 已备份，放行退出请求');
-            // 放行请求
+            chrome.runtime.sendMessage({ action: 'backupCookiesForDomain', domain: getDomain() }).catch(() => {});
             origSend.apply(xhr, args);
             return;
           }
-          // force: 完全退出，正常放行请求
-          console.log('[SessionMaster] 🚪 完全退出，放行请求');
           origSend.apply(xhr, args);
         });
-        return;  // 阻止原始 send，等待弹窗结果
+        return;
       }
       
       return origSend.apply(this, args);
     };
+
+    // ========== 拦截 window.location.href 赋值（覆盖页面跳转退出）==========
+    if (logoutProtectionEnabled) {
+      let _href = window.location.href;
+      let _settingHref = false;  // 防止递归
+      Object.defineProperty(window.location, 'href', {
+        get: function() { return _href; },
+        set: function(newVal) {
+          if (_settingHref || typeof newVal !== 'string') {
+            _href = newVal;
+            return;
+          }
+          if (isLogoutUrl(newVal)) {
+            console.log('[SessionMaster] 🚪 拦截页面跳转退出:', newVal);
+            showLogoutConfirmDialog(function(choice) {
+              if (choice === 'cancel') return;
+              if (choice === 'disconnect') {
+                document.cookie.split(';').forEach(c => {
+                  document.cookie = c.replace(/^ +/, '').replace(/=.*/, '=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/');
+                });
+                window.location.reload();
+                return;
+              }
+              if (choice === 'switch') {
+                chrome.runtime.sendMessage({ action: 'backupCookiesForDomain', domain: getDomain() }).catch(() => {});
+              }
+              // force: 放行跳转
+              _settingHref = true;
+              window.location.href = newVal;
+            });
+            return;
+          }
+          _href = newVal;
+          try {
+            // 使用 location.assign 模拟原生 setter 行为
+            window.location.assign(newVal);
+          } catch(e) {}
+        },
+        configurable: true
+      });
+    }
+
+    // ========== 拦截 SDK 退出函数调用（腾讯视频 txv.login.logout / B站 Ke.logout）==========
+    if (logoutProtectionEnabled) {
+      LOGOUT_SDK_FUNCTIONS.forEach(function(sdk) {
+        try {
+          const parent = sdk.key ? window[sdk.obj] && window[sdk.obj][sdk.key] : window[sdk.obj];
+          if (parent && typeof parent[sdk.method] === 'function') {
+            const origMethod = parent[sdk.method].bind(parent);
+            parent[sdk.method] = function() {
+              console.log('[SessionMaster] 🚪 拦截', sdk.name, sdk.method, '() 退出调用');
+              showLogoutConfirmDialog(function(choice) {
+                if (choice === 'cancel') return;
+                if (choice === 'disconnect') {
+                  document.cookie.split(';').forEach(c => {
+                    document.cookie = c.replace(/^ +/, '').replace(/=.*/, '=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/');
+                  });
+                  window.location.reload();
+                  return;
+                }
+                if (choice === 'switch') {
+                  chrome.runtime.sendMessage({ action: 'backupCookiesForDomain', domain: getDomain() }).catch(() => {});
+                }
+                origMethod.apply(parent, arguments);
+              });
+            };
+          }
+        } catch(e) {
+          // SD 对象可能不存在，静默跳过
+        }
+      });
+    }
 
     // ========== 拦截 window.exitCurrentSystem（致远 OA 专用） ==========
     // 部分 OA 使用直接函数调用退出（而非 XHR），需额外拦截
