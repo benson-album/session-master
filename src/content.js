@@ -159,8 +159,8 @@
     pwdModal.innerHTML =
       '<div style="font-size:16px;font-weight:600;margin-bottom:12px;color:#d32f2f">🔐 完全退出需要验证</div>' +
       '<div style="font-size:13px;color:#666;margin-bottom:12px;line-height:1.5">' +
-      '请输入今天的日期作为确认密码（格式：YYYYMMDD）</div>' +
-      '<input id="__sm_logout_pwd" type="password" placeholder="例如 ' + todayPwd + '" ' +
+      '请输入验证密码</div>' +
+      '<input id="__sm_logout_pwd" type="password" placeholder="" ' +
       'style="width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:8px;font-size:14px;box-sizing:border-box;outline:none">' +
       '<div id="__sm_logout_pwd_error" style="color:#d32f2f;font-size:12px;margin-top:6px;display:none">❌ 密码错误，请重试</div>' +
       '<div style="display:flex;gap:8px;margin-top:12px">' +
