@@ -1601,7 +1601,24 @@ async function saveBlockerConfig(config) {
   return merged;
 }
 
-// 判断某个域名的拦截是否应该生效
+// ========== 退出保护配置 ==========
+// 默认内置开启，可在配置文件中修改
+
+const LOGOUT_PROTECTION_KEY = 'logout_protection_config';
+
+async function getLogoutProtectionConfig() {
+  return await getStorage(LOGOUT_PROTECTION_KEY, { enabled: true });
+}
+
+async function saveLogoutProtectionConfig(config) {
+  const merged = { enabled: config.enabled === true };
+  await setStorage(LOGOUT_PROTECTION_KEY, merged);
+  logger.info('blocker', '退出保护: ' + (merged.enabled ? '开启' : '关闭'));
+  return merged;
+}
+
+// ========== 拦截模块业务逻辑 ==========
+
 async function isBlockingEnabledForDomain(domain) {
   const config = await getBlockerConfig();
   if (!config.masterEnabled) return false;
@@ -1684,6 +1701,22 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       case 'saveBlockerConfig': sendResponse(await saveBlockerConfig(request.config)); break;
       case 'isBlockingEnabled': sendResponse({ enabled: await isBlockingEnabledForDomain(request.domain) }); break;
       case 'getEffectiveKeywords': sendResponse({ keywords: await getEffectiveKeywords(request.domain), keywordLabels: (await getRulesDB()).keywordLabels || {} }); break;
+
+      // ---- 退出保护 ----
+      case 'isLogoutProtectionEnabled': sendResponse({ enabled: (await getLogoutProtectionConfig()).enabled }); break;
+      case 'saveLogoutProtectionConfig':
+        sendResponse(await saveLogoutProtectionConfig(request.config));
+        break;
+      case 'backupCookiesForDomain':
+        // 备份当前域名的 Cookie 到 storage，用于"更换账号"场景
+        if (request.domain) {
+          const cookies = await chrome.cookies.getAll({ domain: request.domain });
+          await setStorage('backup_cookies_' + request.domain, { cookies, time: Date.now() });
+          sendResponse({ success: true, count: cookies.length });
+        } else {
+          sendResponse({ success: false, error: 'no domain' });
+        }
+        break;
 
       // ---- 同步配置 ----
       case 'getSyncConfig': sendResponse(await getSyncConfig()); break;
