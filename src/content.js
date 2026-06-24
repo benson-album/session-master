@@ -462,38 +462,37 @@
     if (logoutProtectionEnabled) {
       var sdkScript = document.createElement('script');
       sdkScript.id = '__sm_logout_sdk_hook';
-      // 生成 SDK 拦截脚本内容
+      // 生成 SDK 拦截脚本内容（主 world 中执行）
+      // 注意：原始函数保存在父对象上（而非 window），以保留 this 上下文
       var hookCode = LOGOUT_SDK_FUNCTIONS.map(function(sdk) {
-        // 构造深层属性路径：txv.login.logout / Ke.logout
-        var pathParts = [sdk.obj];
-        if (sdk.key) pathParts.push(sdk.key);
-        pathParts.push(sdk.method);
-        var path = pathParts.join('.');
         var parentPath = sdk.key ? sdk.obj + '.' + sdk.key : sdk.obj;
+        var fullPath = parentPath + '.' + sdk.method;
 
         return '(function(){try{' +
-          // 定义拦截函数，把选择结果通过 postMessage 传回 content script
-          'window.__sm_orig_' + sdk.obj + '_' + sdk.method + '=' + path + ';' +
-          path + '=function(){' +
-            'console.log("[SessionMaster] 退出拦截:",' + JSON.stringify(sdk.name) + ');' +
-            'window.postMessage({sm_logout_trigger:true,' +
-              'name:' + JSON.stringify(sdk.name) + ',' +
-              'obj:' + JSON.stringify(sdk.obj) + ',' +
-              'method:' + JSON.stringify(sdk.method) +
-            '},"*");' +
-          '};' +
-        '}catch(e){console.log("[SessionMaster] SDK hook fail:",e.message)}})();';
+          'var _fn=' + fullPath + ';' +
+          'if(typeof _fn==="function"){' +
+            parentPath + '.__sm_orig=' + parentPath + '.__sm_orig||{};' +
+            parentPath + '.__sm_orig.' + sdk.method + '=_fn;' +
+            fullPath + '=function(){' +
+              'window.postMessage({sm_logout_trigger:true,' +
+                'name:' + JSON.stringify(sdk.name) + ',' +
+                'parentPath:' + JSON.stringify(parentPath) + ',' +
+                'method:' + JSON.stringify(sdk.method) +
+              '},"*");' +
+            '};' +
+          '}' +
+        '}catch(e){}})();';
       }).join('');
 
       sdkScript.textContent = hookCode +
-        // 定时重试（最多 10 秒），SDK 动态加载后在主 world 中覆盖
+        // 定时重试（最多 10 秒），SDK 动态加载后覆盖
         '(function(){var _r=0;var _t=setInterval(function(){' +
-        hookCode.replace(/window\.postMessage/g, '/*postMessage*/') +  // 避免重复 postMessage
+        hookCode +
         ';_r++;if(_r>20)clearInterval(_t);},500)})();';
 
       (document.head || document.documentElement).appendChild(sdkScript);
 
-      // content script 监听 postMessage 消息，收到后显示确认弹窗
+      // content script 监听 postMessage，收到后显示确认弹窗
       window.addEventListener('message', function(event) {
         if (event.data && event.data.sm_logout_trigger === true) {
           console.log('[SessionMaster] 收到退出触发信号:', event.data.name);
@@ -509,15 +508,22 @@
             if (choice === 'switch') {
               chrome.runtime.sendMessage({ action: 'backupCookiesForDomain', domain: getDomain() }).catch(function(){});
             }
-            // force / switch: 调用原始函数完成退出
-            // 通过注入的 script 标签调用原始函数
+            // force / switch: 恢复原始函数并调用（保留 this 上下文）
             var execScript = document.createElement('script');
-            // 根据消息类型决定调用方式
-            if (event.data.method) {
-              // SDK 函数：window.__sm_orig_{obj}_{method}()
-              execScript.textContent = 'window.__sm_orig_' + event.data.obj + '_' + event.data.method + '();';
+            // 构造恢复代码：在父对象上恢复原始函数并调用
+            if (event.data.parentPath) {
+              // SDK 函数：恢复并调用
+              execScript.textContent =
+                '(function(){' +
+                'var p=' + event.data.parentPath + ';' +
+                'var m="' + event.data.method + '";' +
+                'if(p.__sm_orig&&p.__sm_orig[m]){' +
+                  'p[m]=p.__sm_orig[m];' +
+                  'p[m]({showConfirmDialog:false});' +
+                '}' +
+                '})();';
             } else {
-              // 非 SD 函数（如 exitCurrentSystem）：window.{obj}()
+              // 非 SD 函数（如 exitCurrentSystem）
               execScript.textContent = 'window.' + event.data.obj + '();';
             }
             document.body.appendChild(execScript);
