@@ -1,5 +1,28 @@
 [
   {
+    "version": "1.6.2",
+    "date": "2026-06-24",
+    "items": {
+      "🛡️ 拦截改进": [
+        "XHR 响应拦截：新增 [LOGOUT] 前缀检测，解决致远 OA V9.0SP1 的 AJAX 响应投毒式踢人",
+        "竞态条件修复：content.js blockingEnabled 默认 false，改为 async init 先查后台再部署",
+        "DNR 规则不再全局生效：从静态规则集改为动态管理，跟随 masterEnabled 开关联动"
+      ],
+      "🏗️ 架构改进": [
+        "manifest.json 移除 declarative_net_request 静态规则集声明",
+        "background.js 新增 updateBuiltinDNRRules() 函数，按需加载 DNR 规则"
+      ],
+      "📘 文档": [
+        "docs/analysis/ 新增致远 OA 踢人检测深度分析报告",
+        "升级 5 份站点分析报告（优酷/百度网盘/腾讯微云/爱奇艺/B站）至腾讯视频方法论深度",
+        "更新插件功能与站点需求的差距分析报告"
+      ],
+      "🔧 配置": [
+        "blocking_rules_db.json v2→v3，标注 [LOGOUT] XHR 响应前缀模式"
+      ]
+    }
+  },
+  {
     "version": "1.6.1",
     "date": "2026-06-22",
     "items": {
