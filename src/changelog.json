@@ -1,5 +1,15 @@
 [
   {
+    "version": "1.6.9",
+    "date": "2026-06-24",
+    "items": {
+      "🐛 修复": [
+        "href 拦截 try 缺少 catch 导致 interceptKickFunctions 中断，退出保护注入未执行——已补 catch",
+        "DOM 点击拦截改为独立部署在 init() 中，不依赖 interceptKickFunctions 是否完整执行"
+      ]
+    }
+  },
+  {
     "version": "1.6.8",
     "date": "2026-06-24",
     "items": {
