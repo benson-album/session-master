@@ -535,17 +535,29 @@ async function p2pDisconnect(siteDomain) {
 | 原🛡️拦截 Tab | 合并入会话管理 Tab，作为当前站点的一个功能块 |
 | 同步模式切换按钮 | 改为站点内 radio 二选一 |
 
-### 6.3 保留不变（逻辑层）
+### 6.3 保留不变 + 需同步演进（逻辑层）
 
+以下模块从 v1.x 保留，但 v1.6.x 已新增或重构的功能需同步纳入 v2.0：
+
+**保留不变：**
 - Cookie CRUD 逻辑
 - WebRTC P2P 引擎
 - 加密（PBKDF2 + AES-256-GCM）
 - 保活执行逻辑
-- 拦截 content.js
 - 规则库管理
 - 信令服务器
 - 同步服务器 API
 - 主从冲突检测
+
+**v1.6.x 新增 / 重构（v2.0 需同步纳入）：**
+
+| # | 功能 | 引入版本 | 说明 |
+|:-:|:-----|:--------|:------|
+| 1 | **XHR [LOGOUT] 响应拦截** | v1.6.2 | 致远 OA V9.0SP1 的踢人机制是服务端在所有 AJAX 响应开头插入 `[LOGOUT]` 前缀。新增 `onreadystatechange` setter 重写 + `addEventListener('readystatechange')` 包装。现有定时器拦截无法覆盖此模式。 |
+| 2 | **运行时代码指纹检测** | v1.6.3 | `detectOAFingerprint()` 不依赖域名规则库，通过检测页面 JS 特征（`[LOGOUT]`、`getXMLHttpRequestData`、`all-min.js` 等）自动识别致远 OA 等标准化产品。域名匹配 + 代码指纹 双路径并存。 |
+| 3 | **退出保护** | v1.6.4 | 拦截 `method=logout`、`/logout`、`signout`、`exitCurrentSystem()` 等退出请求。三选项确认弹窗：仅断开此设备 / 更换账号 / 完全退出（需密码验证）。所有站点通用，独立于 OA 拦截。 |
+| 4 | **竞态条件修复** | v1.6.2 | `blockingEnabled` 默认值从 `true` 改为 `false`，改为 `async init()` 先查询后台再部署拦截器，消除非 OA 站点在等待期被误拦截的窗口。 |
+| 5 | **DNR 动态管理** | v1.6.2 | manifest.json 移除 `declarative_net_request` 静态规则集，改为 background.js 的 `updateBuiltinDNRRules()` 动态加载/卸载。跟随 `masterEnabled` 开关联动。 |
 
 ---
 
@@ -566,7 +578,20 @@ async function p2pDisconnect(siteDomain) {
 
 | 版本 | 范围 | 优先级 |
 |:----:|------|:------:|
-| v2.0 | 完整的 Tab 重构 + 数据迁移 + 站点选择器 + 锁定规则 | P0 |
+| v2.0 | 完整的 Tab 重构 + 数据迁移 + 站点选择器 + 锁定规则 + 同步 v1.6.x 拦截改进（XHR [LOGOUT] + 代码指纹 + 退出保护） | P0 |
 | v2.1 | 站点选择器新增"从当前页面添加"快捷按钮 | P1 |
 | v2.2 | 全局设置 Tab 中新增同步记录全局视图 | P2 |
 | v2.3 | 同步记录按站点过滤 + 统计分析 | P3 |
+
+### 8.1 v1.x → v2.0 已知需移植的功能清单
+
+以下功能在 v1.6.x 已实现并验证，v2.0  Tab 重构时必须同步移植：
+
+| 功能 | 文件（v1.x） | 移植要求 |
+|:-----|:------------|:---------|
+| XHR [LOGOUT] 拦截 | `content.js` `interceptXhrReadyStateChange()` | 完整移植 |
+| 代码指纹检测 | `content.js` `detectOAFingerprint()` / `OA_FINGERPRINTS` | 完整移植 |
+| 退出保护 | `content.js` `showLogoutConfirmDialog()` / `background.js` `LOGOUT_PROTECTION_KEY` | 完整移植 |
+| DNR 动态管理 | `background.js` `updateBuiltinDNRRules()` | 端口到 v2.0 初始化流程 |
+| 退出保护弹窗 UI | `popup.html` / `popup.js` `logoutProtectionToggle` | 移植到 v2.0 拦截区 |
+| 帮助文档退出保护章节 | `help_content.json` `logout-protection` | 同步保留 |
