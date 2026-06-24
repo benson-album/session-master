@@ -239,3 +239,17 @@ fetch("https://pbaccess.video.qq.com/trpc.vector_layout...", {
 - IndexedDB 读取/写入（更复杂的认证数据）
 - Service Worker Cache 同步
 - 会话状态完整性校验
+
+
+---
+
+## 退出机制
+
+腾讯视频为 Vue 3 SPA，退出通过 SDK 函数调用实现，不走标准 HTTP URL：
+
+| 属性 | 值 |
+|:-----|:----|
+| **退出函数** | `window.txv.login.logout()` （通过 `addLogoutCallback` 注册回调） |
+| **底层协议** | TRPC（`pbaccess.video.qq.com`），XHR URL 不含退出关键词 |
+| **对插件影响** | ⚠️ URL 模式不命中 `method=logout` 等关键词，需要 SDK 函数拦截 |
+| **插件方案** | 运行时重写 `txv.login.logout` 方法，触发退出确认弹窗 |
