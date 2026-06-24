@@ -460,10 +460,12 @@
     // content script 的 isolated world 无法覆盖页面 JS 变量，
     // 必须通过注入 <script> 标签在页面主 world 中执行
     if (logoutProtectionEnabled) {
+      console.log('[SessionMaster] 🚪 部署退出保护：注入脚本');
       var sdkScript = document.createElement('script');
       sdkScript.id = '__sm_logout_sdk_hook';
       // 生成 SDK 拦截脚本内容（主 world 中执行）
       // 注意：原始函数保存在父对象上（而非 window），以保留 this 上下文
+      // 使用 Object.defineProperty 确保 writable:false 的属性也能覆盖
       var hookCode = LOGOUT_SDK_FUNCTIONS.map(function(sdk) {
         var parentPath = sdk.key ? sdk.obj + '.' + sdk.key : sdk.obj;
         var fullPath = parentPath + '.' + sdk.method;
@@ -473,8 +475,7 @@
           'if(typeof _fn==="function"){' +
             parentPath + '.__sm_orig=' + parentPath + '.__sm_orig||{};' +
             parentPath + '.__sm_orig.' + sdk.method + '=_fn;' +
-            fullPath + '=function(){' +
-              // 捕获参数数组，通过 postMessage 传给 content script
+            'Object.defineProperty(' + parentPath + ',"' + sdk.method + '",{enumerable:true,configurable:true,writable:true,value:function(){' +
               'var _a=Array.prototype.slice.call(arguments);' +
               'window.postMessage({sm_logout_trigger:true,' +
                 'name:' + JSON.stringify(sdk.name) + ',' +
@@ -482,9 +483,10 @@
                 'method:' + JSON.stringify(sdk.method) + ',' +
                 'args:_a' +
               '},"*");' +
-            '};' +
+            '}});' +
+            'console.log("[SessionMaster] SDK 退出拦截已部署:",' + JSON.stringify(sdk.name) + ');' +
           '}' +
-        '}catch(e){}})();';
+        '}catch(e){console.log("[SessionMaster] SDK hook error:",e.message)}})();';
       }).join('');
 
       sdkScript.textContent = hookCode +
@@ -493,6 +495,36 @@
         ';_r++;if(_r>20)clearInterval(_t);},500)})();';
 
       (document.head || document.documentElement).appendChild(sdkScript);
+      
+      // ========== 兜底：DOM 点击拦截 ==========
+      // 直接拦截页面上的"退出账号"按钮点击，不依赖 SDK 函数名
+      document.addEventListener('click', function(e) {
+        var target = e.target;
+        while (target && target !== document) {
+          if (target.textContent && target.textContent.trim() === '退出账号') {
+            console.log('[SessionMaster] 🚪 DOM 点击拦截: 退出账号');
+            e.preventDefault();
+            e.stopPropagation();
+            showLogoutConfirmDialog(function(choice) {
+              if (choice === 'cancel') return;
+              if (choice === 'disconnect') {
+                document.cookie.split(';').forEach(function(c) {
+                  document.cookie = c.replace(/^ +/, '').replace(/=.*/, '=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/');
+                });
+                window.location.reload();
+                return;
+              }
+              if (choice === 'switch') {
+                chrome.runtime.sendMessage({ action: 'backupCookiesForDomain', domain: getDomain() }).catch(function(){});
+              }
+              // force: 放行点击（移除拦截器后重新触发点击）
+              // 通过注入 script 恢复原始 SDK 函数的调用
+            });
+            return;
+          }
+          target = target.parentElement;
+        }
+      }, true);  // capture phase 确保在其他 handler 之前执行
 
       window.addEventListener('message', function(event) {
         if (event.data && event.data.sm_logout_trigger === true) {
