@@ -226,7 +226,7 @@ fetch("https://pbaccess.video.qq.com/trpc.vector_layout...", {
 
 ---
 
-## 六、未来改进建议
+## 七、未来改进建议
 
 ### Phase 3（推荐）
 
@@ -241,15 +241,54 @@ fetch("https://pbaccess.video.qq.com/trpc.vector_layout...", {
 - 会话状态完整性校验
 
 
----
+## 六、退出机制分析
 
-## 退出机制
+### 6.1 退出链路
 
-腾讯视频为 Vue 3 SPA，退出通过 SDK 函数调用实现，不走标准 HTTP URL：
+腾讯视频为 Vue 3 SPA，退出操作不通过标准 HTTP URL 跳转，而是通过前端 SDK 函数调用触发：
+
+```
+用户点击「退出登录」
+  │
+  ├─→ txv.login SDK 调用（nav-login-panel-sdk.js）
+  │    └─→ txv.login.logout()
+  │         ├─→ addLogoutCallback 注册的回调依次执行
+  │         │    ① 清除前端状态（Vuex store、localStorage ams_cookies）
+  │         │    ② 调用 TRPC 接口通知服务端销毁 Session
+  │         └─→ 页面跳转到登录页
+  │
+  ├─→ TRPC 请求（pbaccess.video.qq.com）
+  │    ├─→ URL: /trpc.vector_layout.xxx
+  │    ├─→ 方法: POST
+  │    └─→ 请求体: 携带 uin + 登出标记
+  │
+  └─→ Cookie 清除（前端）
+       ├─→ 删除 uin、skey 等 HttpOnly Cookie
+       └─→ 清除 localStorage 中的 qimei、ams_cookies 等
+```
+
+### 6.2 SDK 函数签名
 
 | 属性 | 值 |
 |:-----|:----|
-| **退出函数** | `window.txv.login.logout()` （通过 `addLogoutCallback` 注册回调） |
-| **底层协议** | TRPC（`pbaccess.video.qq.com`），XHR URL 不含退出关键词 |
-| **对插件影响** | ⚠️ URL 模式不命中 `method=logout` 等关键词，需要 SDK 函数拦截 |
-| **插件方案** | 运行时重写 `txv.login.logout` 方法，触发退出确认弹窗 |
+| **SDK 文件** | `nav-login-panel-sdk.js`（`vfiles.gtimg.cn/tvideo/nav-login-panel/dist/sdk/`） |
+| **退出函数** | `window.txv.login.logout()`（无参数） |
+| **回调注册** | `window.txv.login.addLogoutCallback(fn)` |
+| **登录状态检查** | `window.txv.login.isLogin()` |
+| **底层协议** | TRPC over HTTP/2（`pbaccess.video.qq.com`） |
+| **XHR URL 特征** | `POST /trpc.vector_layout.xxx` — **不含** `logout`/`signout` 等关键词 |
+
+### 6.3 对插件退出保护的影响
+
+| 维度 | 评估 |
+|:-----|:------|
+| URL 模式拦截 | ❌ **不命中**。TRPC URL 不包含 `logout`、`method=logout` 等关键词 |
+| SDK 函数拦截 | ✅ **已覆盖**。运行时重写 `txv.login.logout`，调用时弹退出确认窗 |
+| 弹窗选择后 | 断开→本地清 Cookie+刷新；换账号→备份后放行；完全退出→放行原始 SDK 调用 |
+
+### 6.4 边界情况
+
+| 场景 | 表现 |
+|:-----|:------|
+| SDK 延迟加载 | `txv.login.logout` 可能在页面加载完成后才可用。拦截器在 `interceptKickFunctions()` 部署时检查并重写 |
+| 多 Tab 登录 | 退出仅影响当前 Tab，其他 Tab 需各自退出或等 Session 过期 |
