@@ -1,5 +1,16 @@
 [
   {
+    "version": "1.6.6",
+    "date": "2026-06-24",
+    "items": {
+      "🐛 修复": [
+        "退出保护 SDK 拦截因 isolated world 隔离不生效：content script 无法覆盖页面主 world 的 JS 函数，改为注入 <script> 标签到页面 DOM 实现",
+        "exitCurrentSystem 拦截同有 isolated world 问题：typeof window.exitCurrentSystem 在隔离世界中始终为 undefined，代码从未执行过，改为 <script> 注入",
+        "修复后生效站点：腾讯视频 (txv.login.logout)、B站 (Ke.logout)、致远OA (exitCurrentSystem)"
+      ]
+    }
+  },
+  {
     "version": "1.6.5",
     "date": "2026-06-24",
     "items": {
