@@ -1,5 +1,15 @@
 # Changelog
 
+## v1.6.2 (2026-06-24)
+- 🛡️ **XHR 响应拦截（[LOGOUT] 前缀检测）**：解决致远 OA V9.0SP1 等使用 AJAX 响应投毒方式踢入的 OA 系统
+- 🛡️ **竞态条件修复**：content.js blockingEnabled 默认 false，先查后台再部署，消除误拦截窗口
+- 🛡️ **DNR 规则动态管理**：从静态规则集改为跟随 masterEnabled 开关联动
+- 🏗️ **manifest.json 移除 declarative_net_request 静态规则集声明**
+- 🏗️ **background.js 新增 updateBuiltinDNRRules()**
+- 🔧 **blocking_rules_db.json v2→v3**，标注 [LOGOUT] XHR 响应前缀模式
+- 📘 **新增 致远OA 踢人检测深度分析报告**
+- 📘 **升级 5 份站点分析报告至腾讯视频方法论深度**
+
 ## v1.6.1 (2026-06-22)
 - 💄 **localStorage 管理面板 UI 修复**：长值溢出截断（text-overflow: ellipsis），管理按钮支持展开/收起切换，关闭面板自动重置
 - 📋 **预设列表完整展示**：所有本地存储 Key 和 Cookie 前缀不再被截断隐藏
