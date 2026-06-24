@@ -27,9 +27,7 @@
           function(response) {
             const enabled = response && response.enabled === true;
             if (enabled) {
-              console.log('[SessionMaster] 🛡️ 拦截已激活 -', domain);
-            } else {
-              console.log('[SessionMaster] 🛡️ 当前站点未匹配拦截规则，拦截已暂停');
+              console.log('[SessionMaster] 🛡️ 拦截已激活（域名匹配） -', domain);
             }
             resolve(enabled);
           }
@@ -39,6 +37,48 @@
         resolve(false);
       }
     });
+  }
+
+  // ========== 运行时代码指纹检测 ==========
+  // 不依赖域名规则库，通过检测页面 JS 特征自动识别 OA 产品版本
+  // 适用于致远 OA 等标准化产品——同一版本在成千上万客户实例上使用相同代码
+
+  const OA_FINGERPRINTS = [
+    // 致远 OA V9 (Seeyon): [LOGOUT] 响应前缀 + getXMLHttpRequestData 函数
+    { id: 'seeyon_v9', name: '致远OA V9',
+      scripts: ['all-min.js', 'getAjaxDataServlet', 'ajaxShortCutManager'],
+      html: ['[LOGOUT]', 'getXMLHttpRequestData', 'exitCurrentSystem'] },
+    // 可扩展其他 OA 产品指纹...
+  ];
+
+  function detectOAFingerprint() {
+    const pageHtml = document.documentElement.innerHTML.toLowerCase();
+    const pageUrl = window.location.href.toLowerCase();
+    const scripts = document.querySelectorAll('script[src]');
+    const scriptUrls = Array.from(scripts).map(s => (s.src || '').toLowerCase());
+
+    for (const oa of OA_FINGERPRINTS) {
+      // 检查 script URL 特征（如 all-min.js 是致远 OA 唯一的 JS 入口）
+      let scriptsMatch = 0;
+      for (const pat of oa.scripts) {
+        if (scriptUrls.some(u => u.includes(pat))) scriptsMatch++;
+        // 也检查页面 URL 中是否含该模式（如 ajax.do 是 URL 参数而非 script src）
+        else if (pageUrl.includes(pat)) scriptsMatch++;
+      }
+      // 检查 HTML 特征
+      let htmlMatch = 0;
+      for (const pat of oa.html) {
+        if (pageHtml.includes(pat.toLowerCase())) htmlMatch++;
+      }
+      // 命中半数以上的特征即视为匹配
+      const totalChecks = oa.scripts.length + oa.html.length;
+      const hits = scriptsMatch + htmlMatch;
+      if (hits >= Math.ceil(totalChecks / 2)) {
+        console.log(`[SessionMaster] 🔍 代码指纹匹配: ${oa.name} (${hits}/${totalChecks})`);
+        return oa.id;
+      }
+    }
+    return null;
   }
   
   // ========== 拦截前端踢人脚本 ==========
@@ -248,8 +288,15 @@
     if (blockingEnabled) {
       interceptKickFunctions();
     } else {
-      // 即使不拦截，也暴露状态标记以便 background 查询
-      console.log('[SessionMaster] ✅ 内容脚本已加载（拦截未激活）');
+      // 域名未匹配 → 尝试运行时代码指纹检测（覆盖致远 OA 等标准化产品）
+      const fp = detectOAFingerprint();
+      if (fp) {
+        blockingEnabled = true;
+        console.log('[SessionMaster] 🛡️ 代码指纹匹配成功，拦截已激活 -', getDomain());
+        interceptKickFunctions();
+      } else {
+        console.log('[SessionMaster] ✅ 内容脚本已加载（拦截未激活）');
+      }
     }
     window.__sessionMasterActive = true;
   }
