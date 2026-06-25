@@ -263,13 +263,24 @@ fetch("https://pbaccess.video.qq.com/trpc.vector_layout...", {
 | **底层协议** | TRPC over HTTP/2（`pbaccess.video.qq.com`） |
 | **XHR URL 特征** | `POST /trpc.vector_layout.xxx` — **不含** `logout`/`signout` 等关键词 |
 
-### 6.3 对插件退出保护的影响
+### 6.3 对插件退出保护的影响 — 四层拦截覆盖分析
 
-| 维度 | 评估 |
+| 拦截层 | 机制 | 评估 | 状态 |
+|:-------|:-----|:-----|:----:|
+| Layer 1 DOM 点击 | 捕获阶段拦截含"退出"文字的按钮 | ✅ 按钮文字"退出登录"匹配模糊规则 | ✅ v1.6.9+ |
+| Layer 2 SDK 注入 | 注入 `<script>` 重写 `txv.login.logout` | ✅ **已覆盖**（LOGOUT_SDK_FUNCTIONS） | ✅ |
+| Layer 3 XHR URL 模式 | XMLHttpRequest.send 拦截 | ❌ **不命中**。TRPC URL 不含 logout/method=logout 等关键词 | 架构限制 |
+| Layer 4 href 跳转 | Object.defineProperty(location.href) | ⚠️ 腾讯视频不使用 href 跳转退出，为兜底层 | — |
+
+**结论**：腾讯视频的退出完全通过 SDK `txv.login.logout()` 函数调用触发，XHR URL 不包含退出关键词。SDK 注入拦截（Layer 2）是唯一有效拦截层，已在 LOGOUT_SDK_FUNCTIONS 中覆盖。
+
+#### 弹窗选择后行为
+
+| 选项 | 行为 |
 |:-----|:------|
-| URL 模式拦截 | ❌ **不命中**。TRPC URL 不包含 `logout`、`method=logout` 等关键词 |
-| SDK 函数拦截 | ✅ **已覆盖**。运行时重写 `txv.login.logout`，调用时弹退出确认窗 |
-| 弹窗选择后 | 断开→本地清 Cookie+刷新；换账号→备份后放行；完全退出→放行原始 SDK 调用 |
+| 断开连接 | 本地清 Cookie + 页面刷新 |
+| 更换账号 | backupCookiesForDomain 备份 Cookie 后放行 |
+| 完全退出 | 恢复原始 SDK 函数并调用（`_smForceExit` 防循环） |
 
 ### 6.4 边界情况
 
@@ -345,13 +356,24 @@ fetch("https://pbaccess.video.qq.com/trpc.vector_layout...", {
 | **底层协议** | TRPC over HTTP/2（`pbaccess.video.qq.com`） |
 | **XHR URL 特征** | `POST /trpc.vector_layout.xxx` — **不含** `logout`/`signout` 等关键词 |
 
-### 6.3 对插件退出保护的影响
+### 6.3 对插件退出保护的影响 — 四层拦截覆盖分析
 
-| 维度 | 评估 |
+| 拦截层 | 机制 | 评估 | 状态 |
+|:-------|:-----|:-----|:----:|
+| Layer 1 DOM 点击 | 捕获阶段拦截含"退出"文字的按钮 | ✅ 按钮文字"退出登录"匹配模糊规则 | ✅ v1.6.9+ |
+| Layer 2 SDK 注入 | 注入 `<script>` 重写 `txv.login.logout` | ✅ **已覆盖**（LOGOUT_SDK_FUNCTIONS） | ✅ |
+| Layer 3 XHR URL 模式 | XMLHttpRequest.send 拦截 | ❌ **不命中**。TRPC URL 不含 logout/method=logout 等关键词 | 架构限制 |
+| Layer 4 href 跳转 | Object.defineProperty(location.href) | ⚠️ 腾讯视频不使用 href 跳转退出，为兜底层 | — |
+
+**结论**：腾讯视频的退出完全通过 SDK `txv.login.logout()` 函数调用触发，XHR URL 不包含退出关键词。SDK 注入拦截（Layer 2）是唯一有效拦截层，已在 LOGOUT_SDK_FUNCTIONS 中覆盖。
+
+#### 弹窗选择后行为
+
+| 选项 | 行为 |
 |:-----|:------|
-| URL 模式拦截 | ❌ **不命中**。TRPC URL 不包含 `logout`、`method=logout` 等关键词 |
-| SDK 函数拦截 | ✅ **已覆盖**。运行时重写 `txv.login.logout`，调用时弹退出确认窗 |
-| 弹窗选择后 | 断开→本地清 Cookie+刷新；换账号→备份后放行；完全退出→放行原始 SDK 调用 |
+| 断开连接 | 本地清 Cookie + 页面刷新 |
+| 更换账号 | backupCookiesForDomain 备份 Cookie 后放行 |
+| 完全退出 | 恢复原始 SDK 函数并调用（`_smForceExit` 防循环） |
 
 ### 6.4 边界情况
 
