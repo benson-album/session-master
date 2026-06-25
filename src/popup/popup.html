@@ -35,7 +35,10 @@
     <!-- 当前站点 -->
     <div class="section">
       <div class="section-title"><span>📍 当前站点</span></div>
-      <div id="currentDomain" class="domain-display">加载中...</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+        <div id="currentDomain" class="domain-display" style="flex:1;min-width:0">加载中...</div>
+        <span id="loginStatus" class="login-status" style="display:none;flex-shrink:0"></span>
+      </div>
       <div id="blankPageBanner" class="blank-banner" style="display:none">
         <div class="blank-banner-icon">📄</div>
         <div class="blank-banner-text">

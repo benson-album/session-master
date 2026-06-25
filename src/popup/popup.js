@@ -2125,6 +2125,37 @@
     }
   }
 
+  // 查询当前站点登录状态
+  async function checkLoginStatus(domain) {
+    var el = document.getElementById('loginStatus');
+    if (!domain || !el) return;
+    el.style.display = 'inline';
+    el.textContent = '...';
+    el.className = 'login-status';
+    try {
+      var result = await chrome.runtime.sendMessage({ action: 'checkLoginStatus', domain: domain });
+      if (!result || !result.status) throw new Error('no result');
+      switch (result.status) {
+        case 'logged_in':
+          el.textContent = '✓ 已登录';
+          el.className = 'login-status logged-in';
+          break;
+        case 'logged_out':
+          el.textContent = '✗ 未登录';
+          el.className = 'login-status logged-out';
+          break;
+        case 'maybe':
+          el.textContent = '? ' + (result.count || '') + ' 个 Cookie';
+          el.className = 'login-status maybe';
+          break;
+        default:
+          el.style.display = 'none';
+      }
+    } catch (e) {
+      el.style.display = 'none';
+    }
+  }
+
   // 锁定/解锁站点相关操作（含 P2P、服务器同步、网络地址保持可用）
   function setDomainDependentState(hasDomain, tabInfo) {
     var isBlank = isBlankTab(tabInfo);
@@ -2136,6 +2167,9 @@
       // 空白标签页：显示引导横幅
       if (banner) banner.style.display = 'flex';
       if (hintEl) hintEl.style.display = 'none';
+      // 隐藏登录状态指示器
+      var ls = document.getElementById('loginStatus');
+      if (ls) ls.style.display = 'none';
       if (domainEl) {
         var tabUrl = (tabInfo && tabInfo.url) || '';
         if (!tabUrl || tabUrl === 'about:blank') {
@@ -2284,6 +2318,8 @@
       displayEl.title = siteName + ' (' + currentDomain + ')';
       displayEl.className = 'domain-display domain-display-ellipsis';
       displayEl.style.color = '#1a73e8';
+      // 异步查询登录状态
+      checkLoginStatus(currentDomain);
     }
 
     // ===== 版本号：动态显示 + 点击跳转到更新日志 =====

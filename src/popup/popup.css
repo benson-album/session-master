@@ -73,6 +73,28 @@ html, body {
   text-overflow: ellipsis;
 }
 
+/* 登录状态指示器 */
+.login-status {
+  font-size: 11px;
+  font-weight: 500;
+  white-space: nowrap;
+  padding: 2px 8px;
+  border-radius: 10px;
+  line-height: 1.4;
+}
+.login-status.logged-in {
+  background: #e6f4ea;
+  color: #137333;
+}
+.login-status.logged-out {
+  background: #fce8e6;
+  color: #c5221f;
+}
+.login-status.maybe {
+  background: #fef7e0;
+  color: #e37400;
+}
+
 /* Tab 切换 */
 .tabs {
   display: flex;

@@ -1659,6 +1659,49 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       case 'clearCookies': sendResponse(await clearCookies(request.domain)); break;
       case 'getDomainFromUrl': try { sendResponse({ domain: new URL(request.url).hostname }); } catch { sendResponse({ domain: '' }); } break;
 
+      // ---- 登录状态检测 ----
+      case 'checkLoginStatus':
+        if (!request.domain) { sendResponse({ status: 'unknown' }); break; }
+        try {
+          const rawCookies = await chrome.cookies.getAll({ domain: request.domain });
+          // 父级域搜索：逐级向上
+          const allDomains = [request.domain];
+          const parts = request.domain.split('.');
+          if (parts.length >= 3) {
+            for (let i = 1; i < parts.length - 1; i++) {
+              allDomains.push('.' + parts.slice(i).join('.'));
+            }
+          }
+          const allCookies = [];
+          const seen = new Set();
+          for (const d of allDomains) {
+            try {
+              const cs = await chrome.cookies.getAll({ domain: d });
+              for (const c of cs) {
+                const key = c.name + ':' + c.domain + ':' + c.path;
+                if (!seen.has(key)) { seen.add(key); allCookies.push(c); }
+              }
+            } catch(e) {}
+          }
+          if (allCookies.length === 0) {
+            sendResponse({ status: 'logged_out', count: 0 });
+          } else {
+            const httpOnlyCount = allCookies.filter(c => c.httpOnly).length;
+            const sessionNames = ['session', 'sid', 'token', 'auth', 'login', 'sess', 'jse', 'sid_'];
+            const hasSessionCookie = allCookies.some(c =>
+              sessionNames.some(s => c.name.toLowerCase().includes(s))
+            );
+            if (httpOnlyCount > 0 || hasSessionCookie) {
+              sendResponse({ status: 'logged_in', count: allCookies.length, httpOnly: httpOnlyCount });
+            } else {
+              sendResponse({ status: 'maybe', count: allCookies.length });
+            }
+          }
+        } catch (e) {
+          sendResponse({ status: 'error', error: e.message });
+        }
+        break;
+
       // ---- localStorage 同步（腾讯视频等双存储站点） ----
       case 'readLocalStorage':
         try {
