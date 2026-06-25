@@ -98,7 +98,11 @@ PRD → 可行性分析 → 测试文档 → 开发计划 → 实施 → 自检 
 9. 元素类型一致性（更新日志区统一使用 `<div>` 结构）
 10. README 同步：版本号 / 新增文件清单 / 功能说明 / storage_presets 状态表
 11. ZIP 目录结构验证：解压后为 `session-master-v{ver}/` 目录
-12. 帮助内容同步（`help_content.json` 与 HTML 标签结构对应）
+12. 帮助内容同步：
+    - `help_content.json` 的 `sectionIds` 数组顺序与实际章节顺序一致
+    - `help.html` 的 `<nav id="sidebarNav">` 中每个章节都有对应 `<a>` 链接且编号正确
+    - 新增功能需同步更新 intro 章节的核心功能表
+    - 侧边栏链接锚点与章节 `id` 一致
 13. 禁用词扫描：无 IP、域名、密码、路径等隐私泄漏
 
 ---
