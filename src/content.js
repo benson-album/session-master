@@ -93,13 +93,17 @@
     'action=logout',
     'login/logout',
     '/sso/logout',
-    'accounts/logout'
+    'accounts/logout',
+    'youkuLogout.do',
+    'forceLogin=true'
   ];
 
   // SDK 退出函数列表 - 这些函数存在时，拦截其调用
+  // type: 'method' = {obj, key?, method} 链式调用; 'function' = {fn} 直接函数
   const LOGOUT_SDK_FUNCTIONS = [
     { obj: 'txv', key: 'login', method: 'logout', name: '腾讯视频' },
-    { obj: 'Ke', method: 'logout', name: 'B站' }
+    { obj: 'Ke', method: 'logout', name: 'B站' },
+    { fn: 'YKLoginLoader', name: '优酷（YKLoginLoader）', logoutArg: true }
   ];
 
   // 异步查询退出保护状态
@@ -468,6 +472,30 @@
       // 注意：原始函数保存在父对象上（而非 window），以保留 this 上下文
       // 使用 Object.defineProperty 确保 writable:false 的属性也能覆盖
       var hookCode = LOGOUT_SDK_FUNCTIONS.map(function(sdk) {
+        if (sdk.fn) {
+          // 独立函数类型（如 YKLoginLoader）：拦截函数调用，检查参数中的退出标志
+          var fnName = sdk.fn;
+          return '(function(){try{' +
+            'var _orig=' + fnName + ';' +
+            'if(typeof _orig==="function"){' +
+              'window.__sm_orig_YK = _orig;' +
+              'window.' + fnName + '=function(){' +
+                'var _a=Array.prototype.slice.call(arguments);' +
+                'var _opts=_a[0];' +
+                'if(_opts&&_opts.loginOrLogout==="logout"){' +
+                  'window.postMessage({sm_logout_trigger:true,' +
+                    'name:' + JSON.stringify(sdk.name) + ',' +
+                    'fnType:"YKLoginLoader",args:_a' +
+                  '},"*");' +
+                  'return;' +
+                '}' +
+                'return _orig.apply(this,_a);' +
+              '};' +
+              'console.log("[SessionMaster] SDK 退出拦截已部署:",' + JSON.stringify(sdk.name) + ');' +
+            '}' +
+          '}catch(e){console.log("[SessionMaster] SDK hook error:",e.message)}})();';
+        }
+        // 链式方法类型（txv.login.logout / Ke.logout）
         var parentPath = sdk.key ? sdk.obj + '.' + sdk.key : sdk.obj;
         var fullPath = parentPath + '.' + sdk.method;
 
@@ -505,7 +533,16 @@
           if (_smForceExit) {
             _smForceExit = false;
             var forceScript = document.createElement('script');
-            if (event.data.parentPath) {
+            if (event.data.fnType === 'YKLoginLoader') {
+              var ykArgs = JSON.stringify(event.data.args || []);
+              forceScript.textContent =
+                '(function(){' +
+                'var _fn=window.__sm_orig_YK;' +
+                'if(typeof _fn==="function"){' +
+                  '_fn.apply(window,' + ykArgs + ');' +
+                '}' +
+                '})();';
+            } else if (event.data.parentPath) {
               var forceArgs = JSON.stringify(event.data.args || []);
               forceScript.textContent =
                 '(function(){' +
@@ -538,7 +575,16 @@
             }
             // force / switch: 恢复原始函数并调用（保留 this + 原始参数）
             var execScript = document.createElement('script');
-            if (event.data.parentPath) {
+            if (event.data.fnType === 'YKLoginLoader') {
+              var ykRestoreArgs = JSON.stringify(event.data.args || []);
+              execScript.textContent =
+                '(function(){' +
+                'var _fn=window.__sm_orig_YK;' +
+                'if(typeof _fn==="function"){' +
+                  '_fn.apply(window,' + ykRestoreArgs + ');' +
+                '}' +
+                '})();';
+            } else if (event.data.parentPath) {
               // 构造：恢复原始函数，传入拦截时捕获的原始参数
               var argsJson = JSON.stringify(event.data.args || []);
               execScript.textContent =
@@ -641,35 +687,37 @@
         if (_skipLogoutClick) { _skipLogoutClick = false; return; }
         var t = e.target;
         while (t && t !== document) {
-          if (t.textContent && t.textContent.trim() === '退出账号') {
-            console.log('[SessionMaster] DOM click intercept');
-            e.preventDefault();
-            e.stopPropagation();
-            showLogoutConfirmDialog(function(choice) {
-              if (choice === 'cancel') return;
-              if (choice === 'disconnect') {
-                document.cookie.split(';').forEach(function(x) {
-                  document.cookie = x.replace(/^ +/, '').replace(/=.*/, '=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/');
-                });
-                window.location.reload();
-                return;
-              }
-              if (choice === 'switch') {
-                chrome.runtime.sendMessage({ action: 'backupCookiesForDomain', domain: getDomain() }).catch(function(){});
-              }
-              // force: 放行点击——设置全局 force 标志 + 跳过同层拦截，重新触发点击
-              if (choice === 'force') {
-                var origTarget = e.target;
-                _smForceExit = true;
-                _skipLogoutClick = true;
-                if (document.body.contains(origTarget)) {
-                  origTarget.click();
+          if (t.textContent) {
+            var txt = t.textContent.trim();
+            // 匹配含"退出"的按钮文字（覆盖"退出账号""退出登录""退出系统"等）
+            if (txt.length >= 4 && txt.length <= 12 && txt.includes('退出')) {
+              console.log('[SessionMaster] DOM click intercept:', txt);
+              e.preventDefault();
+              e.stopPropagation();
+              showLogoutConfirmDialog(function(choice) {
+                if (choice === 'cancel') return;
+                if (choice === 'disconnect') {
+                  document.cookie.split(';').forEach(function(x) {
+                    document.cookie = x.replace(/^ +/, '').replace(/=.*/, '=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/');
+                  });
+                  window.location.reload();
+                  return;
                 }
-                // 防泄漏：1 秒后未消费的标志位自动清除
-                setTimeout(function() { _smForceExit = false; }, 1000);
-              }
-            });
-            return;
+                if (choice === 'switch') {
+                  chrome.runtime.sendMessage({ action: 'backupCookiesForDomain', domain: getDomain() }).catch(function(){});
+                }
+                if (choice === 'force') {
+                  var origTarget = e.target;
+                  _smForceExit = true;
+                  _skipLogoutClick = true;
+                  if (document.body.contains(origTarget)) {
+                    origTarget.click();
+                  }
+                  setTimeout(function() { _smForceExit = false; }, 1000);
+                }
+              });
+              return;
+            }
           }
           t = t.parentElement;
         }
