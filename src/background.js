@@ -768,7 +768,7 @@ let currentP2PPeerId = '';
 
 async function getSignalUrl() {
   const config = await getSyncConfig();
-  return config.signalUrl || DEFAULT_SYNC_CONFIG.signalUrl;
+  return config.signalUrl || SYNC_DEFAULTS.signalUrl;
 }
 
 function generateP2PPeerId() {
@@ -1666,7 +1666,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           if (tabs.length === 0) { sendResponse({ success: false, message: '未找到活动标签页' }); break; }
           chrome.tabs.sendMessage(tabs[0].id, { action: 'readLocalStorage', keys: request.keys }, (resp) => {
             sendResponse(resp || { success: false, message: 'content script 未响应' });
-          });
+          }).catch(() => sendResponse({ success: false, message: 'content script 未响应' }));
         } catch (e) {
           sendResponse({ success: false, message: e.message });
         }
@@ -1677,7 +1677,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           if (tabs2.length === 0) { sendResponse({ success: false, message: '未找到活动标签页' }); break; }
           chrome.tabs.sendMessage(tabs2[0].id, { action: 'writeLocalStorage', data: request.data }, (resp) => {
             sendResponse(resp || { success: false, message: 'content script 未响应' });
-          });
+          }).catch(() => sendResponse({ success: false, message: 'content script 未响应' }));
         } catch (e) {
           sendResponse({ success: false, message: e.message });
         }
@@ -1710,8 +1710,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       case 'backupCookiesForDomain':
         // 备份当前域名的 Cookie 到 storage，用于"更换账号"场景
         if (request.domain) {
-          const cookies = await chrome.cookies.getAll({ domain: request.domain });
-          await setStorage('backup_cookies_' + request.domain, { cookies, time: Date.now() });
+          // 去端口、去前导点，chrome.cookies.getAll 期望纯域名
+          const cleanDomain = request.domain.replace(/^\\./, '').toLowerCase().split(':')[0];
+          const cookies = await chrome.cookies.getAll({ domain: cleanDomain });
+          await setStorage('backup_cookies_' + cleanDomain, { cookies, time: Date.now() });
           sendResponse({ success: true, count: cookies.length });
         } else {
           sendResponse({ success: false, error: 'no domain' });

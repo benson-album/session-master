@@ -11,6 +11,7 @@
   // 默认关闭（先查询后台再按需开启），避免阻塞非 OA 站点的正常事件监听
   let blockingEnabled = false;
   let logoutProtectionEnabled = false;
+  let _smForceExit = false;  // 全局退出保护 force 标志，防止多层拦截循环
   
   // 获取当前站点域名
   function getDomain() {
@@ -389,8 +390,12 @@
       interceptXhrAddEventListener(this);
       
       if (this._isLogoutRequest && logoutProtectionEnabled) {
-        console.log('[SessionMaster] 🚪 退出请求已被拦截，等待用户确认');
         this._isLogoutRequest = false;
+        
+        // force 退出执行中：跳过弹窗，直接放行
+        if (_smForceExit) { _smForceExit = false; return origSend.apply(this, args); }
+        
+        console.log('[SessionMaster] 🚪 退出请求已被拦截，等待用户确认');
         
         const xhr = this;
         showLogoutConfirmDialog(function(choice) {
@@ -425,6 +430,8 @@
           set: function(newVal) {
             if (_settingHref || typeof newVal !== 'string') { _href = newVal; return; }
             if (isLogoutUrl(newVal)) {
+              // force 退出执行中：跳过弹窗，直接放行跳转
+              if (_smForceExit) { _smForceExit = false; _href = newVal; return; }
               console.log('[SessionMaster] 🚪 拦截页面跳转退出:', newVal);
               showLogoutConfirmDialog(function(choice) {
                 if (choice === 'cancel') return;
@@ -490,39 +497,33 @@
 
       (document.head || document.documentElement).appendChild(sdkScript);
       
-      // ========== 兜底：DOM 点击拦截 ==========
-      // 直接拦截页面上的"退出账号"按钮点击，不依赖 SDK 函数名
-      document.addEventListener('click', function(e) {
-        var target = e.target;
-        while (target && target !== document) {
-          if (target.textContent && target.textContent.trim() === '退出账号') {
-            console.log('[SessionMaster] 🚪 DOM 点击拦截: 退出账号');
-            e.preventDefault();
-            e.stopPropagation();
-            showLogoutConfirmDialog(function(choice) {
-              if (choice === 'cancel') return;
-              if (choice === 'disconnect') {
-                document.cookie.split(';').forEach(function(c) {
-                  document.cookie = c.replace(/^ +/, '').replace(/=.*/, '=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/');
-                });
-                window.location.reload();
-                return;
-              }
-              if (choice === 'switch') {
-                chrome.runtime.sendMessage({ action: 'backupCookiesForDomain', domain: getDomain() }).catch(function(){});
-              }
-              // force: 放行点击（移除拦截器后重新触发点击）
-              // 通过注入 script 恢复原始 SDK 函数的调用
-            });
-            return;
-          }
-          target = target.parentElement;
-        }
-      }, true);  // capture phase 确保在其他 handler 之前执行
-
       window.addEventListener('message', function(event) {
         if (event.data && event.data.sm_logout_trigger === true) {
           console.log('[SessionMaster] 收到退出触发信号:', event.data.name);
+          
+          // force 退出执行中：跳过弹窗，直接恢复原始函数并调用
+          if (_smForceExit) {
+            _smForceExit = false;
+            var forceScript = document.createElement('script');
+            if (event.data.parentPath) {
+              var forceArgs = JSON.stringify(event.data.args || []);
+              forceScript.textContent =
+                '(function(){' +
+                'var p=' + event.data.parentPath + ';' +
+                'var m="' + event.data.method + '";' +
+                'if(p.__sm_orig&&p.__sm_orig[m]){' +
+                  'p[m]=p.__sm_orig[m];' +
+                  'p[m].apply(p,' + forceArgs + ');' +
+                '}' +
+                '})();';
+            } else {
+              forceScript.textContent = 'window.' + event.data.obj + '();';
+            }
+            document.body.appendChild(forceScript);
+            forceScript.remove();
+            return;
+          }
+          
           showLogoutConfirmDialog(function(choice) {
             if (choice === 'cancel') return;
             if (choice === 'disconnect') {
@@ -635,7 +636,9 @@
     if (logoutEnabled) {
       console.log('[SessionMaster] 🚪 退出保护已开启');
       // DOM click interceptor (independent of interceptKickFunctions)
+      var _skipLogoutClick = false;
       document.addEventListener('click', function(e) {
+        if (_skipLogoutClick) { _skipLogoutClick = false; return; }
         var t = e.target;
         while (t && t !== document) {
           if (t.textContent && t.textContent.trim() === '退出账号') {
@@ -653,6 +656,17 @@
               }
               if (choice === 'switch') {
                 chrome.runtime.sendMessage({ action: 'backupCookiesForDomain', domain: getDomain() }).catch(function(){});
+              }
+              // force: 放行点击——设置全局 force 标志 + 跳过同层拦截，重新触发点击
+              if (choice === 'force') {
+                var origTarget = e.target;
+                _smForceExit = true;
+                _skipLogoutClick = true;
+                if (document.body.contains(origTarget)) {
+                  origTarget.click();
+                }
+                // 防泄漏：1 秒后未消费的标志位自动清除
+                setTimeout(function() { _smForceExit = false; }, 1000);
               }
             });
             return;

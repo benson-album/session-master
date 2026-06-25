@@ -1012,3 +1012,42 @@ input:required:invalid:not(:placeholder-shown) {
   color: #aaa;
   margin-top: 2px;
 }
+
+/* localStorage 结果显示区 */
+.ls-result {
+  background: #f8f9fa;
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 12px;
+}
+.ls-result .btn-link {
+  color: #1a73e8;
+  font-size: 11px;
+  padding: 1px 6px;
+}
+
+/* localStorage Key 管理面板 */
+.ls-manager {
+  background: #f8f9fa;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  padding: 10px;
+  font-size: 12px;
+}
+.ls-manager .input-row {
+  margin-bottom: 4px;
+}
+
+/* 导入统计结果 */
+.import-stats {
+  background: #e8f5e9;
+  border: 1px solid #c8e6c9;
+  border-radius: 6px;
+  padding: 10px;
+  font-size: 12px;
+}
+.import-stats .import-domain-row {
+  font-size: 11px;
+  color: #555;
+  margin: 2px 0;
+}
