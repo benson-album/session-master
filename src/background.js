@@ -495,21 +495,6 @@ async function exportCookies(domain) {
   return { success: true, message: `已导出 ${cookies.length} 个 Cookie（${domains.length} 个域）`, data };
 }
 
-async function importCookies(cookieData) {
-  const results = { success: 0, failed: 0, errors: [] };
-  for (const c of cookieData.cookies) {
-    try {
-      const details = { url: cookieApiUrl(c.domain, c.secure, c.path), name: c.name, value: c.value, path: c.path || '/', secure: c.secure !== false, httpOnly: c.httpOnly === true, sameSite: c.sameSite || 'lax' };
-      if (c.expirationDate != null) details.expirationDate = c.expirationDate;
-      if (!c.hostOnly) details.domain = c.domain;
-      await chrome.cookies.set(details);
-      results.success++;
-    } catch (e) { results.failed++; results.errors.push(`${c.name}: ${e.message}`); }
-  }
-  logger.info('cookie', '导入 Cookie: 成功 ' + results.success + ' 个, 失败 ' + results.failed + ' 个');
-  return results;
-}
-
 async function clearCookies(domain, skipHeartbeatRemoval = false) {
   const cookies = await getCookies(domain);
   let count = 0;
@@ -1592,7 +1577,6 @@ async function saveBlockerConfig(config) {
   await setStorage(BLOCKER_CONFIG_KEY, merged);
   const changes = [];
   if (config && config.masterEnabled !== undefined) changes.push('主开关=' + config.masterEnabled);
-  if (config && config.mode !== undefined) changes.push('模式=' + config.mode);
   if (changes.length > 0) logger.info('blocker', '拦截配置变更: ' + changes.join(', '));
   // masterEnabled 变化时联动 DNR 动态规则（静默执行，不阻塞保存流程）
   if (config && config.masterEnabled !== undefined) {
