@@ -1,5 +1,37 @@
 # Changelog
 
+## v1.6.9 (2026-06-24)
+- 🐛 **退出保护一直不生效的根因修复**：interceptKickFunctions() 中 Object.defineProperty(location.href) 外层有 try 无 catch，Chrome 内容脚本中修改 location 抛异常后函数崩溃，SDK 注入和 DOM 拦截代码均未执行到
+- 🐛 DOM 点击拦截改为独立部署在 init() 中，与 interceptKickFunctions() 解耦
+- 🐛 代码质量审计修复 6 项（DOM 点击去重、DEFAULT_SYNC_CONFIG 引用修复、force 路径补充、tabs.sendMessage catch、CSS class 补充、backupCookies 端口处理）
+
+## v1.6.8 (2026-06-24)
+- 🐛 退出保护 SDK 拦截改用 Object.defineProperty，兼容 writable:false 的防篡改属性
+- 🐛 新增 DOM 点击拦截兜底：document.addEventListener 在捕获阶段拦截「退出账号」按钮点击，不依赖 SDK 函数名
+
+## v1.6.7 (2026-06-24)
+- 🐛 SDK 退出拦截恢复原始函数时捕获并传入原始参数，适配各 SDK 不同签名（腾讯视频 `{showConfirmDialog}`、B站 `(callback, url)` 等）
+
+## v1.6.6 (2026-06-24)
+- 🐛 退出保护 SDK 拦截因 isolated world 隔离不生效：改为注入 `<script>` 标签到页面 DOM 实现
+- 🐛 exitCurrentSystem 拦截同有 isolated world 问题，改为 `<script>` 注入
+- 🐛 修复后生效站点：腾讯视频 (txv.login.logout)、B站 (Ke.logout)、致远OA (exitCurrentSystem)
+
+## v1.6.5 (2026-06-24)
+- 🚪 **退出保护增强**：新增页面跳转退出拦截（window.location.href 赋值）
+- 🚪 新增 SDK 退出函数拦截：运行时重写 txv.login.logout（腾讯视频）、Ke.logout（B站）
+- 🚪 补充退出模式：passport://logout、action=logout、/sso/logout、accounts/logout、login/logout
+
+## v1.6.4 (2026-06-24)
+- 🚪 **退出保护功能首发**：拦截 XHR 退出请求，三选项确认弹窗
+- 🔍 **运行时代码指纹检测**：detectOAFingerprint() 不依赖域名规则库，自动识别致远 OA V9
+- 🛡️ 双路径拦截激活：域名规则库匹配（快路径）+ 代码指纹检测（兜底）
+
+## v1.6.3 (2026-06-24)
+- 🔍 **运行时代码指纹检测**：新增 detectOAFingerprint()，自动识别致远 OA V9 等标准化产品
+- 🚪 退出保护：退出URL拦截 + exitCurrentSystem函数重写
+- 🖥️ 拦截Tab新增退出保护独立开关
+
 ## v1.6.2 (2026-06-24)
 - 🛡️ **XHR 响应拦截（[LOGOUT] 前缀检测）**：解决致远 OA V9.0SP1 等使用 AJAX 响应投毒方式踢入的 OA 系统
 - 🛡️ **竞态条件修复**：content.js blockingEnabled 默认 false，先查后台再部署，消除误拦截窗口
