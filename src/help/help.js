@@ -178,21 +178,21 @@
   }
 
   function renderChangelog(root, container, btnLoadMore, versions) {
-    var PAGE_SIZE = 20;
+    var PAGE_SIZE = 20;          // 页面最多显示 20 条（含最新）
     var latest = versions[0];
     root.innerHTML = buildChangelogEntry(latest, true);
 
+    // 剩余最多展示 19 条（页面共 20 条 = 1 最新 + 19 旧版）
+    var maxOld = Math.min(PAGE_SIZE - 1, versions.length - 1);
     var oldHtml = '';
-    for (var i = 1; i < versions.length; i++) {
+    for (var i = 1; i <= maxOld; i++) {
       oldHtml += buildChangelogEntry(versions[i], false);
     }
     container.innerHTML = oldHtml;
 
-    var total = versions.length - 1;
-    if (total > 0) {
-      var firstBatch = Math.min(PAGE_SIZE, total);
+    if (maxOld > 0) {
       btnLoadMore.style.display = 'block';
-      btnLoadMore.textContent = '📋 更多版本（' + firstBatch + '）';
+      btnLoadMore.textContent = '📋 更多版本（' + maxOld + '）';
     }
 
     btnLoadMore.addEventListener('click', function() {
@@ -202,8 +202,7 @@
         btnLoadMore.textContent = '📋 收起旧版本';
       } else {
         container.classList.add('collapsed');
-        var firstBatch = Math.min(PAGE_SIZE, total);
-        btnLoadMore.textContent = '📋 更多版本（' + firstBatch + '）';
+        btnLoadMore.textContent = '📋 更多版本（' + maxOld + '）';
       }
     });
 
