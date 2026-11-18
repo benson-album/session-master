@@ -23,7 +23,8 @@
       "domains": [
         "*.seeyon.com",
         "*.seeyon",
-        "*.your-oa.example.com"
+        "*.zumri.cn",
+        "*.zumri"
       ],
       "keywords": [
         "checkSession",
@@ -36,7 +37,7 @@
         "loginCheck",
         "sessionTimeout"
       ],
-      "description": "致远OA V9.0SP1 踢人检测关键词 + XHR响应前缀[LOGOUT]；私有部署请把 *.your-oa.example.com 换成自己的 OA 域名"
+      "description": "致远OA V9.0SP1 踢人检测关键词 + XHR响应前缀[LOGOUT]"
     },
     {
       "id": "dingtalk",
@@ -96,10 +97,10 @@
       "id": "wiki",
       "name": "知识库",
       "domains": [
-        "*.your-wiki.example.com"
+        "*.wiki.com"
       ],
       "keywords": [],
-      "description": "知识库/内部 wiki；请把 *.your-wiki.example.com 换成自己的 wiki 域名"
+      "description": "知识库/内部 wiki - 登录检测/会话检查"
     },
     {
       "id": "weaver",
@@ -127,7 +128,8 @@
       "name": "蓝凌OA",
       "domains": [
         "*.landray.com.cn",
-        "*.landray.com"
+        "*.landray.com",
+        "*.km.landray"
       ],
       "keywords": [
         "checkSession",
@@ -139,7 +141,7 @@
         "loginCheck",
         "sessionTimeout"
       ],
-      "description": "蓝凌OA - 登录检测/会话超时/单点登录；私有部署的二级域名请自行追加"
+      "description": "蓝凌OA - 登录检测/会话超时/单点登录"
     },
     {
       "id": "showdoc",
