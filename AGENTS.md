@@ -50,7 +50,7 @@ python3 scripts/check-version-consistency.py --json   # 机器可读，给 CI / 
 ## 目录与脚本
 
 - `src/` 扩展源码（`manifest.json`、`content.js`、`background.js`、`blocking_rules*.json`、`storage_presets.json`、`help/`）
-- `scripts/`：`build.sh` 构建、`release.sh` 发版、`check-version-consistency.py` 版本一致性、`validate-rules.py` 规则校验、`update-blocking-rules.py` 规则更新、`doc-health-check.py` 文档健康检查（7 项自动 + 3 项手动）
+- `scripts/`：`build.sh` 构建、`release.sh` 发版、`check-version-consistency.py` 版本一致性、`validate-rules.py` 规则校验、`update-blocking-rules.py` 规则更新、`doc-health-check.py` 文档健康检查、`self-check.py` 全局自查（语法/消息 action/数据一致性/帮助结构/隐私泄漏，退出码 0=干净）
 - 打包产物：`session-master-v<version>.zip`；**解压目录必须包裹版本号**（历史反复出现的 Bug #19）
 
 ## 长文入口（别抄进记忆）

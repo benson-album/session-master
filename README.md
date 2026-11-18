@@ -24,6 +24,7 @@ session-master/
 │   ├── build.sh                      # 构建脚本（含20项自检）
 │   ├── release.sh                    # 一键发版（构建+Release+附件）
 │   ├── check-version-consistency.py  # 版本一致性校验（README/CHANGELOG 自动同步）
+│   ├── self-check.py                 # 全局自查（语法/消息 action/数据/帮助结构/隐私泄漏）
 │   ├── update-blocking-rules.py      # 规则库维护脚本
 │   ├── validate-rules.py             # 规则库校验脚本
 │   └── validate-rules.sh             # 规则库校验快捷包装
