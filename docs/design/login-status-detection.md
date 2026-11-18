@@ -139,7 +139,7 @@ flowchart TD
 
 ## 8. 自测用例
 
-Kali `192.168.3.17` + Chromium 149 headless + CDP 直连（无需 chromedriver，`--remote-allow-origins=*` 必加）。
+内网 Kali 虚拟机 + Chromium headless + CDP 直连（无需 chromedriver，`--remote-allow-origins=*` 必加）。
 
 | # | 用例 | 期望 |
 |---|---|---|

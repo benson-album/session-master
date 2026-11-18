@@ -7,7 +7,7 @@ set -e
 
 # ========== 配置（按需修改）==========
 NAS_USER="your-username"
-NAS_HOST="192.168.3.x"        # 改为你的 NAS 实际 IP
+NAS_HOST="192.168.x.x"        # 改为你的 NAS 实际 IP
 NAS_PATH="/path/to/sessionmaster-sync"  # 改为你的实际路径
 PORT="${PORT:-5789}"          # 同步服务器端口（默认 5789，可通过环境变量修改）
 LOCAL_DIR="$(cd "$(dirname "$0")" && pwd)"

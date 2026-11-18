@@ -1650,20 +1650,27 @@ async function getLoginDetectConfig() {
   return _loginDetectCfg;
 }
 
+// 选中“某域名对应的标签页”：优先 active（若主机名匹配），否则遍历所有标签页按域名匹配。
+// domain 为空时退回 active 标签页（兼容旧调用）。
+async function findTabForDomain(domain) {
+  const hostOf = (u) => { try { return new URL(u).hostname; } catch (e) { return ''; } };
+  const sameDomain = (h) => !!h && !!domain && (h === domain || h.endsWith('.' + domain) || domain.endsWith('.' + h));
+  try {
+    const active = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (active && active.length && sameDomain(hostOf(active[0].url))) return active[0];
+    if (!domain) return (active && active.length) ? active[0] : null;
+    const all = await chrome.tabs.query({});
+    return (all || []).find(t => sameDomain(hostOf(t.url))) || null;
+  } catch (e) {
+    return null;
+  }
+}
+
 // 让 content script 扫一遍页面存储；优先当前标签页，域名不符时按域名找标签页。
 // 页面没有 content script（chrome:// 等）时返回 null
 async function scanActiveTabStorage(domain, storageCfg) {
-  const hostOf = (u) => { try { return new URL(u).hostname; } catch (e) { return ''; } };
-  const sameDomain = (h) => !!h && (h === domain || h.endsWith('.' + domain) || domain.endsWith('.' + h));
   try {
-    let tab = null;
-    const active = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (active && active.length && sameDomain(hostOf(active[0].url))) tab = active[0];
-    if (!tab) {
-      // 直接遍历所有标签页按主机名匹配，避免 URL 模式（IP/localhost）构造出错
-      const all = await chrome.tabs.query({});
-      tab = (all || []).find(t => sameDomain(hostOf(t.url))) || null;
-    }
+    const tab = await findTabForDomain(domain);
     if (!tab) return null;
     const resp = await chrome.tabs.sendMessage(tab.id, { action: 'scanStorage', config: storageCfg || {} });
     if (!resp || !resp.success) return null;
@@ -1820,26 +1827,24 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       // ---- localStorage 同步（腾讯视频等双存储站点） ----
       case 'readLocalStorage':
         try {
-          const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-          if (tabs.length === 0) { sendResponse({ success: false, message: '未找到活动标签页' }); break; }
-          chrome.tabs.sendMessage(tabs[0].id, { action: 'readLocalStorage', keys: request.keys }, (resp) => {
-            sendResponse(resp || { success: false, message: 'content script 未响应' });
-          }).catch(() => sendResponse({ success: false, message: 'content script 未响应' }));
+          const tab = await findTabForDomain(request.domain);
+          if (!tab) { sendResponse({ success: false, message: '未找到该站点的标签页，请先打开目标网站' }); break; }
+          const resp = await chrome.tabs.sendMessage(tab.id, { action: 'readLocalStorage', keys: request.keys });
+          sendResponse(resp || { success: false, message: 'content script 未响应' });
         } catch (e) {
           sendResponse({ success: false, message: e.message });
         }
-        return true; // 异步响应
+        break;
       case 'writeLocalStorage':
         try {
-          const tabs2 = await chrome.tabs.query({ active: true, currentWindow: true });
-          if (tabs2.length === 0) { sendResponse({ success: false, message: '未找到活动标签页' }); break; }
-          chrome.tabs.sendMessage(tabs2[0].id, { action: 'writeLocalStorage', data: request.data }, (resp) => {
-            sendResponse(resp || { success: false, message: 'content script 未响应' });
-          }).catch(() => sendResponse({ success: false, message: 'content script 未响应' }));
+          const tab2 = await findTabForDomain(request.domain);
+          if (!tab2) { sendResponse({ success: false, message: '未找到该站点的标签页，请先打开目标网站' }); break; }
+          const resp2 = await chrome.tabs.sendMessage(tab2.id, { action: 'writeLocalStorage', data: request.data });
+          sendResponse(resp2 || { success: false, message: 'content script 未响应' });
         } catch (e) {
           sendResponse({ success: false, message: e.message });
         }
-        return true; // 异步响应
+        break;
 
       // ---- 拦截规则 ----
       case 'getBlockingRules': sendResponse({ rules: await getUserBlockingRules() }); break;
