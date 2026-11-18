@@ -45,7 +45,7 @@ python3 scripts/check-version-consistency.py --json   # 机器可读，给 CI / 
 `release.sh` 的第 3 步已经内置这个检查并会**自动提交**被同步的两个文档；修不了（例如 changelog.json 少条目）则直接中止发版。
 
 脚本是**项目无关**的（纯标准库）：自动探测 `src/manifest.json` → `manifest.json` → `package.json` → `VERSION` 作为版本源，
-所以别的项目可以直接复制 `scripts/check-version-consistency.py` 使用，模板见 `/opt/data/projects/_shared/`。
+所以别的项目可以直接复制 `scripts/check-version-consistency.py` 使用，模板见本地 `_shared/` 目录。
 
 ## 目录与脚本
 

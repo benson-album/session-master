@@ -112,7 +112,7 @@
       const presetKeys = preset ? preset.localStorageKeys : [];
       const allLSKeys = [...new Set([...presetKeys, ...customLSKeys])];
       if (allLSKeys.length > 0) {
-        const lsResult = await chrome.runtime.sendMessage({ action: 'readLocalStorage', keys: allLSKeys });
+        const lsResult = await chrome.runtime.sendMessage({ action: 'readLocalStorage', keys: allLSKeys, domain: currentDomain });
         if (lsResult && lsResult.data && Object.keys(lsResult.data).length > 0) lsData = lsResult.data;
       }
       if (!lsData) {
@@ -248,12 +248,20 @@
     if (compositeResult.failed > 0) console.warn('导入失败:', compositeResult.errors);
     
     // 如果导入数据包含 localStorage，尝试写入页面
+    let lsCount1 = 0;
     if (importData.localStorage && typeof importData.localStorage === 'object' && Object.keys(importData.localStorage).length > 0) {
       try {
-        await chrome.runtime.sendMessage({ action: 'writeLocalStorage', data: importData.localStorage });
+        await chrome.runtime.sendMessage({ action: 'writeLocalStorage', data: importData.localStorage, domain: currentDomain });
+        lsCount1 = Object.keys(importData.localStorage).length;
       } catch(e) {
         console.log('[SessionMaster] ⚠️ 写入 localStorage 失败（页面可能需要刷新后重试）:', e.message);
       }
+    }
+    // 无 Cookie 站点：导入结果只有本地存储，统计区要说清楚
+    if (compositeResult.imported === 0 && lsCount1 > 0) {
+      document.getElementById('importStatsSummary').textContent = `✅ 已写入 ${lsCount1} 项本地存储（该站点无 Cookie）`;
+      statsEl.style.display = 'block';
+      showToast(`✅ 已写入 ${lsCount1} 项本地存储，刷新页面生效`);
     }
   });
 
@@ -296,12 +304,19 @@
       if (compositeResult.failed > 0) console.warn('导入失败:', compositeResult.errors);
       
       // 如果导入数据包含 localStorage，尝试写入页面
+      let lsCount2 = 0;
       if (parsed.localStorage && typeof parsed.localStorage === 'object' && Object.keys(parsed.localStorage).length > 0) {
         try {
-          await chrome.runtime.sendMessage({ action: 'writeLocalStorage', data: parsed.localStorage });
+          await chrome.runtime.sendMessage({ action: 'writeLocalStorage', data: parsed.localStorage, domain: currentDomain });
+          lsCount2 = Object.keys(parsed.localStorage).length;
         } catch(e) {
           console.log('[SessionMaster] ⚠️ 写入 localStorage 失败（页面可能需要刷新后重试）:', e.message);
         }
+      }
+      if (compositeResult.imported === 0 && lsCount2 > 0) {
+        document.getElementById('importStatsSummary').textContent = `✅ 已写入 ${lsCount2} 项本地存储（该站点无 Cookie）`;
+        statsEl.style.display = 'block';
+        showToast(`✅ 已写入 ${lsCount2} 项本地存储，刷新页面生效`);
       }
     } catch (err) {
       showToast('⚠️ 文件读取或解析失败: ' + err.message);
