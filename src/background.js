@@ -477,7 +477,7 @@ async function exportCookies(domain) {
   const cookies = await getCookies(domain);
   if (cookies.length === 0) {
     logger.warn('cookie', '导出 Cookie 为空: ' + domain);
-    return { success: false, message: '未找到该域名的 Cookie，请先登录目标站点', data: null };
+    return { success: false, message: '该域名没有 Cookie（可能使用本地存储登录态，见弹窗登录状态徽标）', data: null };
   }
   const exportTime = new Date().toISOString();
   const quickPrefix = '# Domain: ' + domain + '\n';
@@ -640,7 +640,7 @@ async function importCookiesSmart(cookieData, fromDeviceId) {
 // 智能导出：只导出来源为 "local" 的 Cookie（防循环）
 async function exportCookiesSmart(domain) {
   const cookies = await getCookies(domain);
-  if (cookies.length === 0) return { success: false, message: '未找到该域名的 Cookie', data: null };
+  if (cookies.length === 0) return { success: false, message: '该域名没有 Cookie（可能使用本地存储登录态）', data: null };
   
   const meta = await getCookieMeta();
   const exportTime = new Date().toISOString();

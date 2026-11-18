@@ -692,4 +692,5 @@ localStorage JWT / 登录页特征（残留 token 判失效）/ 全空 / 认证 
 - ✅ 技能新增 `references/login-status-detection.md`：侦察三步法、四段判定顺序、CDP 自测流程与两个实现陷阱
 - ✅ 设计文档 `docs/design/login-status-detection.md`：判定流程图 / 调用时序图 / 导出兜底流程图 / 规则字段表 / 边界与限制 / 自测用例
 - ✅ 帮助文档：intro 功能表补「登录状态指示器」、Cookie 同步补「无 Cookie 站点」说明、FAQ 补 2 条
-- ⬜ 发版时在 `changelog.json` 记入 v1.6.11 并向 `develop` 同步
+- ✅ 顺藤摸瓜修掉了另外 3 处同类文案：`exportCookies`、`exportCookiesSmart`、保活前置检查（原本都写着「请先登录目标站点」，对无 Cookie 站点是误导）
+- ⬜ `develop` 分支尚未同步：合并 master 时 `VERSION` / `src/manifest.json` / 4 份 `docs/analysis` 报告出现冲突，已 abort，待人工决定保留哪一侧内容

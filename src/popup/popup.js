@@ -1647,10 +1647,10 @@
     const select = document.getElementById('heartbeatInterval');
     let url = input.value.trim();
     if (!url) return showToast('⚠️ 请输入保活 URL');
-    // 前置条件检查：验证是否有 Cookie（无 Cookie 说明未登录，保活无意义）
+    // 前置条件检查：保活依赖 Cookie；无 Cookie 的站点（Bearer/JWT 型）无法用保活维持会话
     const cookieCheck = await chrome.runtime.sendMessage({ action: 'getCookies', domain: currentDomain });
     if (!cookieCheck.success) {
-      return showToast('⚠️ 未找到 ' + currentDomain + ' 的 Cookie，请先登录目标站点再添加保活');
+      return showToast('⚠️ 该站点没有 Cookie，会话保活依赖 Cookie 才能生效；登录凭据在本地存储的站点暂不支持保活');
     }
     const interval = parseInt(select.value);
     // 获取当前页面标题，计算可读站点名
