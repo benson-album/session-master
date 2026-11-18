@@ -1444,7 +1444,7 @@ async function saveRulesDB(db) {
 
 function matchSitesByDomain(db, domain) {
   if (!db || !db.sites || !domain) return [];
-  // 去掉端口号（如 oa.zumri.cn:8881 → oa.zumri.cn）
+  // 去掉端口号（如 oa.example.com:8881 → oa.example.com）
   const cleanDomain = domain.split(':')[0].toLowerCase();
   const matched = [];
   for (const site of db.sites) {
