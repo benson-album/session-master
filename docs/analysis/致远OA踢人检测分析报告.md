@@ -5,7 +5,7 @@
 > **版本**：v1.6.1
 > **作者**：BenSon.Album
 > **OA 系统**：横琴澳门大学高等研究院 V9.0SP1
-> **部署地址**：`https://oa.zumri.cn:8881/seeyon/main.do`
+> **部署地址**：`https://oa.example.com:8881/seeyon/main.do`
 
 ---
 
@@ -107,12 +107,12 @@ type === 'message' || type === 'storage' || type === 'beforeunload'
 
 | 端点 | 状态 | 服务器 | 说明 |
 |:-----|:----:|:-------|:-----|
-| `oa.zumri.cn:8881/seeyon/main.do` | 200 | nginx | 主入口（门户面板） |
-| `oa.zumri.cn:8881/seeyon/ajax.do` | 200 | nginx | AJAX 统一入口（核心数据通道） |
-| `oa.zumri.cn:8881/seeyon/getAjaxDataServlet` | 200 | nginx | 数据 Servlet |
-| `oa.zumri.cn:8881/seeyon/getAJAXOnlineServlet` | 200 | nginx | **在线状态检测 Servlet** |
-| `oa.zumri.cn:8881/seeyon/rest/*` | 200 | nginx | REST API |
-| `oa.zumri.cn:8881/seeyon/common/all-min.js` | 200 | nginx | 前端 JS 主文件（885KB） |
+| `oa.example.com:8881/seeyon/main.do` | 200 | nginx | 主入口（门户面板） |
+| `oa.example.com:8881/seeyon/ajax.do` | 200 | nginx | AJAX 统一入口（核心数据通道） |
+| `oa.example.com:8881/seeyon/getAjaxDataServlet` | 200 | nginx | 数据 Servlet |
+| `oa.example.com:8881/seeyon/getAJAXOnlineServlet` | 200 | nginx | **在线状态检测 Servlet** |
+| `oa.example.com:8881/seeyon/rest/*` | 200 | nginx | REST API |
+| `oa.example.com:8881/seeyon/common/all-min.js` | 200 | nginx | 前端 JS 主文件（885KB） |
 
 > 认证体系：Java Servlet `JSESSIONID`（HttpOnly Cookie），路径 `/seeyon`。
 
@@ -134,9 +134,9 @@ type === 'message' || type === 'storage' || type === 'beforeunload'
 
 | Cookie | 域 | HttpOnly | 用途 |
 |:-------|:---|:--------:|:-----|
-| `JSESSIONID` | `oa.zumri.cn` | ✅ | Java Servlet 会话 ID（核心认证） |
-| `loginPageURL` | `oa.zumri.cn` | ❌ | 登录页 URL 存储 |
-| `ts` | `oa.zumri.cn` | ❌ | 时间戳（登录过程中） |
+| `JSESSIONID` | `oa.example.com` | ✅ | Java Servlet 会话 ID（核心认证） |
+| `loginPageURL` | `oa.example.com` | ❌ | 登录页 URL 存储 |
+| `ts` | `oa.example.com` | ❌ | 时间戳（登录过程中） |
 
 > 认证完全基于服务端 Session，`JSESSIONID` 为唯一认证凭据。无 localStorage 认证数据。
 

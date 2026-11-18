@@ -20,66 +20,148 @@
     {
       "id": "seeyon",
       "name": "致远OA",
-      "domains": ["*.seeyon.com", "*.seeyon", "*.zumri.cn", "*.zumri"],
-      "keywords": ["checkSession", "secondLogin", "singleLogin", "duplicateLogin", "conflictLogin", "forcedOffline", "kickOut", "loginCheck", "sessionTimeout"],
-      "description": "致远OA V9.0SP1 踢人检测关键词 + XHR响应前缀[LOGOUT]"
+      "domains": [
+        "*.seeyon.com",
+        "*.seeyon",
+        "*.your-oa.example.com"
+      ],
+      "keywords": [
+        "checkSession",
+        "secondLogin",
+        "singleLogin",
+        "duplicateLogin",
+        "conflictLogin",
+        "forcedOffline",
+        "kickOut",
+        "loginCheck",
+        "sessionTimeout"
+      ],
+      "description": "致远OA V9.0SP1 踢人检测关键词 + XHR响应前缀[LOGOUT]；私有部署请把 *.your-oa.example.com 换成自己的 OA 域名"
     },
     {
       "id": "dingtalk",
       "name": "钉钉",
-      "domains": ["*.dingtalk.com"],
-      "keywords": ["loginCheck", "checkSession", "singleLogin", "kickOut"],
+      "domains": [
+        "*.dingtalk.com"
+      ],
+      "keywords": [
+        "loginCheck",
+        "checkSession",
+        "singleLogin",
+        "kickOut"
+      ],
       "description": "钉钉网页版 - 登录检测/会话检查/单点登录/踢出会话"
     },
     {
       "id": "wecom",
       "name": "企业微信",
-      "domains": ["*.work.weixin.qq.com"],
-      "keywords": ["loginCheck", "checkSession", "singleLogin"],
+      "domains": [
+        "*.work.weixin.qq.com"
+      ],
+      "keywords": [
+        "loginCheck",
+        "checkSession",
+        "singleLogin"
+      ],
       "description": "企业微信管理后台 - 登录检测/会话检查/单点登录"
     },
     {
       "id": "feishu",
       "name": "飞书",
-      "domains": ["*.feishu.cn", "*.larksuite.com"],
-      "keywords": ["loginCheck", "checkSession", "singleLogin"],
+      "domains": [
+        "*.feishu.cn",
+        "*.larksuite.com"
+      ],
+      "keywords": [
+        "loginCheck",
+        "checkSession",
+        "singleLogin"
+      ],
       "description": "飞书管理后台 - 登录检测/会话检查/单点登录"
     },
     {
       "id": "yuque",
       "name": "语雀",
-      "domains": ["*.yuque.com"],
-      "keywords": ["loginCheck", "checkSession", "singleLogin"],
+      "domains": [
+        "*.yuque.com"
+      ],
+      "keywords": [
+        "loginCheck",
+        "checkSession",
+        "singleLogin"
+      ],
       "description": "语雀知识库 - 登录检测/会话检查/单点登录"
     },
     {
       "id": "wiki",
       "name": "知识库",
-      "domains": ["*.wiki.com"],
+      "domains": [
+        "*.your-wiki.example.com"
+      ],
       "keywords": [],
-      "description": "通用知识库系统 - 待补充"
+      "description": "知识库/内部 wiki；请把 *.your-wiki.example.com 换成自己的 wiki 域名"
     },
     {
       "id": "weaver",
       "name": "泛微OA",
-      "domains": ["*.weaver.com.cn", "*.e-cology.cn", "*.e-office.cn", "*.weaver"],
-      "keywords": ["checkSession", "singleLogin", "duplicateLogin", "conflictLogin", "forcedOffline", "kickOut", "loginCheck", "sessionTimeout"],
+      "domains": [
+        "*.weaver.com.cn",
+        "*.e-cology.cn",
+        "*.e-office.cn",
+        "*.weaver"
+      ],
+      "keywords": [
+        "checkSession",
+        "singleLogin",
+        "duplicateLogin",
+        "conflictLogin",
+        "forcedOffline",
+        "kickOut",
+        "loginCheck",
+        "sessionTimeout"
+      ],
       "description": "泛微OA e-cology/e-office - 会话/单点/冲突/踢出检测"
     },
     {
       "id": "landray",
       "name": "蓝凌OA",
-      "domains": ["*.landray.com.cn", "*.landray.com", "*.km.landray"],
-      "keywords": ["checkSession", "singleLogin", "duplicateLogin", "conflictLogin", "forcedOffline", "kickOut", "loginCheck", "sessionTimeout"],
-      "description": "蓝凌OA - 会话/单点/冲突/踢出检测"
+      "domains": [
+        "*.landray.com.cn",
+        "*.landray.com"
+      ],
+      "keywords": [
+        "checkSession",
+        "singleLogin",
+        "duplicateLogin",
+        "conflictLogin",
+        "forcedOffline",
+        "kickOut",
+        "loginCheck",
+        "sessionTimeout"
+      ],
+      "description": "蓝凌OA - 登录检测/会话超时/单点登录；私有部署的二级域名请自行追加"
     },
     {
       "id": "showdoc",
       "name": "ShowDoc",
-      "domains": ["*.showdoc.com.cn", "*.showdoc.com"],
-      "keywords": ["loginCheck", "checkSession", "singleLogin"],
+      "domains": [
+        "*.showdoc.com.cn",
+        "*.showdoc.com"
+      ],
+      "keywords": [
+        "loginCheck",
+        "checkSession",
+        "singleLogin"
+      ],
       "description": "ShowDoc 文档系统 - 登录检测/会话检查/单点登录"
     }
   ],
-  "generic": ["loginCheck", "sessionTimeout", "singleLogin", "duplicateLogin", "kickOut", "forcedOffline"]
+  "generic": [
+    "loginCheck",
+    "sessionTimeout",
+    "singleLogin",
+    "duplicateLogin",
+    "kickOut",
+    "forcedOffline"
+  ]
 }
