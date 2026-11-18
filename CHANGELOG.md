@@ -1,5 +1,30 @@
 # Changelog
 
+## v1.6.11 (2026-11-18)
+- ✨ 新增：登录状态判定支持本地存储凭据（Bearer Token / JWT 型站点）：徽标显示「✓ 已登录 · 存储」，不再把无 Cookie 站点误判为未登录
+- ✨ 新增：登录页特征识别：当前页已是登录页时判为未登录，并提示「残留 token 已失效」
+- ✨ 新增：可选接口探测：按站点配置「当前用户」接口做一次探测，判定最准确（默认关闭，规则见 login_detect.json）
+- ✨ 新增：无 Cookie 站点导出兜底：自动把认证用本地存储项一起打包，配合 JSON 文件导入可跨设备还原
+- 🔧 改进：登录判定规则外置到 login_detect.json（Cookie 关键字 / 存储键 / JWT 正则 / 登录页模式 / 探测站点表），改规则不用改代码
+- 🔧 改进：导出流程不再因「没有 Cookie」直接中止，先判登录态再决定导出内容
+- 🔧 改进：判定依据可视化：徽标悬停显示 source 与证据（如 localStorage:__persist）
+- 📘 文档：新增 docs/design/login-status-detection.md：判定流程图 / 调用时序图 / 导出兜底流程图 / 规则字段 / 边界限制 / 自测用例
+- 📘 文档：新增 docs/README.md 文档索引；README 项目结构与数据流程同步
+- 📘 文档：帮助文档：概述功能表补「登录状态指示器」、Cookie 同步补「无 Cookie 站点」说明、FAQ 两条
+- 🛠️ 工程：新增 scripts/check-version-consistency.py：校验并自动同步 README / CHANGELOG 版本号，release.sh 发版时自动执行
+- 🛠️ 工程：强制自检由 13 项增至 15 项：新增「依赖面连带检查」与「真实浏览器 CDP 自测」
+
+## v1.6.10 (2026-07-21)
+- ✨ 新增：当前站点登录状态指示器：popup 弹窗实时显示当前站点是否已登录
+- 🐛 修复：帮助页更新日志分页限制最多20条（解决旧版本被CSS截断无法展开的问题）
+- 🐛 修复：优酷退出保护拦截修复：YKLoginLoader SDK 独立函数钩子 + DOM 点击扩展匹配
+- 🐛 修复：代码质量审计修复（6项）
+- 🔧 重构：清除死代码 + 无用条件分支
+- 📘 文档：四站点退出机制分析更新（腾讯视频/优酷/B站/致远OA）
+- 📘 文档：退出保护修复记录 + 根因分析（lessons-learned）
+- 📘 文档：帮助文档错误修复 + 章节同步纳入生成规则
+- 📘 文档：README + CHANGELOG 同步至 v1.6.9
+
 ## v1.6.9 (2026-06-24)
 - 🐛 **退出保护一直不生效的根因修复**：interceptKickFunctions() 中 Object.defineProperty(location.href) 外层有 try 无 catch，Chrome 内容脚本中修改 location 抛异常后函数崩溃，SDK 注入和 DOM 拦截代码均未执行到
 - 🐛 DOM 点击拦截改为独立部署在 init() 中，与 interceptKickFunctions() 解耦

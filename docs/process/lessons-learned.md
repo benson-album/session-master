@@ -660,3 +660,36 @@ footer 布局改了 3 轮，如果一开始就问用户「你期望弹窗高度�
   1. `help_content.json` 的 `sectionIds` 数组顺序与实际章节顺序一致
   2. `help.html` 的 `<nav id="sidebarNav">` 中每个章节都有对应的 `<a>` 链接且编号正确
   3. 新增功能需同步更新 intro 章节的核心功能表
+
+### 问题二十九：登录状态判定只看 Cookie，Bearer/SSO 站点被误判为未登录（2026-11-18）
+
+**现象**：用户在 `sftcweb.szxltech.com` 明明已登录，popup 显示「✗ 未登录」；点导出还被提示「请先登录目标站点再导出」。
+
+**根因**：
+1. `checkLoginStatus` 只在 `chrome.cookies.getAll` 返回 0 条时判 `logged_out`，完全没有看页面存储
+2. 该站是 CAS 单点登录 + Bearer Token 架构：响应头无 `Set-Cookie`，凭据在 `localStorage.__presist`（vuex-persistedstate 持久化 `user.token`），请求带 `Authorization: Bearer <JWT>`
+3. 导出流程写着 `if (!result.success) return showToast('请先登录…')` —— 把「没有 Cookie」直接等同于「未登录」，把导出通道也堵死了
+
+**排查方法（30 秒定位一个站点的认证方式）**：
+- `curl -sS -D - -o /dev/null <页面URL>` → 有 `Set-Cookie` 才是 Cookie 型
+- 抓前端包 grep `Authorization` / `storage:window.localStorage` → 判断是否 Bearer + 本地存储持久化
+- 浏览器 F12：`document.cookie`、`Object.keys(localStorage)`
+
+**修复**：
+- 判定改为四段：认证 Cookie → 接口探测（可选、按站点配置）→ 登录页特征 → 认证存储 → 待确认/未登录
+- 判定规则全部外置到 `src/login_detect.json`（Cookie 关键字、存储关键字、JWT 正则、登录页模式、probe 站点表），改规则不动代码
+- 导出：无 Cookie 时不再中止，改由 `exportAuthStorage` 把认证存储一并打包，下载 JSON 可在另一台设备导入还原
+
+**核心教训（关联影响）**：
+「没有 Cookie = 未登录」这个错误假设同时写在**判定、导出、文档**三处。修状态显示只是修了三分之一 ——
+**凡是改「状态判定」的逻辑，必须把所有依赖该判定的功能（导出/导入、保活、同步、帮助文档、FAQ）一起过一遍**，
+否则用户会看到「显示已登录，但点了还是让你登录」这种自相矛盾的体验。
+
+**自测**（Kali Chromium 149 + CDP 直连，无需 chromedriver）：6 个用例全过 ——
+localStorage JWT / 登录页特征（残留 token 判失效）/ 全空 / 认证 Cookie / 接口探测 / 无 Cookie 导出兜底。
+
+**改正措施**：
+- ✅ 技能新增 `references/login-status-detection.md`：侦察三步法、四段判定顺序、CDP 自测流程与两个实现陷阱
+- ✅ 设计文档 `docs/design/login-status-detection.md`：判定流程图 / 调用时序图 / 导出兜底流程图 / 规则字段表 / 边界与限制 / 自测用例
+- ✅ 帮助文档：intro 功能表补「登录状态指示器」、Cookie 同步补「无 Cookie 站点」说明、FAQ 补 2 条
+- ⬜ 发版时在 `changelog.json` 记入 v1.6.11 并向 `develop` 同步

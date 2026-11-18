@@ -1,0 +1,41 @@
+{
+  "version": 2,
+  "description": "登录状态判定规则（数据与代码分离，改这里即可，不用动 background.js）",
+  "cookie": {
+    "authNameKeywords": ["session", "sid", "token", "auth", "login", "sess", "jse", "sid_", "ticket", "jwt"],
+    "ignoreNameKeywords": ["_ga", "_gid", "_gat", "_gcl", "_fbp", "hm_", "utm_", "cookieconsent", "lang", "locale", "theme", "sidebar"],
+    "parentDomainEscalate": true
+  },
+  "storage": {
+    "scanAreas": ["localStorage", "sessionStorage"],
+    "maxKeys": 400,
+    "maxValueChars": 8192,
+    "authKeyKeywords": ["token", "auth", "session", "ticket", "jwt", "access", "refresh", "login", "credential", "presist", "sso", "passport"],
+    "jwtPattern": "ey[A-Za-z0-9_-]{8,}\\.[A-Za-z0-9_-]{8,}\\.[A-Za-z0-9_-]{8,}",
+    "ignoreKeyKeywords": ["wwidth", "wheight", "theme", "lang", "locale", "sidebar", "visited", "cache", "debug", "version"]
+  },
+  "loginPage": {
+    "note": "页面本身就是登录页 → 说明没有有效登录态（用来纠正“残留 token 造成的假已登录”）",
+    "urlPatterns": ["/login", "/signin", "/sign-in", "/cas/login", "/sso/login", "/passport/login", "login.html"],
+    "ignoreUrlPatterns": ["/loginlog", "/login-log", "/loginLog"],
+    "titlePatterns": ["登录", "登陆", "Sign in", "Log in", "Login"]
+  },
+  "probe": {
+    "enabled": false,
+    "note": "可选：对站点的“当前用户”接口探测一次，最准但有成本。enabled=true 且配好 sites 才生效。",
+    "timeoutMs": 3000,
+    "sites": {
+      "sftcweb.szxltech.com": {
+        "url": "/api/user/info",
+        "okStatus": [200],
+        "unauthStatus": [401, 403]
+      }
+    }
+  },
+  "verdict": {
+    "note": "认证 Cookie → 接口探测 → 登录页特征 → 认证存储 → 待确认 → 未登录",
+    "authCookieWins": true,
+    "scanStorageWhenNoAuthCookie": true,
+    "loginPageOverridesStorage": true
+  }
+}

@@ -643,6 +643,83 @@
     return result;
   }
   
+  // 页面特征快照：用于识别“当前页其实就是登录页”
+  function pageSnapshot(pgCfg) {
+    pgCfg = pgCfg || {};
+    const url = String(location.href || '');
+    const lowerUrl = url.toLowerCase();
+    const title = String(document.title || '');
+    const ignore = (pgCfg.ignoreUrlPatterns || []).map(p => String(p).toLowerCase());
+    const urlHit = !ignore.some(p => lowerUrl.includes(p)) &&
+      (pgCfg.urlPatterns || []).some(p => lowerUrl.includes(String(p).toLowerCase()));
+    const titleHit = (pgCfg.titlePatterns || []).some(p => title.includes(String(p)));
+    let hasPasswordField = false;
+    try { hasPasswordField = !!document.querySelector('input[type="password"]'); } catch (e) {}
+    return {
+      url: url.slice(0, 200),
+      title: title.slice(0, 120),
+      isLoginPage: !!(urlHit || titleHit),
+      hasPasswordField: hasPasswordField
+    };
+  }
+
+  // 可选接口探测：命中 okStatus 判已登录，命中 unauthStatus 判未登录
+  async function probeLogin(probeCfg) {
+    if (!probeCfg || !probeCfg.enabled || !probeCfg.url) return null;
+    const timeout = probeCfg.timeoutMs || 3000;
+    try {
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), timeout);
+      const resp = await fetch(probeCfg.url, { credentials: 'include', cache: 'no-store', signal: ctrl.signal });
+      clearTimeout(timer);
+      const okList = probeCfg.okStatus || [200];
+      const unauthList = probeCfg.unauthStatus || [401, 403];
+      return {
+        url: String(probeCfg.url).slice(0, 120),
+        status: resp.status,
+        ok: okList.includes(resp.status),
+        unauth: unauthList.includes(resp.status)
+      };
+    } catch (e) {
+      return { url: String(probeCfg.url).slice(0, 120), error: String(e && e.message || e).slice(0, 120) };
+    }
+  }
+
+  // 扫描页面存储，找认证凭据（规则由 background 传入，见 login_detect.json）
+  function scanStorage(cfg) {
+    cfg = cfg || {};
+    const areas = cfg.scanAreas || ['localStorage', 'sessionStorage'];
+    const maxKeys = cfg.maxKeys || 400;
+    const maxChars = cfg.maxValueChars || 8192;
+    const authKeys = (cfg.authKeyKeywords || []).map(s => String(s).toLowerCase());
+    const ignoreKeys = (cfg.ignoreKeyKeywords || []).map(s => String(s).toLowerCase());
+    let jwtRe = null;
+    try {
+      jwtRe = new RegExp(cfg.jwtPattern || 'ey[A-Za-z0-9_-]{8,}\\.[A-Za-z0-9_-]{8,}\\.[A-Za-z0-9_-]{8,}');
+    } catch (e) {}
+
+    const hits = [];
+    let keyCount = 0;
+    for (const area of areas) {
+      let store = null;
+      try { store = window[area]; } catch (e) { continue; }
+      if (!store) continue;
+      let keys = [];
+      try { keys = Object.keys(store).slice(0, maxKeys); } catch (e) { continue; }
+      keyCount += keys.length;
+      for (const key of keys) {
+        const lk = String(key).toLowerCase();
+        if (ignoreKeys.some(s => lk.includes(s))) continue;
+        let val = '';
+        try { val = store.getItem(key) || ''; } catch (e) { continue; }
+        const sample = val.length > maxChars ? val.slice(0, maxChars) : val;
+        if (jwtRe && jwtRe.test(sample)) { hits.push({ area: area, key: key, reason: 'jwt' }); continue; }
+        if (authKeys.some(s => lk.includes(s))) { hits.push({ area: area, key: key, reason: 'key' }); }
+      }
+    }
+    return { success: true, host: location.hostname, keyCount: keyCount, hits: hits.slice(0, 20) };
+  }
+
   function writeLocalStorage(data) {
     let count = 0;
     for (const [key, value] of Object.entries(data)) {
@@ -660,6 +737,16 @@
     if (message.action === 'readLocalStorage') {
       const data = readLocalStorage(message.keys);
       sendResponse({ success: true, data, domain: window.location.hostname });
+      return true;
+    }
+    if (message.action === 'scanStorage') {
+      (async () => {
+        const cfg = message.config || {};
+        const result = scanStorage(cfg);
+        result.page = pageSnapshot(cfg.loginPage || {});
+        result.probe = await probeLogin(cfg.probe || null);
+        sendResponse(result);
+      })();
       return true;
     }
     if (message.action === 'writeLocalStorage') {

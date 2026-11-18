@@ -5,7 +5,7 @@
 > 适用于采用**前端踢人机制**的企业系统和各类网站——大部分系统的限制是纯前端实现的，服务端其实允许多会话共存。
 > **经验证：致远 OA V9.0SP1、泛微、蓝凌等标准 OA 产品的踢人机制均可拦截。**
 
-> 当前版本：**v1.6.9**
+> 当前版本：**v1.6.11**
 
 ---
 
@@ -16,9 +16,14 @@ session-master/
 ├── VERSION                           # 版本号（单数据源：src/manifest.json）
 ├── README.md                         # 本文件
 ├── CHANGELOG.md                      # 更新日志（Markdown 格式）
+├── docs/
+│   ├── design/                       # 设计文档（登录判定流程、Mermaid 流程图）
+│   ├── process/                      # 开发流程、复盘、路线图
+│   └── analysis/                     # 站点存储分析报告
 ├── scripts/
 │   ├── build.sh                      # 构建脚本（含20项自检）
 │   ├── release.sh                    # 一键发版（构建+Release+附件）
+│   ├── check-version-consistency.py  # 版本一致性校验（README/CHANGELOG 自动同步）
 │   ├── update-blocking-rules.py      # 规则库维护脚本
 │   ├── validate-rules.py             # 规则库校验脚本
 │   └── validate-rules.sh             # 规则库校验快捷包装
@@ -33,6 +38,7 @@ session-master/
     ├── blocking_rules.json           # DNR 拦截规则（动态加载，跟随主开关）
     ├── blocking_rules_db.json        # 拦截规则库（9站点，GitHub 自动同步）
     ├── storage_presets.json          # 站点存储预设库（15站点，可扩展）
+    ├── login_detect.json             # 登录状态判定规则（Cookie/存储/JWT/登录页/接口探测）
     ├── help_content.json             # 帮助文档数据源（GitHub 自动同步）
     ├── changelog.json                # 结构化更新日志（Release body 数据源）
     ├── icons/
@@ -74,7 +80,7 @@ session-master/
 | 📦 **localStorage 迁移** | 同步 localStorage 中的认证凭据 | Content Script + 后台路由 |
 | 🗂️ **站点预设库** | 内置 15 站点 localStorage Key/Cookie 前缀配置 | `storage_presets.json` |
 | ⬆️ **自动升级检测** | 自动检测 GitHub 新版本，角标+通知+横幅提示 | 版本对比 + 三层检测 |
-| 🔐 **登录状态指示** | 当前站点卡片右侧显示登录状态 | Cookie 分析 + httpOnly 判断 |
+| 🔐 **登录状态指示** | 徽标显示已登录/未登录/待确认，悬停看判定依据 | 四段判定：认证 Cookie → 接口探测 → 登录页特征 → 本地存储 |
 
 ---
 
@@ -116,8 +122,15 @@ session-master/
   │     └── 三选项弹窗（仅断开/换账号/完全退出需密码验证）
   ├── 同步管理 → background.js → P2P/服务器/手动三种模式
   │     └── 主从设备模式 + 来源追踪防循环
+  ├── 登录状态判定 → background.js（查 Cookie）+ content.js（扫存储/登录页/可选接口探测）
+  │     ├── 四段顺序：认证 Cookie → 接口探测 → 登录页特征 → 认证存储
+  │     ├── 规则外置 login_detect.json（改规则不改代码）
+  │     └── 无 Cookie 站点导出时自动兜底打包本地存储凭据
   └── 存储管理面板 → PopUp 展示 → 预设库 storage_presets.json
 ```
+
+> 登录判定的完整流程图、时序图、规则字段与边界条件见
+> [`docs/design/login-status-detection.md`](docs/design/login-status-detection.md)。
 
 ### 四功能协同防御体系
 

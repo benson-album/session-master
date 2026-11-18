@@ -79,52 +79,72 @@
 
   document.getElementById('btnExport').addEventListener('click', async () => {
     if (!currentDomain) return showToast('⚠️ 无法获取当前站点域名');
-    const result = await chrome.runtime.sendMessage({ action: 'getCookies', domain: currentDomain });
-    if (!result.success) {
-      // 无 Cookie → 提示用户先登录
-      return showToast('⚠️ 未找到 Cookie（' + currentDomain + '），请先登录目标站点再导出');
-    }
-    document.getElementById('resultTitle').textContent = `🍪 ${currentDomain}`;
-    const domainCount = result.data._stats ? result.data._stats.totalDomains : 1;
-    document.getElementById('resultCount').textContent = `${result.data.cookies.length} 个 Cookie（${domainCount} 个关联域）`;
-    document.getElementById('resultContent').value = result.data.quick;
-    document.getElementById('resultHint').textContent = `✅ 导出成功！导出时间: ${new Date(result.data.exportTime).toLocaleString()}`;
-    document.getElementById('cookieResult').style.display = 'block';
-    document.getElementById('importBox').style.display = 'none';
-    document.getElementById('localStorageResult').style.display = 'none';
+    const cookieResult = await chrome.runtime.sendMessage({ action: 'getCookies', domain: currentDomain });
+    const hasCookies = !!(cookieResult && cookieResult.success && cookieResult.data && cookieResult.data.cookies);
+    const cookieCount = hasCookies ? cookieResult.data.cookies.length : 0;
+
     document.getElementById('lsKeyManager').style.display = 'none';
-    lastExportData = result.data;
-    
-    // 读取页面的 localStorage（按当前域匹配预设 Key + 自定义 Key）
+    document.getElementById('localStorageResult').style.display = 'none';
+    document.getElementById('importBox').style.display = 'none';
+
+    if (hasCookies) {
+      document.getElementById('resultTitle').textContent = `🍪 ${currentDomain}`;
+      const domainCount = cookieResult.data._stats ? cookieResult.data._stats.totalDomains : 1;
+      document.getElementById('resultCount').textContent = `${cookieCount} 个 Cookie（${domainCount} 个关联域）`;
+      document.getElementById('resultContent').value = cookieResult.data.quick;
+      document.getElementById('resultHint').textContent = `✅ 导出成功！导出时间: ${new Date(cookieResult.data.exportTime).toLocaleString()}`;
+      document.getElementById('cookieResult').style.display = 'block';
+      lastExportData = cookieResult.data;
+    } else {
+      // 没有 Cookie ≠ 未登录：Bearer Token / CAS SSO 型站点的凭据在本地存储里
+      document.getElementById('cookieResult').style.display = 'block';
+      document.getElementById('resultTitle').textContent = `🔐 ${currentDomain}`;
+      document.getElementById('resultCount').textContent = '0 个 Cookie';
+      document.getElementById('resultContent').value = '';
+      document.getElementById('resultHint').textContent = '该站点没有 Cookie，登录态在浏览器本地存储中';
+      lastExportData = { domain: currentDomain, cookies: [], quick: '', exportTime: Date.now() };
+    }
+
+    // 本地存储：预设 Key 优先，其次按登录判定规则扫描认证凭据
+    let lsData = null;
     try {
-      // 计算当前域名对应的预设 Key 列表
-      const domain = currentDomain || result.data.domain;
-      const preset = storagePresets.find(p => domain && domain.endsWith(p.domain));
+      const preset = storagePresets.find(p => currentDomain.endsWith(p.domain));
       const presetKeys = preset ? preset.localStorageKeys : [];
-      // 合并预设 Key 和用户自定义 Key（自定义存储在 chrome.storage）
       const allLSKeys = [...new Set([...presetKeys, ...customLSKeys])];
       if (allLSKeys.length > 0) {
         const lsResult = await chrome.runtime.sendMessage({ action: 'readLocalStorage', keys: allLSKeys });
-        const keys = lsResult && lsResult.data ? Object.keys(lsResult.data) : [];
-        if (keys.length > 0) {
-          lastExportData.localStorage = lsResult.data;
-          document.getElementById('resultCount').textContent = `${result.data.cookies.length} 个 Cookie（${domainCount} 个关联域）+ ${keys.length} 项本地存储`;
-          // 显示 localStorage 详情
-          const lsHtml = keys.map(k => {
-            const val = String(lsResult.data[k]);
-            const truncated = val.length > 50 ? val.substring(0, 50) + '...' : val;
-            return `<div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%">📌 <code>${k}</code>: ${truncated}</div>`;
-          }).join('');
-          document.getElementById('lsKeyList').innerHTML = lsHtml;
-          document.getElementById('localStorageResult').style.display = 'block';
-          showToast(`✅ 已导出 ${result.data.cookies.length} 个 Cookie + ${keys.length} 项本地存储`);
-          return;
-        }
+        if (lsResult && lsResult.data && Object.keys(lsResult.data).length > 0) lsData = lsResult.data;
       }
-    } catch(e) {
+      if (!lsData) {
+        const auth = await chrome.runtime.sendMessage({ action: 'exportAuthStorage', domain: currentDomain });
+        if (auth && auth.success && auth.data && Object.keys(auth.data).length > 0) lsData = auth.data;
+      }
+    } catch (e) {
       // content script 未注入或多步操作页面，跳过
     }
-    showToast(`✅ 已导出 ${result.data.cookies.length} 个 Cookie`);
+
+    if (lsData) {
+      const keys = Object.keys(lsData);
+      lastExportData.localStorage = lsData;
+      document.getElementById('resultCount').textContent = cookieCount > 0
+        ? `${cookieCount} 个 Cookie + ${keys.length} 项本地存储`
+        : `${keys.length} 项本地存储（该站点无 Cookie）`;
+      const lsHtml = keys.map(k => {
+        const val = String(lsData[k]);
+        const truncated = val.length > 50 ? val.substring(0, 50) + '...' : val;
+        return `<div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%">📌 <code>${k}</code>: ${truncated}</div>`;
+      }).join('');
+      document.getElementById('lsKeyList').innerHTML = lsHtml;
+      document.getElementById('localStorageResult').style.display = 'block';
+      showToast(`✅ 已导出 ${cookieCount} 个 Cookie + ${keys.length} 项本地存储`);
+      return;
+    }
+
+    if (cookieCount === 0) {
+      showToast('⚠️ 未找到 Cookie 或本地存储，请确认已登录后再导出');
+      return;
+    }
+    showToast(`✅ 已导出 ${cookieCount} 个 Cookie`);
   });
 
   document.getElementById('btnCopy').addEventListener('click', () => {
@@ -2135,18 +2155,31 @@
     try {
       var result = await chrome.runtime.sendMessage({ action: 'checkLoginStatus', domain: domain });
       if (!result || !result.status) throw new Error('no result');
+      el.title = '';
       switch (result.status) {
         case 'logged_in':
-          el.textContent = '✓ 已登录';
+          // 认证凭据可能在 Cookie、页面存储（Bearer/JWT）或接口探测结果里
+          el.textContent = result.source === 'storage' ? '✓ 已登录 · 存储'
+            : (result.source === 'probe' ? '✓ 已登录 · 接口' : '✓ 已登录');
           el.className = 'login-status logged-in';
+          el.title = '判定依据：' + ((result.evidence || []).join('、') || '认证 Cookie');
           break;
         case 'logged_out':
           el.textContent = '✗ 未登录';
           el.className = 'login-status logged-out';
+          if (result.source === 'login-page') {
+            el.title = '当前页就是登录页，登录态未生效' +
+              ((result.stale && result.stale.length) ? '（残留 ' + result.stale[0] + ' 已失效）' : '');
+          } else if (result.source === 'probe') {
+            el.title = '接口探测未通过：' + ((result.evidence || []).join('、') || '未授权');
+          } else {
+            el.title = '未发现认证 Cookie，页面存储中也没有 token';
+          }
           break;
         case 'maybe':
-          el.textContent = '? ' + (result.count || '') + ' 个 Cookie';
+          el.textContent = '? 待确认';
           el.className = 'login-status maybe';
+          el.title = '有 Cookie ' + (result.count || 0) + ' 个、存储键 ' + (result.storageKeys || 0) + ' 个，但都不像认证凭据';
           break;
         default:
           el.style.display = 'none';

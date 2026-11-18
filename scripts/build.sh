@@ -117,7 +117,28 @@ cp -r "$SRC_DIR"/* "$TEMP_DIR/$DIR_NAME/"
 rm -rf "$TEMP_DIR/$DIR_NAME/_metadata"
 # 排除隐藏文件
 cd "$TEMP_DIR"
-zip -r "$OUTPUT_ZIP" "$DIR_NAME/" -x "*/.*" > /dev/null
+if command -v zip > /dev/null 2>&1; then
+  zip -r "$OUTPUT_ZIP" "$DIR_NAME/" -x "*/.*" > /dev/null
+else
+  # 没有 zip 命令时用 python3 兜底（结果等价：同样排除隐藏文件）
+  echo "  ⚠️ 未安装 zip，改用 python3 zipfile 打包"
+  python3 - "$OUTPUT_ZIP" "$DIR_NAME" << 'PYEOF'
+import os
+import sys
+import zipfile
+
+out, root = sys.argv[1], sys.argv[2]
+with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as z:
+    for base, dirs, files in os.walk(root):
+        dirs[:] = [d for d in dirs if not d.startswith(".")]
+        for name in sorted(files):
+            if name.startswith("."):
+                continue
+            path = os.path.join(base, name)
+            z.write(path, path)
+print("  ✅ python zipfile 打包完成:", out)
+PYEOF
+fi
 cd "$PROJECT_ROOT"
 rm -rf "$TEMP_DIR"
 rm "$SRC_DIR/VERSION"

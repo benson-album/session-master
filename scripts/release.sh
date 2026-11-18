@@ -37,7 +37,7 @@ echo "============================================"
 
 # 1. 读取版本号
 MANIFEST_VER=$(grep '"version"' "$SRC_DIR/manifest.json" | sed 's/.*"version": *"\(.*\)".*/\1/')
-echo "[1/7] 版本号: v$MANIFEST_VER"
+echo "[1/8] 版本号: v$MANIFEST_VER"
 
 if [ ! -f "$PROJECT_ROOT/VERSION" ] || [ "$(cat "$PROJECT_ROOT/VERSION")" != "$MANIFEST_VER" ]; then
   echo "  ⚠️ VERSION 不同步，自动修正..."
@@ -46,7 +46,7 @@ if [ ! -f "$PROJECT_ROOT/VERSION" ] || [ "$(cat "$PROJECT_ROOT/VERSION")" != "$M
 fi
 
 # 2. 验证 changelog
-echo "[2/7] 验证 changelog..."
+echo "[2/8] 验证 changelog..."
 CHANGELOG_VER=$(python3 -c "
 import json
 with open('$SRC_DIR/changelog.json') as f:
@@ -59,8 +59,29 @@ if [ "$CHANGELOG_VER" != "$MANIFEST_VER" ]; then
 fi
 echo "  ✅ changelog.json 最新版本 v$CHANGELOG_VER"
 
-# 3. 检查 tag
-echo "[3/7] 检查 tag..."
+# 3. 文档版本一致性（README / CHANGELOG.md）
+#    版本唯一源只看 src/manifest.json；这里把"人写的文档"拉回一致：
+#    README 的版本号自动替换，CHANGELOG.md 顶条缺 vX.Y.Z 时按 changelog.json 自动补。
+echo "[3/8] 校验文档版本一致性..."
+if ! python3 "$SCRIPT_DIR/scripts/check-version-consistency.py" --fix --changelog-json "$SRC_DIR/changelog.json"; then
+  echo "  ❌ 文档版本不一致且无法自动修复，请按上方提示人工补齐后重跑"
+  exit 1
+fi
+DOC_CHANGES=$(git status --porcelain -- README.md CHANGELOG.md)
+if [ -n "$DOC_CHANGES" ]; then
+  echo "  ⚠️ 已自动同步文档，提交这两个文件..."
+  git add -- README.md CHANGELOG.md
+  if ! git commit -q -m "[v$MANIFEST_VER] docs: 自动同步 README/CHANGELOG 版本号"; then
+    echo "  ❌ 文档同步提交失败（检查 git user.name/email），请手动提交后重跑"
+    exit 1
+  fi
+  echo "  ✅ 文档同步已提交"
+else
+  echo "  ✅ README / CHANGELOG.md 版本一致"
+fi
+
+# 4. 检查 tag
+echo "[4/8] 检查 tag..."
 TAG_EXISTS=false
 if git rev-parse "v$MANIFEST_VER" >/dev/null 2>&1; then
   TAG_EXISTS=true
@@ -69,8 +90,8 @@ else
   echo "  ✅ tag v$MANIFEST_VER 未创建，后续会创建"
 fi
 
-# 4. 检查工作区
-echo "[4/7] 检查工作区..."
+# 5. 检查工作区
+echo "[5/8] 检查工作区..."
 if [ -n "$(git status --porcelain)" ]; then
   echo "  ❌ 工作区有未提交的变更:"
   git status --short
@@ -78,8 +99,8 @@ if [ -n "$(git status --porcelain)" ]; then
 fi
 echo "  ✅ 工作区干净"
 
-# 5. 构建 ZIP
-echo "[5/7] 构建 ZIP..."
+# 6. 构建 ZIP
+echo "[6/8] 构建 ZIP..."
 bash "$SCRIPT_DIR/scripts/build.sh"
 
 ZIP_FILE="$PROJECT_ROOT/session-master-v$MANIFEST_VER.zip"
@@ -89,8 +110,8 @@ if [ ! -f "$ZIP_FILE" ]; then
 fi
 echo "  ✅ ZIP 构建完成"
 
-# 6. 生成 Release body
-echo "[6/7] 生成 Release body..."
+# 7. 生成 Release body
+echo "[7/8] 生成 Release body..."
 RELEASE_BODY_FILE=$(mktemp)
 python3 << 'PYEOF' > "$RELEASE_BODY_FILE"
 import json
@@ -118,9 +139,9 @@ cat "$RELEASE_BODY_FILE"
 echo ""
 echo "============================"
 
-# 7. 发布
+# 8. 发布
 echo ""
-echo "[7/7] 发布到 GitHub..."
+echo "[8/8] 发布到 GitHub..."
 
 # 创建 tag
 if [ "$TAG_EXISTS" = false ]; then

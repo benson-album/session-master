@@ -1633,6 +1633,47 @@ async function getEffectiveKeywords(domain) {
 
 // ========== API 消息处理 ==========
 
+// ============ 登录状态判定（规则在 login_detect.json，改规则不用动代码） ============
+let _loginDetectCfg = null;
+async function getLoginDetectConfig() {
+  if (_loginDetectCfg) return _loginDetectCfg;
+  try {
+    const resp = await fetch(chrome.runtime.getURL('login_detect.json'));
+    _loginDetectCfg = await resp.json();
+  } catch (e) {
+    console.log('[SessionMaster] ⚠️ login_detect.json 加载失败，使用内置兜底规则:', e.message);
+    _loginDetectCfg = {
+      cookie: { authNameKeywords: ['session', 'sid', 'token', 'auth', 'login', 'sess', 'jse', 'sid_'], ignoreNameKeywords: ['_ga', '_gid', 'hm_'] },
+      storage: { authKeyKeywords: ['token', 'auth', 'session', 'ticket', 'jwt'] }
+    };
+  }
+  return _loginDetectCfg;
+}
+
+// 让 content script 扫一遍页面存储；优先当前标签页，域名不符时按域名找标签页。
+// 页面没有 content script（chrome:// 等）时返回 null
+async function scanActiveTabStorage(domain, storageCfg) {
+  const hostOf = (u) => { try { return new URL(u).hostname; } catch (e) { return ''; } };
+  const sameDomain = (h) => !!h && (h === domain || h.endsWith('.' + domain) || domain.endsWith('.' + h));
+  try {
+    let tab = null;
+    const active = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (active && active.length && sameDomain(hostOf(active[0].url))) tab = active[0];
+    if (!tab) {
+      // 直接遍历所有标签页按主机名匹配，避免 URL 模式（IP/localhost）构造出错
+      const all = await chrome.tabs.query({});
+      tab = (all || []).find(t => sameDomain(hostOf(t.url))) || null;
+    }
+    if (!tab) return null;
+    const resp = await chrome.tabs.sendMessage(tab.id, { action: 'scanStorage', config: storageCfg || {} });
+    if (!resp || !resp.success) return null;
+    resp.tabId = tab.id;
+    return resp;
+  } catch (e) {
+    return null;
+  }
+}
+
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   (async () => {
     switch (request.action) {
@@ -1647,11 +1688,16 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       case 'checkLoginStatus':
         if (!request.domain) { sendResponse({ status: 'unknown' }); break; }
         try {
-          const rawCookies = await chrome.cookies.getAll({ domain: request.domain });
+          const cfg = await getLoginDetectConfig();
+          const cookieCfg = cfg.cookie || {};
+          const authWords = (cookieCfg.authNameKeywords || []).map(s => String(s).toLowerCase());
+          const ignoreWords = (cookieCfg.ignoreNameKeywords || []).map(s => String(s).toLowerCase());
+          const isIgnored = (name) => ignoreWords.some(s => String(name).toLowerCase().includes(s));
+
           // 父级域搜索：逐级向上
           const allDomains = [request.domain];
           const parts = request.domain.split('.');
-          if (parts.length >= 3) {
+          if (cookieCfg.parentDomainEscalate !== false && parts.length >= 3) {
             for (let i = 1; i < parts.length - 1; i++) {
               allDomains.push('.' + parts.slice(i).join('.'));
             }
@@ -1667,22 +1713,107 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
               }
             } catch(e) {}
           }
-          if (allCookies.length === 0) {
-            sendResponse({ status: 'logged_out', count: 0 });
-          } else {
-            const httpOnlyCount = allCookies.filter(c => c.httpOnly).length;
-            const sessionNames = ['session', 'sid', 'token', 'auth', 'login', 'sess', 'jse', 'sid_'];
-            const hasSessionCookie = allCookies.some(c =>
-              sessionNames.some(s => c.name.toLowerCase().includes(s))
-            );
-            if (httpOnlyCount > 0 || hasSessionCookie) {
-              sendResponse({ status: 'logged_in', count: allCookies.length, httpOnly: httpOnlyCount });
-            } else {
-              sendResponse({ status: 'maybe', count: allCookies.length });
+          // 去掉统计类的普通 Cookie，避免把 _ga 之类当成登录凭据
+          const effective = allCookies.filter(c => !isIgnored(c.name));
+          const httpOnlyCount = effective.filter(c => c.httpOnly).length;
+          const authCookies = effective.filter(c =>
+            authWords.some(w => String(c.name).toLowerCase().includes(w))
+          );
+
+          // ① 认证 Cookie（HttpOnly 或名字命中认证关键字）→ 已登录
+          if (httpOnlyCount > 0 || authCookies.length > 0) {
+            sendResponse({
+              status: 'logged_in', source: 'cookie', count: allCookies.length,
+              httpOnly: httpOnlyCount, evidence: authCookies.map(c => c.name).slice(0, 5)
+            });
+            break;
+          }
+
+          // ② 页面侧信息：存储凭据、登录页特征、可选接口探测
+          let storage = null;
+          if (!(cfg.verdict && cfg.verdict.scanStorageWhenNoAuthCookie === false)) {
+            const scanCfg = Object.assign({}, cfg.storage || {});
+            scanCfg.loginPage = cfg.loginPage || {};
+            if (cfg.probe && cfg.probe.enabled) {
+              const site = (cfg.probe.sites || {})[request.domain];
+              if (site) scanCfg.probe = Object.assign({ enabled: true, timeoutMs: cfg.probe.timeoutMs || 3000 }, site);
             }
+            storage = await scanActiveTabStorage(request.domain, scanCfg);
+          }
+          const pageInfo = (storage && storage.page) ? storage.page : null;
+          const probe = (storage && storage.probe) ? storage.probe : null;
+          const storageEvidence = ((storage && storage.hits) || []).map(h => h.area + ':' + h.key);
+
+          // ②-1 接口探测最权威（配置开启才跑）
+          if (probe && typeof probe.status === 'number') {
+            if (probe.ok) {
+              sendResponse({ status: 'logged_in', source: 'probe', count: allCookies.length,
+                evidence: ['HTTP ' + probe.status + ' ' + probe.url] });
+              break;
+            }
+            if (probe.unauth) {
+              sendResponse({ status: 'logged_out', source: 'probe', count: allCookies.length,
+                evidence: ['HTTP ' + probe.status + ' ' + probe.url] });
+              break;
+            }
+          }
+
+          // ②-2 登录页特征：页面就是登录页 → 没有有效登录态（可纠正残留 token 的假已登录）
+          if (!(cfg.verdict && cfg.verdict.loginPageOverridesStorage === false) && pageInfo && pageInfo.isLoginPage) {
+            sendResponse({
+              status: 'logged_out', source: 'login-page', count: allCookies.length,
+              stale: storageEvidence.slice(0, 5),
+              evidence: ['当前页是登录页' + (storageEvidence.length ? '（残留 ' + storageEvidence[0] + ' 已失效）' : '')]
+            });
+            break;
+          }
+
+          // ②-3 认证存储：Bearer Token / JWT 型站点（CAS SSO + localStorage 等）
+          if (storageEvidence.length > 0) {
+            sendResponse({
+              status: 'logged_in', source: 'storage', count: allCookies.length,
+              storageKeys: storage.keyCount,
+              evidence: storageEvidence.slice(0, 5)
+            });
+            break;
+          }
+
+          // ③ 有 Cookie 或存储但都不像凭据 → 待确认
+          if (allCookies.length > 0 || (storage && storage.keyCount > 0)) {
+            sendResponse({
+              status: 'maybe', count: allCookies.length,
+              storageKeys: storage ? storage.keyCount : 0
+            });
+          } else {
+            sendResponse({ status: 'logged_out', count: 0 });
           }
         } catch (e) {
           sendResponse({ status: 'error', error: e.message });
+        }
+        break;
+
+      // ---- 导出“无 Cookie 站点”的认证本地存储（Bearer/JWT 型） ----
+      case 'exportAuthStorage':
+        try {
+          const cfg = await getLoginDetectConfig();
+          const found = await scanActiveTabStorage(request.domain, Object.assign({}, cfg.storage || {}, { loginPage: {} }));
+          if (!found || !found.hits || !found.hits.length) {
+            sendResponse({ success: false, message: '未发现认证存储' });
+            break;
+          }
+          const keys = [...new Set(found.hits.filter(h => h.area === 'localStorage').map(h => h.key))];
+          if (!keys.length) {
+            sendResponse({ success: false, message: '认证凭据不在 localStorage 中' });
+            break;
+          }
+          const resp = await chrome.tabs.sendMessage(found.tabId, { action: 'readLocalStorage', keys: keys });
+          const data = (resp && resp.data) || {};
+          sendResponse({
+            success: Object.keys(data).length > 0, data: data,
+            keys: Object.keys(data), domain: request.domain
+          });
+        } catch (e) {
+          sendResponse({ success: false, message: e.message });
         }
         break;
 
