@@ -148,7 +148,12 @@ if [ "$TAG_EXISTS" = false ]; then
   git tag "v$MANIFEST_VER"
   echo "  ✅ tag v$MANIFEST_VER 已创建"
 fi
-git push origin "v$MANIFEST_VER" 2>&1 | tail -1
+# 推送 tag：有 TOKEN 时用 token URL（输出脱敏），否则退回 origin
+if [ -n "$TOKEN" ]; then
+  git push "https://${TOKEN}@github.com/${REPO}.git" "v$MANIFEST_VER" 2>&1 | sed "s/${TOKEN}/***/g" | tail -1
+else
+  git push origin "v$MANIFEST_VER" 2>&1 | tail -1
+fi
 echo "  ✅ tag 已推送"
 
 # 检查已有 Release
