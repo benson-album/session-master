@@ -2088,16 +2088,33 @@
   }
 
   async function checkUpdate() {
+    var current = chrome.runtime.getManifest().version;
+
+    // 优先用后台结果：后台侧带 6 小时缓存、失败重试和独立超时，
+    // 冷启动时（浏览器刚打开就点图标）比 popup 自己 fetch 更可靠
     try {
-      // 从后台获取升级检测配置（URL 可从配置文件自定义）
+      var bgResult = await chrome.runtime.sendMessage({ action: 'checkUpdate' });
+      if (bgResult && !bgResult.error && bgResult.remoteVersion) {
+        if (bgResult.updateAvailable) {
+          showUpdateAvailable(bgResult.remoteVersion, bgResult.currentVersion || current);
+        } else {
+          showUpToDate();
+        }
+        return;
+      }
+    } catch (e) {
+      // 后台不可用，继续走下面的直接探测
+    }
+
+    // 兜底：直接探测版本文件（URL 可在配置里自定义）
+    try {
       var ucfg = await chrome.runtime.sendMessage({ action: 'getUpdateConfig' });
       if (!ucfg || !ucfg.url || ucfg.enabled === false) return;
       var updateUrl = ucfg.url;
-      
-      var resp = await fetch(updateUrl, { method: 'GET', signal: AbortSignal.timeout(5000) });
+
+      var resp = await fetch(updateUrl, { method: 'GET', signal: AbortSignal.timeout(8000) });
       if (!resp.ok) return;
       var latest = (await resp.text()).trim();
-      var current = chrome.runtime.getManifest().version;
       if (compareVersions(latest, current) > 0) {
         showUpdateAvailable(latest, current);
       } else {

@@ -97,6 +97,6 @@ export const APP_CONFIG = {
 
   // ===== 请求超时 =====
   TIMEOUT: {
-    VERSION_CHECK_MS: 5000
+    VERSION_CHECK_MS: 8000
   }
 };
