@@ -1220,8 +1220,10 @@ async function checkForUpdate() {
       // 清除角标
       chrome.action.setBadgeText({ text: '' });
     }
+    return { ok: true, ...result };
   } catch (e) {
     console.warn('[SessionMaster] 版本检查失败:', e.message);
+    return { ok: false, error: e.message };
   }
 }
 
@@ -1959,13 +1961,20 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           const lastCheck = await getStorage('update_last_check', null);
           const stale = !lastCheck || (Date.now() - lastCheck.checkedAt) > (UPDATE.CHECK_INTERVAL_MINUTES * 60 * 1000 / 2);
           if (stale || request.force) {
-            await checkForUpdate();
-            sendResponse({ ...(await getStorage('update_last_check', null)), rechecked: true });
+            const fresh = await checkForUpdate();
+            const cached = await getStorage('update_last_check', null);
+            // 检查失败时把上次成功结果一并返回，弹窗仍能显示（不会白屏/无横幅）
+            sendResponse({
+              ...(cached || {}),
+              rechecked: true,
+              failed: !fresh || fresh.ok === false,
+              error: fresh && fresh.error
+            });
           } else {
-            sendResponse({ ...lastCheck, rechecked: false });
+            sendResponse({ ...lastCheck, rechecked: false, failed: false });
           }
         } catch (e) {
-          sendResponse({ error: e.message });
+          sendResponse({ error: e.message, failed: true });
         }
         break;
       case 'getAppConfig':
